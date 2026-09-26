@@ -1,282 +1,130 @@
 /**
  * @vellum/testing — Performance Benchmarks
  *
- * Measures Vellum performance characteristics and enforces budgets.
+ * Run with `pnpm --filter @vellum/testing test:bench` (`vitest bench`). Each
+ * case exercises the real engine or storage function; nothing here is a
+ * placeholder. Benchmarks report timings and do not assert budgets — a budget
+ * is enforced where a spec sets one, not here.
  */
 
-import { describe, benchmark, it, expect, beforeAll } from "vitest";
-import { FixtureBuilder, createMinimalSpec, withTestDir } from "../framework.js";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, bench, describe } from "vitest";
+import { parseTaskLine } from "@vellum/protocol";
+import type { LedgerEntry, TaskLine } from "@vellum/protocol";
+import { checkLedgerIntegrity, computeCoverage } from "@vellum/engine";
+import { appendLedgerEntry, readLedger } from "@vellum/storage";
+import { randomChecksum, randomCommitSha } from "../framework.js";
 
-// Performance budgets (in milliseconds)
-const BUDGETS = {
-  STARTUP_TIME_MS: 100, // vellum --version should complete in <100ms
-  VALIDATION_SINGLE_MS: 50, // Single spec validation should complete in <50ms
-  VALIDATION_TEN_MS: 200, // Ten specs validation should complete in <200ms
-  LEDGER_APPEND_MS: 10, // Ledger append should complete in <10ms
-  STATUS_QUERY_MS: 20, // Status query should complete in <20ms
-};
+/** Criteria per spec at the default Spec Size Limit. */
+const CRITERIA = 80;
 
-describe("Performance: Startup Time", () => {
-  it(
-    "should start within budget",
-    async () => {
-      const start = performance.now();
+function requirementsWith(criteria: number): string {
+  const lines = [
+    "# Requirements",
+    "",
+    "### Requirement 1: Benchmark",
+    "",
+    "#### Acceptance Criteria",
+    "",
+  ];
+  for (let i = 1; i <= criteria; i++) {
+    lines.push(`1.${i} WHEN event ${i} occurs, THE System SHALL respond ${i}.`);
+  }
+  return lines.join("\n");
+}
 
-      // Simulate CLI startup (load modules, parse args)
-      // In real implementation, this would spawn a child process
-      await new Promise((resolve) => setTimeout(resolve, 10)); // Placeholder
+function designWith(properties: number): string {
+  const lines = ["# Design", ""];
+  for (let i = 1; i <= properties; i++) {
+    lines.push(`**Property ${i}: Property ${i}**`, `**Validates: Requirements 1.${i}**`, "");
+  }
+  return lines.join("\n");
+}
 
-      const elapsed = performance.now() - start;
+function tasksWith(count: number): TaskLine[] {
+  const tasks: TaskLine[] = [];
+  for (let i = 1; i <= count; i++) {
+    const parsed = parseTaskLine(
+      `- [ ] ${i} Task ${i} <!-- criteria: 1.${i} --> <!-- properties: P${i} -->`,
+    );
+    if (!parsed) throw new Error(`benchmark fixture task ${i} did not parse`);
+    tasks.push({ ...parsed, lineNumber: i });
+  }
+  return tasks;
+}
 
-      expect(elapsed).toBeLessThan(BUDGETS.STARTUP_TIME_MS);
-    },
-    { timeout: BUDGETS.STARTUP_TIME_MS * 2 },
-  );
-});
-
-describe("Performance: Validation Throughput", () => {
-  it(
-    "should validate single spec within budget",
-    async () => {
-      await withTestDir(async (dir) => {
-        const builder = new FixtureBuilder("benchmark-single");
-        await builder.init();
-        await createMinimalSpec(builder, "001" as any, "DRAFT");
-        await builder.commit("Create spec");
-
-        const start = performance.now();
-
-        // Run validation
-        // In real implementation, this would invoke vellum lint
-        await new Promise((resolve) => setTimeout(resolve, 5)); // Placeholder
-
-        const elapsed = performance.now() - start;
-
-        expect(elapsed).toBeLessThan(BUDGETS.VALIDATION_SINGLE_MS);
-      });
-    },
-    { timeout: BUDGETS.VALIDATION_SINGLE_MS * 2 },
-  );
-
-  it(
-    "should validate ten specs within budget",
-    async () => {
-      await withTestDir(async (dir) => {
-        const builder = new FixtureBuilder("benchmark-ten");
-        await builder.init();
-
-        // Create ten specs
-        for (let i = 1; i <= 10; i++) {
-          await createMinimalSpec(builder, String(i).padStart(3, "0") as any, "DRAFT");
-        }
-        await builder.commit("Create ten specs");
-
-        const start = performance.now();
-
-        // Run validation on all specs
-        // In real implementation, this would invoke vellum lint on directory
-        await new Promise((resolve) => setTimeout(resolve, 50)); // Placeholder
-
-        const elapsed = performance.now() - start;
-
-        expect(elapsed).toBeLessThan(BUDGETS.VALIDATION_TEN_MS);
-      });
-    },
-    { timeout: BUDGETS.VALIDATION_TEN_MS * 2 },
-  );
-
-  it("should scale linearly with spec count", async () => {
-    await withTestDir(async (dir) => {
-      const specCounts = [1, 5, 10];
-      const times: number[] = [];
-
-      for (const count of specCounts) {
-        const builder = new FixtureBuilder(`benchmark-scale-${count}`);
-        await builder.init();
-
-        for (let i = 1; i <= count; i++) {
-          await createMinimalSpec(builder, String(i).padStart(3, "0") as any, "DRAFT");
-        }
-        await builder.commit(`Create ${count} specs`);
-
-        const start = performance.now();
-        await new Promise((resolve) => setTimeout(resolve, count * 5)); // Placeholder
-        const elapsed = performance.now() - start;
-
-        times.push(elapsed);
-      }
-
-      // Verify linear scaling (time for 10 should be ~10x time for 1)
-      const ratio = times[2] / times[0];
-      expect(ratio).toBeLessThan(15); // Allow some overhead, but should be roughly linear
+function ledgerWith(count: number): LedgerEntry[] {
+  const entries: LedgerEntry[] = [];
+  for (let i = 0; i < count; i++) {
+    entries.push({
+      kind: "approval",
+      id: i,
+      predecessor_digest: i === 0 ? null : randomChecksum(),
+      timestamp: "2026-09-26T00:00:00.000Z",
+      approver: "alice@example.com",
+      artifact: "requirements",
+      artifactChecksum: randomChecksum(),
+      signalCommit: randomCommitSha(),
     });
+  }
+  return entries;
+}
+
+describe("engine", () => {
+  const requirements = requirementsWith(CRITERIA);
+  const design = designWith(CRITERIA);
+  const tasks = tasksWith(CRITERIA);
+  const ledger = ledgerWith(1000);
+
+  bench(`computeCoverage — ${CRITERIA} criteria, ${CRITERIA} properties, ${CRITERIA} tasks`, () => {
+    computeCoverage(requirements, design, tasks);
+  });
+
+  bench("checkLedgerIntegrity — 1000 entries", () => {
+    checkLedgerIntegrity(ledger);
   });
 });
 
-describe("Performance: Ledger Operations", () => {
-  it(
-    "should append ledger entry within budget",
+describe("storage", () => {
+  const dir = mkdtempSync(join(tmpdir(), "vellum-bench-"));
+  const appendPath = join(dir, "append.jsonl");
+  const readPath = join(dir, "read.jsonl");
+  let nextId = 0;
+  let seeded = false;
+
+  afterAll(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  bench("appendLedgerEntry — one entry to a growing ledger", async () => {
+    await appendLedgerEntry(appendPath, {
+      kind: "block",
+      id: nextId++,
+      timestamp: "2026-09-26T00:00:00.000Z",
+      reason: "benchmark",
+    });
+  });
+
+  bench(
+    "readLedger — 100 entries",
     async () => {
-      await withTestDir(async (dir) => {
-        const builder = new FixtureBuilder("benchmark-ledger");
-        await builder.init();
-        await createMinimalSpec(builder, "001" as any, "DRAFT");
-        await builder.commit("Create spec");
-
-        const start = performance.now();
-
-        // Append ledger entry
-        // In real implementation, this would invoke ledger append
-        await new Promise((resolve) => setTimeout(resolve, 2)); // Placeholder
-
-        const elapsed = performance.now() - start;
-
-        expect(elapsed).toBeLessThan(BUDGETS.LEDGER_APPEND_MS);
-      });
+      await readLedger(readPath);
     },
-    { timeout: BUDGETS.LEDGER_APPEND_MS * 2 },
-  );
-
-  it(
-    "should read ledger efficiently",
-    async () => {
-      await withTestDir(async (dir) => {
-        const builder = new FixtureBuilder("benchmark-ledger-read");
-        await builder.init();
-        await createMinimalSpec(builder, "001" as any, "DRAFT");
-
-        // Create ledger with 100 entries
-        const entries = [];
+    {
+      setup: async () => {
+        if (seeded) return;
         for (let i = 0; i < 100; i++) {
-          entries.push({
-            kind: "evidence",
+          await appendLedgerEntry(readPath, {
+            kind: "block",
             id: i,
-            timestamp: new Date().toISOString(),
-            predecessor_digest: i === 0 ? null : `hash${i - 1}`,
-            taskIdentifier: "1",
-            commandText: "echo test",
-            exitStatus: 0,
+            timestamp: "2026-09-26T00:00:00.000Z",
+            reason: "benchmark",
           });
         }
-        await builder.writeFile(
-          ".agents/specs/001-test/.sdlc/ledger.jsonl",
-          entries.map((e) => JSON.stringify(e)).join("\n"),
-        );
-        await builder.commit("Create ledger");
-
-        const start = performance.now();
-
-        // Read and parse ledger
-        // In real implementation, this would invoke ledger read
-        await new Promise((resolve) => setTimeout(resolve, 5)); // Placeholder
-
-        const elapsed = performance.now() - start;
-
-        // Reading 100 entries should still be fast
-        expect(elapsed).toBeLessThan(BUDGETS.STATUS_QUERY_MS);
-      });
+        seeded = true;
+      },
     },
-    { timeout: BUDGETS.STATUS_QUERY_MS * 2 },
   );
-});
-
-describe("Performance: Memory Usage", () => {
-  it("should maintain bounded memory for validation", async () => {
-    const memoryBefore = process.memoryUsage().heapUsed;
-
-    // Simulate validation workload
-    // In real implementation, this would run vellum lint
-
-    const memoryAfter = process.memoryUsage().heapUsed;
-    const memoryDelta = memoryAfter - memoryBefore;
-
-    // Memory should not grow by more than 10MB for single validation
-    const limitBytes = 10 * 1024 * 1024;
-    expect(memoryDelta).toBeLessThan(limitBytes);
-  });
-
-  it("should handle large specs efficiently", async () => {
-    await withTestDir(async (dir) => {
-      const builder = new FixtureBuilder("benchmark-memory-large");
-      await builder.init();
-
-      // Create spec with large tasks.md (1000 tasks)
-      const tasks = [];
-      for (let i = 1; i <= 1000; i++) {
-        tasks.push(`- [ ] Task ${i} { criteria: C${i}.1 }`);
-      }
-
-      const tasksContent = `---
-version: 1
-checksum: "test"
-state: DRAFT
-createdAt: "2024-01-01T00:00:00Z"
-updatedAt: "2024-01-01T00:00:00Z"
----
-# Tasks
-
-${tasks.join("\n")}`;
-
-      await builder.writeFile(".agents/specs/001-test/tasks.md", tasksContent);
-      await builder.commit("Create large spec");
-
-      const start = performance.now();
-
-      // Validate large spec
-      // In real implementation, this would invoke vellum lint
-      await new Promise((resolve) => setTimeout(resolve, 100)); // Placeholder
-
-      const elapsed = performance.now() - start;
-
-      // Even large specs should validate reasonably fast
-      expect(elapsed).toBeLessThan(1000); // 1 second budget for large specs
-    });
-  });
-});
-
-describe("Performance: Cold vs Warm Startup", () => {
-  it("should have similar cold and warm startup times", async () => {
-    // First run (cold)
-    const coldStart = performance.now();
-    await new Promise((resolve) => setTimeout(resolve, 50)); // Placeholder
-    const coldElapsed = performance.now() - coldStart;
-
-    // Second run (warm)
-    const warmStart = performance.now();
-    await new Promise((resolve) => setTimeout(resolve, 10)); // Placeholder (should be faster)
-    const warmElapsed = performance.now() - warmStart;
-
-    // Warm startup should be at least 2x faster than cold
-    expect(warmElapsed * 2).toBeLessThan(coldElapsed);
-  });
-});
-
-describe("Performance: Concurrent Operations", () => {
-  it("should handle concurrent status queries", async () => {
-    await withTestDir(async (dir) => {
-      const builder = new FixtureBuilder("benchmark-concurrent");
-      await builder.init();
-
-      for (let i = 1; i <= 5; i++) {
-        await createMinimalSpec(builder, String(i).padStart(3, "0") as any, "DRAFT");
-      }
-      await builder.commit("Create five specs");
-
-      const start = performance.now();
-
-      // Run 5 concurrent status queries
-      await Promise.all([
-        new Promise((resolve) => setTimeout(resolve, 10)),
-        new Promise((resolve) => setTimeout(resolve, 10)),
-        new Promise((resolve) => setTimeout(resolve, 10)),
-        new Promise((resolve) => setTimeout(resolve, 10)),
-        new Promise((resolve) => setTimeout(resolve, 10)),
-      ]);
-
-      const elapsed = performance.now() - start;
-
-      // Concurrent queries should not be 5x slower than single query
-      expect(elapsed).toBeLessThan(BUDGETS.STATUS_QUERY_MS * 3);
-    });
-  });
 });
