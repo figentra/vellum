@@ -102,27 +102,25 @@ export const POLICY_SCHEMA: PolicySchema = {
 };
 
 /**
- * Read and validate Policy from Consumer Repository.
+ * Validate a Policy the caller has already read and parsed.
  *
- * @param policyPath - path to Policy JSON file
+ * The engine performs no I/O: reading and JSON-parsing the Policy file is the
+ * storage layer's job. `undefined` means the file was absent.
+ *
+ * @param policyJson - parsed Policy file content, or undefined when the file is missing
+ * @param policyPath - path to the Policy file (for errors)
  * @returns Policy with warnings
- * @throws {PolicyValidationError} when schema validation fails
+ * @throws {PolicyValidationError} when the Policy is missing or fails schema validation
  */
-export function readPolicy(policyPath: string): PolicyReadResult {
-  let policyJson: unknown;
-
-  try {
-    // In runtime, this would use fs.readFileSync or similar
-    // For now, this is a placeholder that will be connected to actual file reading
-    policyJson = {} as Record<string, unknown>;
-  } catch (error) {
-    const validationError: PolicyValidationError = {
+export function readPolicy(policyJson: unknown, policyPath: string): PolicyReadResult {
+  if (policyJson === undefined) {
+    const missing: PolicyValidationError = {
       code: "POLICY_MISSING",
       message: `Policy file not found: ${policyPath}`,
       file: policyPath,
       exitStatus: 2,
     };
-    throw validationError;
+    throw missing;
   }
 
   // Validate schema
@@ -132,7 +130,7 @@ export function readPolicy(policyPath: string): PolicyReadResult {
       code: "POLICY_SCHEMA_VIOLATION",
       message: validationResult.message,
       file: policyPath,
-      field: validationResult.field,
+      ...(validationResult.field === undefined ? {} : { field: validationResult.field }),
       exitStatus: 2,
     };
     throw validationError;
@@ -161,6 +159,13 @@ export function readPolicy(policyPath: string): PolicyReadResult {
 export function validatePolicySchema(
   policy: unknown,
   policyPath: string,
+): { valid: true } | { valid: false; message: string; field?: string } {
+  const result = checkPolicySchema(policy);
+  return result.valid ? result : { ...result, message: `${policyPath}: ${result.message}` };
+}
+
+function checkPolicySchema(
+  policy: unknown,
 ): { valid: true } | { valid: false; message: string; field?: string } {
   if (typeof policy !== "object" || policy === null) {
     return {

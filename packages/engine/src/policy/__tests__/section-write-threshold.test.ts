@@ -65,7 +65,8 @@ describe("section-write-threshold", () => {
     it("should return Finding for artifacts above threshold", () => {
       const result = checkWholeArtifactWrite("test.md", 100000, DEFAULT_SECTION_WRITE_THRESHOLD);
       expect(result).not.toBeNull();
-      expect(result!.code).toBe("ARTIFACT_EXCEEDS_THRESHOLD");
+      expect(result!.rule).toBe("ARTIFACT_EXCEEDS_THRESHOLD");
+      expect(result!.file).toBe("test.md");
       expect(result!.artifactPath).toBe("test.md");
       expect(result!.artifactSize).toBe(100000);
     });

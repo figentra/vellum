@@ -13,7 +13,7 @@ import {
   getDefaultControl,
 } from "../control-resolver";
 import type { ControlContext, PolicyRule } from "../control-resolver";
-import type { RiskClass, Control } from "../domain/policy/types";
+import type { RiskClass } from "../../domain/policy/types";
 
 describe("control-resolver", () => {
   describe("calculateSpecificity", () => {

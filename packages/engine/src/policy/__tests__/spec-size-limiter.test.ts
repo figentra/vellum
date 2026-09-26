@@ -58,7 +58,8 @@ describe("spec-size-limiter", () => {
     it("should return Finding when exceeding limit", () => {
       const result = checkSpecSizeLimit("test-spec", 100, 80);
       expect(result).not.toBeNull();
-      expect(result!.code).toBe("SPEC_SIZE_LIMIT_EXCEEDED");
+      expect(result!.rule).toBe("SPEC_SIZE_LIMIT_EXCEEDED");
+      expect(result!.file).toBe("requirements.md");
       expect(result!.specId).toBe("test-spec");
       expect(result!.criterionCount).toBe(100);
       expect(result!.limit).toBe(80);
@@ -73,17 +74,9 @@ describe("spec-size-limiter", () => {
 
   describe("permitsTransitionWithSizeFinding", () => {
     it("should permit when preconditions hold and only size finding", () => {
-      const findings: Finding[] = [
-        {
-          code: "SPEC_SIZE_LIMIT_EXCEEDED",
-          level: "warn",
-          message: "test",
-          specId: "test-spec",
-          criterionCount: 100,
-          limit: 80,
-          splitProposal: { specId: "test-spec", proposedChildren: [] },
-        } as any,
-      ];
+      const sizeFinding = checkSpecSizeLimit("test-spec", 100, 80);
+      expect(sizeFinding).not.toBeNull();
+      const findings: Finding[] = [sizeFinding!];
       const result = permitsTransitionWithSizeFinding(findings, true);
       expect(result).toBe(true);
     });
@@ -96,12 +89,8 @@ describe("spec-size-limiter", () => {
 
     it("should not permit when other findings exist", () => {
       const findings: Finding[] = [
-        { code: "OTHER_FINDING", level: "error", message: "test" } as Finding,
-        {
-          code: "SPEC_SIZE_LIMIT_EXCEEDED",
-          level: "warn",
-          message: "test",
-        } as any,
+        { file: "requirements.md", line: 3, rule: "OTHER_FINDING", message: "test" },
+        { file: "requirements.md", line: 1, rule: "SPEC_SIZE_LIMIT_EXCEEDED", message: "test" },
       ];
       const result = permitsTransitionWithSizeFinding(findings, true);
       expect(result).toBe(false);

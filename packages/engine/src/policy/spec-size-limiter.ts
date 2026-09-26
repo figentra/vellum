@@ -18,9 +18,17 @@ import type { Finding } from "@vellum/protocol";
 export const DEFAULT_SPEC_SIZE_LIMIT = 80;
 
 /**
+ * Rule identifier of the Spec Size Limit Finding.
+ */
+export const SPEC_SIZE_LIMIT_RULE = "SPEC_SIZE_LIMIT_EXCEEDED" as const;
+
+/**
  * Spec Size Limit Finding.
  */
 export interface SpecSizeLimitFinding extends Finding {
+  readonly rule: typeof SPEC_SIZE_LIMIT_RULE;
+  /** A warning: the Finding alone does not block a transition (criterion 13.5) */
+  readonly level: "warn";
   readonly specId: string;
   readonly criterionCount: number;
   readonly limit: number;
@@ -74,19 +82,23 @@ export function validateSpecSizeLimit(declaredLimit: unknown): number {
  * @param specId - Spec identifier
  * @param criterionCount - number of acceptance criteria
  * @param limit - Spec Size Limit
+ * @param requirementsPath - path of the Spec's requirements.md (the Finding's file)
  * @returns Finding or null if within limit
  */
 export function checkSpecSizeLimit(
   specId: string,
   criterionCount: number,
   limit: number,
+  requirementsPath = "requirements.md",
 ): SpecSizeLimitFinding | null {
   if (criterionCount <= limit) {
     return null;
   }
 
   return {
-    code: "SPEC_SIZE_LIMIT_EXCEEDED",
+    file: requirementsPath,
+    line: 1,
+    rule: SPEC_SIZE_LIMIT_RULE,
     specId,
     criterionCount,
     limit,
@@ -148,7 +160,7 @@ export function permitsTransitionWithSizeFinding(
   }
 
   // Permit if the only Finding is Spec Size Limit
-  const nonSizeFindings = findings.filter((f) => f.code !== "SPEC_SIZE_LIMIT_EXCEEDED");
+  const nonSizeFindings = findings.filter((f) => f.rule !== SPEC_SIZE_LIMIT_RULE);
 
   return nonSizeFindings.length === 0;
 }

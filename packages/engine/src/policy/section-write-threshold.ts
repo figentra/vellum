@@ -15,7 +15,7 @@ export const DEFAULT_SECTION_WRITE_THRESHOLD = 65536; // 64 KiB
  * Section Write Threshold Finding when whole-Artifact write refused.
  */
 export interface SectionWriteThresholdFinding extends Finding {
-  readonly code: "ARTIFACT_EXCEEDS_THRESHOLD";
+  readonly rule: "ARTIFACT_EXCEEDS_THRESHOLD";
   readonly artifactPath: string;
   readonly artifactSize: number;
   readonly threshold: number;
@@ -73,7 +73,9 @@ export function checkWholeArtifactWrite(
   }
 
   return {
-    code: "ARTIFACT_EXCEEDS_THRESHOLD",
+    file: artifactPath,
+    line: 1,
+    rule: "ARTIFACT_EXCEEDS_THRESHOLD",
     artifactPath,
     artifactSize,
     threshold,

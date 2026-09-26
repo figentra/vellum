@@ -11,7 +11,7 @@ import {
   mergeWithDefaults,
   DEFAULT_RISK_CLASS_CONTROLS,
 } from "../policy-reader";
-import type { RiskClass } from "../domain/policy/types";
+import type { RiskClass } from "../../domain/policy/types";
 
 describe("policy-reader", () => {
   describe("DEFAULT_RISK_CLASS_CONTROLS", () => {
@@ -119,6 +119,29 @@ describe("policy-reader", () => {
       };
       const result = mergeWithDefaults(declared, "critical");
       expect(result).toEqual(declared);
+    });
+  });
+
+  describe("readPolicy", () => {
+    it("throws POLICY_MISSING when the file is absent", () => {
+      expect(() => readPolicy(undefined, "policy.json")).toThrow(
+        expect.objectContaining({ code: "POLICY_MISSING", file: "policy.json", exitStatus: 2 }),
+      );
+    });
+
+    it("throws POLICY_SCHEMA_VIOLATION naming the field", () => {
+      expect(() => readPolicy({ risk_classes: ["extreme"] }, "policy.json")).toThrow(
+        expect.objectContaining({
+          code: "POLICY_SCHEMA_VIOLATION",
+          field: "risk_classes",
+          message: expect.stringContaining("policy.json: Invalid risk class"),
+        }),
+      );
+    });
+
+    it("warns for each risk class with no declared controls", () => {
+      const { warnings } = readPolicy({}, "policy.json");
+      expect(warnings).toHaveLength(4);
     });
   });
 });
