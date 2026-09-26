@@ -1,9 +1,10 @@
 /**
- * @vellum/plugin-opencode — OpenCode npm package
- *
- * Assembled from @vellum/method with OpenCode-specific format.
- * Output: opencode-vellum npm package + commands
+ * @vellum/plugin-opencode — OpenCode agents and commands, generated from @vellum/method.
+ * `pnpm build` writes them to dist/; nothing in dist/ is hand-edited.
  */
 
-// Placeholder — will be populated during Phase 4
-export const VERSION = "0.0.0" as const;
+export { buildOpenCodePackage, COMMANDS, GENERATOR } from "./build.ts";
+export type { BuildOptions, StageCommand } from "./build.ts";
+export { readMethod, methodRoot } from "./method.ts";
+export type { Method, MethodFile } from "./method.ts";
+export { writeTree } from "./write.ts";
