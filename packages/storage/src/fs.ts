@@ -148,7 +148,7 @@ export function parseFrontmatter(
   // Simple YAML parsing for our limited schema
   // (We don't need full YAML parser - frontmatter is simple key: value)
   const frontmatter: Record<string, unknown> = {};
-  const lines = frontmatterYaml.split(/\r?\n/);
+  const lines = (frontmatterYaml ?? "").split(/\r?\n/);
 
   for (const line of lines) {
     const colonIdx = line.indexOf(":");
@@ -170,7 +170,7 @@ export function parseFrontmatter(
     }
   }
 
-  return { frontmatter, body };
+  return { frontmatter, body: body ?? "" };
 }
 
 /**

@@ -128,6 +128,21 @@ export function isTerminalState(state: LifecycleState): state is TerminalState {
   );
 }
 
+/** Spec state stored in machine folder */
+export interface SpecState {
+  /** Effective state (may differ from recorded due to computed transitions) */
+  readonly effectiveState: LifecycleState;
+  /** State recorded in ledger */
+  readonly recordedState: LifecycleState;
+  /** Last transition metadata */
+  readonly lastTransition?: {
+    readonly from: LifecycleState;
+    readonly to: LifecycleState;
+    readonly timestamp: string;
+    readonly commit: CommitSha;
+  };
+}
+
 /** Lifecycle frontmatter at the top of each artifact. */
 export interface LifecycleFrontmatter {
   /** Artifact version (incremented on body change) */
@@ -328,6 +343,8 @@ export interface LedgerEntryHeader {
   readonly id: number;
   readonly predecessor_digest: string | null;
   readonly timestamp: string;
+  /** SHA-256 hash of entry (for integrity) */
+  readonly hash?: Checksum;
 }
 
 /** Full ledger entry */
@@ -412,6 +429,70 @@ export interface TransitionPrecondition {
 }
 
 // ============================================================================
+// Filesystem Interface
+// ============================================================================
+
+/**
+ * Filesystem abstraction for storage operations.
+ * Provides atomic operations to prevent corruption.
+ */
+export interface FileSystem {
+  /** Read file contents as UTF-8 string */
+  readFile(path: string): Promise<string>;
+  /** Write file atomically (temp file + rename) */
+  writeFile(path: string, content: string): Promise<void>;
+  /** Check if file exists */
+  exists(path: string): Promise<boolean>;
+  /** List directory contents */
+  readdir(path: string): Promise<readonly string[]>;
+  /** Delete file */
+  delete(path: string): Promise<void>;
+  /** Get file stats */
+  stat(path: string): Promise<{ mtime: Date; size: number }>;
+  /** Create directory recursively */
+  mkdirp(path: string): Promise<void>;
+  /** Update a section between markers atomically */
+  updateSection(
+    path: string,
+    options: {
+      startMarker: string;
+      endMarker: string;
+      content: string;
+    },
+  ): Promise<void>;
+}
+
+// ============================================================================
+// Git Types
+// ============================================================================
+
+/** Git repository status */
+export interface GitStatus {
+  readonly branch: string;
+  readonly head: CommitSha;
+  readonly modified: readonly string[];
+  readonly staged: readonly string[];
+  readonly untracked: readonly string[];
+  readonly isClean: boolean;
+}
+
+/** Git reader interface */
+export interface GitReader {
+  getHead(): Promise<CommitSha>;
+  getCommit(sha: CommitSha): Promise<GitCommit | null>;
+  isAncestor(ancestor: CommitSha, descendant: CommitSha): Promise<boolean>;
+  status(): Promise<GitStatus>;
+  getCommitsUpTo(sha: CommitSha): Promise<readonly GitCommit[]>;
+}
+
+/** Git writer interface */
+export interface GitWriter {
+  add(files: readonly string[]): Promise<void>;
+  commit(message: string, options?: { signoff?: boolean }): Promise<CommitSha>;
+  tag(name: string, message: string): Promise<void>;
+}
+
+// ============================================================================
 // Parsing and Formatting Functions
 // ============================================================================
 
@@ -435,4 +516,6 @@ export {
   getEntryIdValue,
   parseRuleIdentifier,
   formatRuleIdentifier,
+  isValidGitSha,
+  isValidChecksum,
 } from "./branded.js";

@@ -1,0 +1,115 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build-and-release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm turbo run build
+
+      - name: Run tests
+        run: pnpm turbo run test
+
+      - name: Check bundle size
+        run: |
+          TOTAL_SIZE=$(du -sb packages/vellum/dist/ | cut -f1)
+          MAX_SIZE=$((500 * 1024))
+          if [ "$TOTAL_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "Error: Bundle size exceeds limit"
+            exit 1
+          fi
+
+      - name: Version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Update package versions
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          # Update workspace packages to release version
+          jq --arg v "${VERSION#v}" '.version = $v' package.json > tmp.json && mv tmp.json package.json
+          find packages -name "package.json" -exec sh -c 'jq --arg v "'${VERSION#v}'" '\''.version = $v'\'' "$1" > tmp.json && mv tmp.json "$1"' _ {} \;
+
+      - name: Publish to npm
+        run: |
+          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
+          cd packages/vellum
+          pnpm publish --access public --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Release ${{ github.ref }}
+            
+            ## Changes
+            See [CHANGELOG.md](./CHANGELOG.md) for details.
+            
+            ## Installation
+            ```bash
+            npm install @figentra/vellum@${{ steps.get_version.outputs.VERSION }}
+            ```
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Notify on failure
+        if: failure()
+        run: |
+          echo "Release failed. Please check the logs."
+          # Could add Slack/Discord notification here
+
+  publish-docs:
+    name: Publish Documentation
+    runs-on: ubuntu-latest
+    needs: build-and-release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build docs
+        run: |
+          echo "Building documentation..."
+          # Could use a static site generator like VitePress
+          # pnpm docs:build
+
+      - name: Deploy docs to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          # Or ./docs-dist if using a static site generator

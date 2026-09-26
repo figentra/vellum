@@ -68,6 +68,13 @@ jobs:
       - name: Run tests
         run: pnpm turbo run test
 
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: packages/engine/coverage/
+          retention-days: 7
+
   boundaries:
     name: Boundaries
     runs-on: ubuntu-latest
@@ -87,10 +94,115 @@ jobs:
       - name: Check dependency boundaries
         run: pnpm turbo run build --dry=json | jq .
 
+  security:
+    name: Security Audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run npm audit
+        run: pnpm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for known vulnerabilities
+        run: npx better-npm-audit audit --level=moderate
+        continue-on-error: true
+
+  bundle-size:
+    name: Bundle Size Check
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm turbo run build
+
+      - name: Check bundle size
+        run: |
+          TOTAL_SIZE=$(du -sb packages/vellum/dist/ | cut -f1)
+          MAX_SIZE=$((500 * 1024))
+          echo "Bundle size: ${TOTAL_SIZE} bytes ($(($TOTAL_SIZE / 1024)) KB)"
+          if [ "$TOTAL_SIZE" -gt "$MAX_SIZE" ]; then
+            echo "Error: Bundle size ($TOTAL_SIZE bytes) exceeds limit ($MAX_SIZE bytes)"
+            exit 1
+          fi
+          echo "✅ Bundle size check passed"
+
+      - name: Check chunk sizes
+        run: |
+          MAX_CHUNK=$((200 * 1024))
+          for file in packages/vellum/dist/*.js; do
+            SIZE=$(stat -c%s "$file")
+            echo "$file: $SIZE bytes ($((SIZE / 1024)) KB)"
+            if [ "$SIZE" -gt "$MAX_CHUNK" ]; then
+              echo "Error: $file exceeds 200KB limit"
+              exit 1
+            fi
+          done
+          echo "✅ Chunk size checks passed"
+
+  mutation:
+    name: Mutation Testing
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm turbo run build --filter=@vellum/engine...
+
+      - name: Run mutation testing
+        run: |
+          pnpm stryker run \
+            --mutate packages/engine/src/**/*.ts \
+            --thresholds.break 85 \
+            --reporters json,clear-text
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, test]
+    needs: [lint, typecheck, test, security, bundle-size]
     steps:
       - uses: actions/checkout@v4
 
@@ -106,3 +218,89 @@ jobs:
 
       - name: Build
         run: pnpm turbo run build
+
+      - name: Verify build artifacts
+        run: |
+          # Check that all packages built successfully
+          for pkg in packages/*/; do
+            if [ -f "$pkg/package.json" ]; then
+              if jq -e '.exports["."]' "$pkg/package.json" > /dev/null 2>&1; then
+                if [ ! -d "$pkg/dist" ]; then
+                  echo "Error: $pkg did not produce dist/ directory"
+                  exit 1
+                fi
+              fi
+            fi
+          done
+          echo "✅ All packages built successfully"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: packages/*/dist/
+          retention-days: 7
+
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm turbo run build
+
+      - name: Create release PR or publish
+        id: changesets
+        uses: changesets/action@v1
+        with:
+          publish: pnpm release
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create release notes
+        if: steps.changesets.outputs.published == 'true'
+        run: |
+          echo "Published version:"
+          jq -r '.version' packages/vellum/package.json
+
+  # Conformance gate for future use
+  conformance:
+    name: Conformance Tests
+    runs-on: ubuntu-latest
+    needs: [test]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run conformance tests
+        run: |
+          echo "Running conformance tests..."
+          # TODO: Add conformance test runner when implemented
+          # pnpm test:conformance
+          echo "✅ Conformance tests passed (placeholder)"
+        continue-on-error: true

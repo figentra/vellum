@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { GitReader, GitWriter, GitStatus, GitCommit } from "@vellum/protocol";
-import { brand, parseCommitSha, isValidGitSha, isValidChecksum } from "@vellum/protocol";
+import { brand, isValidGitSha } from "@vellum/protocol";
 
 /**
  * Create a Git reader/writer for a repository.
@@ -51,16 +51,16 @@ class GitOpsImpl implements GitReader, GitWriter {
       ] = lines;
 
       // Parse session metadata from trailers if present
-      const sessionMetadata = this.parseSessionMetadata(message);
+      const sessionMetadata = this.parseSessionMetadata(message ?? "");
 
       return {
-        sha: brand<string, "CommitSha">(fullSha),
-        author: { name: authorName, email: authorEmail },
-        committer: { name: committerName, email: committerEmail },
-        message,
-        timestamp,
-        signature: signature || undefined,
-        sessionMetadata,
+        sha: brand<string, "CommitSha">(fullSha ?? ""),
+        author: { name: authorName ?? "", email: authorEmail ?? "" },
+        committer: { name: committerName ?? "", email: committerEmail ?? "" },
+        message: message ?? "",
+        timestamp: timestamp ?? "",
+        ...(signature && signature.trim() ? { signature: signature.trim() } : {}),
+        ...(sessionMetadata ? { sessionMetadata } : {}),
       };
     } catch {
       return null;
@@ -178,6 +178,28 @@ class GitOpsImpl implements GitReader, GitWriter {
     return await this.getHead();
   }
 
+  // GitWriter implementation
+  async add(files: readonly string[]): Promise<void> {
+    if (files.length === 0) return;
+    this.execGit(["add", ...files]);
+  }
+
+  async commit(
+    message: string,
+    options?: { signoff?: boolean },
+  ): Promise<ReturnType<typeof brand<string, "CommitSha">>> {
+    const args = ["commit", "-m", message];
+    if (options?.signoff) {
+      args.push("--signoff");
+    }
+    this.execGit(args);
+    return await this.getHead();
+  }
+
+  async tag(name: string, message: string): Promise<void> {
+    this.execGit(["tag", "-a", name, "-m", message]);
+  }
+
   private execGit(args: string[]): string {
     try {
       return execFileSync("git", args, {
@@ -208,21 +230,21 @@ class GitOpsImpl implements GitReader, GitWriter {
       ...signatureLines
     ] = lines;
 
-    if (!isValidGitSha(fullSha)) {
+    if (!fullSha || !isValidGitSha(fullSha)) {
       return null;
     }
 
     const signature = signatureLines.join("\n").trim() || undefined;
-    const sessionMetadata = this.parseSessionMetadata(message);
+    const sessionMetadata = this.parseSessionMetadata(message ?? "");
 
     return {
       sha: brand<string, "CommitSha">(fullSha),
-      author: { name: authorName, email: authorEmail },
-      committer: { name: committerName, email: committerEmail },
-      message,
-      timestamp,
-      signature,
-      sessionMetadata,
+      author: { name: authorName ?? "", email: authorEmail ?? "" },
+      committer: { name: committerName ?? "", email: committerEmail ?? "" },
+      message: message ?? "",
+      timestamp: timestamp ?? "",
+      ...(signature ? { signature } : {}),
+      ...(sessionMetadata ? { sessionMetadata } : {}),
     };
   }
 
@@ -236,7 +258,7 @@ class GitOpsImpl implements GitReader, GitWriter {
 
     for (const pattern of assistantPatterns) {
       const match = message.match(pattern);
-      if (match) {
+      if (match && match[1]) {
         return {
           isAssistant: true,
           assistantName: match[1],

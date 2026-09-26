@@ -5,11 +5,9 @@
  * Each entry contains SHA-256 of previous entry.
  */
 
-import { readFile, appendFile, open, rename } from "node:fs/promises";
-import { join } from "node:path";
-import { tmpdir } from "node:os";
-import { createHash, randomUUID } from "node:crypto";
-import type { LedgerEntry, LedgerPayload, Checksum } from "@vellum/protocol";
+import { appendFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import type { LedgerEntry, Checksum } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
 import { createFilesystem } from "./fs.js";
 
@@ -27,7 +25,7 @@ export async function readLedger(ledgerPath: string): Promise<readonly LedgerEnt
   }
 
   const content = await fs.readFile(ledgerPath);
-  const lines = content.split("\n").filter((line) => line.trim());
+  const lines = content.split("\n").filter((line: string) => line.trim());
 
   const entries: LedgerEntry[] = [];
   for (const line of lines) {
@@ -48,7 +46,7 @@ export async function readLedger(ledgerPath: string): Promise<readonly LedgerEnt
  */
 export async function getLastEntry(ledgerPath: string): Promise<LedgerEntry | null> {
   const entries = await readLedger(ledgerPath);
-  return entries.length > 0 ? entries[entries.length - 1] : null;
+  return entries.length > 0 ? entries[entries.length - 1]! : null;
 }
 
 /**
@@ -57,26 +55,25 @@ export async function getLastEntry(ledgerPath: string): Promise<LedgerEntry | nu
  */
 export async function appendLedgerEntry(
   ledgerPath: string,
-  entry: Omit<LedgerEntry, "predecessorHash" | "hash">,
+  entry: Omit<LedgerEntry, "predecessor_digest" | "hash">,
 ): Promise<LedgerEntry> {
   // Get predecessor hash
   const lastEntry = await getLastEntry(ledgerPath);
-  const predecessorHash = lastEntry?.hash ?? brand<string, "Checksum">(INITIAL_HASH);
+  const predecessor_digest = lastEntry?.hash ?? brand<string, "Checksum">(INITIAL_HASH);
 
   // Compute new entry hash
-  const newEntry: LedgerEntry = {
+  const newEntry = {
     ...entry,
-    predecessorHash,
-  };
+    predecessor_digest,
+  } as unknown as LedgerEntry;
 
   const hash = computeEntryHash(newEntry);
-  const completeEntry: LedgerEntry = {
+  const completeEntry = {
     ...newEntry,
     hash,
-  };
+  } as unknown as LedgerEntry;
 
   // Atomic append: write to temp, then append
-  const tempPath = join(tmpdir(), `ledger-${randomUUID()}.tmp`);
   const line = JSON.stringify(completeEntry) + "\n";
 
   await appendFile(ledgerPath, line, "utf-8");
@@ -88,10 +85,10 @@ export async function appendLedgerEntry(
  * Compute SHA-256 hash of a ledger entry.
  */
 export function computeEntryHash(entry: LedgerEntry): Checksum {
-  // Hash over: seq, kind, timestamp, predecessorHash, payload (sorted keys)
+  // Hash over: id, kind, timestamp, predecessor_digest, payload (sorted keys)
   const { hash: _, ...rest } = entry;
-  const payloadJson = JSON.stringify(rest.payload, Object.keys(rest.payload).sort());
-  const data = `${rest.seq}:${rest.kind}:${rest.timestamp}:${rest.predecessorHash}:${payloadJson}`;
+  const payloadJson = JSON.stringify(rest, Object.keys(rest).sort());
+  const data = `${rest.id}:${rest.kind}:${rest.timestamp}:${rest.predecessor_digest}:${payloadJson}`;
 
   const hash = createHash("sha256").update(data, "utf8").digest("hex");
   return brand<string, "Checksum">(hash);
@@ -103,7 +100,7 @@ export function computeEntryHash(entry: LedgerEntry): Checksum {
  */
 export async function verifyLedgerIntegrity(ledgerPath: string): Promise<{
   valid: boolean;
-  errors: Array<{ seq: number; message: string }>;
+  errors: { seq: number; message: string }[];
 }> {
   const entries = await readLedger(ledgerPath);
   const errors: Array<{ seq: number; message: string }> = [];
@@ -112,30 +109,31 @@ export async function verifyLedgerIntegrity(ledgerPath: string): Promise<{
   const seenHashes = new Map<string, number>();
 
   for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
+    const entry = entries[i]!;
 
     // Check sequence number
-    if (entry.seq !== i) {
+    if (entry.id !== i) {
       errors.push({
-        seq: entry.seq,
-        message: `Expected seq ${i}, got ${entry.seq}`,
+        seq: entry.id,
+        message: `Expected id ${i}, got ${entry.id}`,
       });
     }
 
     // Check predecessor hash
-    if (entry.predecessorHash !== expectedPredecessor) {
+    const predecessor = entry.predecessor_digest ?? INITIAL_HASH;
+    if (predecessor !== expectedPredecessor) {
       errors.push({
-        seq: entry.seq,
-        message: `Predecessor hash mismatch: expected ${expectedPredecessor.slice(0, 8)}..., got ${entry.predecessorHash.slice(0, 8)}...`,
+        seq: entry.id,
+        message: `Predecessor hash mismatch: expected ${expectedPredecessor.slice(0, 8)}..., got ${predecessor.slice(0, 8)}...`,
       });
     }
 
     // Check for forks (two entries with same predecessor)
-    if (seenHashes.has(entry.predecessorHash)) {
-      const otherSeq = seenHashes.get(entry.predecessorHash)!;
+    if (seenHashes.has(predecessor)) {
+      const otherSeq = seenHashes.get(predecessor)!;
       errors.push({
-        seq: entry.seq,
-        message: `Fork detected: entries ${otherSeq} and ${entry.seq} have same predecessor`,
+        seq: entry.id,
+        message: `Fork detected: entries ${otherSeq} and ${entry.id} have same predecessor`,
       });
     }
 
@@ -143,19 +141,19 @@ export async function verifyLedgerIntegrity(ledgerPath: string): Promise<{
     const computedHash = computeEntryHash(entry);
     if (entry.hash && entry.hash !== computedHash) {
       errors.push({
-        seq: entry.seq,
-        message: `Entry hash mismatch: expected ${computedHash.slice(0, 8)}..., got ${entry.hash.slice(0, 8)}...`,
+        seq: entry.id,
+        message: `Entry hash mismatch: expected ${computedHash.slice(0, 8)}..., got ${entry.hash!.slice(0, 8)}...`,
       });
     }
 
     // Update state
-    seenHashes.set(entry.predecessorHash, entry.seq);
+    seenHashes.set(predecessor, entry.id);
     expectedPredecessor = entry.hash ?? computedHash;
   }
 
   return {
     valid: errors.length === 0,
-    errors: Object.freeze(errors),
+    errors: errors as { seq: number; message: string }[],
   };
 }
 
@@ -172,14 +170,15 @@ export function detectFork(ledgerPath: string): Promise<{
     const predecessors = new Map<string, number>();
 
     for (const entry of entries) {
-      const prev = predecessors.get(entry.predecessorHash);
+      const predecessor = entry.predecessor_digest ?? INITIAL_HASH;
+      const prev = predecessors.get(predecessor);
       if (prev !== undefined) {
         return {
           hasFork: true,
-          fork: { entry1: prev, entry2: entry.seq },
+          fork: { entry1: prev, entry2: entry.id },
         };
       }
-      predecessors.set(entry.predecessorHash, entry.seq);
+      predecessors.set(predecessor, entry.id);
     }
 
     return { hasFork: false };

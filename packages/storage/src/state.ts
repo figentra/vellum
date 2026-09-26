@@ -6,7 +6,7 @@
  */
 
 import { join } from "node:path";
-import type { SpecState, LifecycleState, CommitSha } from "@vellum/protocol";
+import type { SpecState, LifecycleState } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
 import { createFilesystem } from "./fs.js";
 
@@ -79,18 +79,24 @@ export async function readState(machineFolder: string): Promise<SpecState> {
 
   try {
     const data = JSON.parse(content);
-    return {
+    const baseState = {
       effectiveState: data.effectiveState as LifecycleState,
       recordedState: data.recordedState as LifecycleState,
-      lastTransition: data.lastTransition
-        ? {
-            from: data.lastTransition.from as LifecycleState,
-            to: data.lastTransition.to as LifecycleState,
-            timestamp: data.lastTransition.timestamp,
-            commit: brand<string, "CommitSha">(data.lastTransition.commit),
-          }
-        : undefined,
     };
+
+    if (data.lastTransition) {
+      return {
+        ...baseState,
+        lastTransition: {
+          from: data.lastTransition.from as LifecycleState,
+          to: data.lastTransition.to as LifecycleState,
+          timestamp: data.lastTransition.timestamp,
+          commit: brand<string, "CommitSha">(data.lastTransition.commit),
+        },
+      };
+    }
+
+    return baseState;
   } catch {
     throw new Error(`Invalid state file: ${statePath}`);
   }

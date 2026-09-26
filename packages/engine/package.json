@@ -21,12 +21,15 @@
     "lint": "oxlint src/",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:property": "vitest run src/__tests__/property/",
     "clean": "rm -rf dist .tsbuildinfo coverage"
   },
   "dependencies": {
     "@vellum/protocol": "workspace:*"
   },
   "devDependencies": {
-    "@vellum/tsconfig": "workspace:*"
+    "@vellum/tsconfig": "workspace:*",
+    "@vellum/testing": "workspace:*",
+    "fast-check": "^3.22.0"
   }
 }

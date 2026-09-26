@@ -1,54 +1,92 @@
-# Vellum
+# Vellum — Specification Lifecycle Enforcement
 
-**Specification lifecycle enforcement for AI-assisted development.**
+**Vellum** is a specification lifecycle enforcement tool for AI-assisted development. It ensures that specifications (requirements, design, tasks) progress through defined lifecycle states with proper approvals, evidence, and integrity checks.
 
-Vellum ensures that AI generated code follows approved specifications. It provides a rules-based engine that validates every change against requirements, design documents, and task plans — making AI-assisted development trustworthy.
+## Why Vellum?
 
-## What Vellum does
+When AI assistants help write code, specifications can drift from reality. Vellum enforces a structured workflow that:
 
-- **Enforces the spec lifecycle**: Requirements → Design → Tasks → Implementation → Verification
-- **Validates every change**: No unverified completions, no orphaned changes
-- **Tracks approvals**: Who approved what, when, for which version
-- **Projects for every assistant**: Claude Code, Kiro, OpenCode
+- ✅ Tracks specification lifecycle (DRAFT → RELEASED)
+- ✅ Validates approvals are from authorized humans (not AI bots)
+- ✅ Verifies task completion with evidence
+- ✅ Detects and prevents specification tampering
+- ✅ Integrates with your existing git workflow
+- ✅ Works with Claude, Kiro, OpenCode, and other AI assistants
+
+## Quick Start
+
+### Installation
+
+```bash
+npm install @figentra/vellum
+# or
+pnpm add @figentra/vellum
+# or
+yarn add @figentra/vellum
+```
+
+### Initialize a Specification
+
+```bash
+# Create a new spec
+mkdir -p .agents/specs/001-my-feature
+cd .agents/specs/001-my-feature
+
+# Write requirements, design, and tasks
+echo "---\nstate: DRAFT\nversion: 1\n---" > requirements.md
+echo "---\nstate: DRAFT\nversion: 1\n---" > design.md
+echo "---\nstate: DRAFT\nversion: 1\n---" > tasks.md
+```
+
+### Check Status
+
+```bash
+vellum status 001
+```
+
+### Validate Specifications
+
+```bash
+# Lint all specs
+vellum lint
+
+# Verify integrity
+vellum verify
+
+# CI-ready check (no file modifications)
+vellum check
+```
 
 ## Architecture
 
-```
-protocol   ← The contract (types + schemas)
-engine     ← Pure logic, no I/O
-storage    ← File system + git operations
-renderers  ← Output projections (markdown, assistants, reports)
-cli        ← `vellum` command-line tool
-mcp        ← Read-only Model Context Protocol server
-method     ← Skills, agents, templates, prompts (data only)
-plugin-*   ← Assistant-specific packages assembled from method
-```
-
-**Dependency flow** (enforced by Turborepo boundaries):
+Vellum is structured as a monorepo with clear boundaries:
 
 ```
-protocol  ←  engine  ←  storage  ←  cli
-                 ↑          ↑        mcp
-                 └── renderers ──────┘
-method  (data only, depends on nothing)
-plugin-*  →  method + renderers
+@figentra/vellum        # The published bundle (ONE version)
+├── @vellum/cli         # Command-line interface
+├── @vellum/mcp         # MCP server for AI assistants
+├── @vellum/engine      # Pure logic engine (no I/O)
+├── @vellum/protocol    # Type definitions and schemas
+├── @vellum/storage     # File system and git adapters
+└── @vellum/renderers   # Output formatters (JSON, Markdown, etc.)
 ```
 
-## Packages
+### Key Principles
 
-| Package | Purpose |
-|---------|---------|
-| `@figentra/vellum` | The published npm package — installs everything |
-| `@vellum/protocol` | Types and JSON schemas for the spec contract |
-| `@vellum/engine` | Pure logic implementation (no I/O) |
-| `@vellum/storage` | File system and git operations |
-| `@vellum/renderers` | Deterministic output projections |
-| `@vellum/cli` | Command-line interface |
-| `@vellum/mcp` | Read-only MCP server |
-| `@vellum/method` | Skills, agents, templates (data) |
-| `@vellum/plugin-claude` | Claude Code plugin |
-| `@vellum/plugin-kiro` | Kiro Power |
-| `@vellum/plugin-opencode` | OpenCode package |
+1. **Single Version**: One npm package (`@figentra/vellum`) with a single pinned version
+2. **Pure Engine**: Business logic has zero I/O, making it easy to test
+3. **Deterministic Output**: Same input → same output (byte-identical)
+4. **Offline Capable**: Zero runtime dependencies after installation
+5. **Git-Native**: Uses git for integrity, approvals, and verification
+
+## Documentation
+
+- [Getting Started Guide](docs/guides/getting-started.md)
+- [CLI Reference](docs/cli/README.md)
+- [API Documentation](docs/api.md)
+- [Architecture Overview](docs/architecture.md)
+- [Integration Guides](docs/integration/README.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
 ## Development
 
@@ -56,17 +94,32 @@ plugin-*  →  method + renderers
 # Install dependencies
 pnpm install
 
-# Run CI checks
-pnpm turbo run lint typecheck test
+# Run tests
+pnpm test
 
 # Build all packages
-pnpm turbo run build
+pnpm build
+
+# Run linter
+pnpm lint
+
+# Type check
+pnpm typecheck
 ```
 
-## Status
+## Requirements
 
-🚧 **Under active development** — This is a scaffold. Implementation begins with Phase 2 (Slice 1).
+- Node.js >= 22.0.0
+- Git >= 2.28 (for gpg signatures)
 
 ## License
 
 MIT
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+---
+
+Built with ❤️ by [Figentra](https://figentra.com)
