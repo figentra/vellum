@@ -15,7 +15,7 @@ import {
   verifyLedgerIntegrity,
   detectFork,
 } from "../ledger.ts";
-import type { LedgerEntry } from "@vellum/protocol";
+import type { Checksum, LedgerEntry, LedgerPayload } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
 
 describe("Ledger Operations", () => {
@@ -58,9 +58,7 @@ describe("Ledger Operations", () => {
       await writeFile(ledgerPath, `${JSON.stringify(entry1)}\n${JSON.stringify(entry2)}\n`);
 
       const entries = await readLedger(ledgerPath);
-      expect(entries.length).toBe(2);
-      expect(entries[0].id).toBe(0);
-      expect(entries[1].id).toBe(1);
+      expect(entries.map((e) => e.id)).toEqual([0, 1]);
     });
   });
 
@@ -218,24 +216,18 @@ describe("Ledger Operations", () => {
 function createTestEntry(
   id: number,
   kind: LedgerEntry["kind"],
-  payload: Record<string, unknown>,
-  predecessorHash?: ReturnType<typeof brand<string, "Checksum">>,
+  payload: LedgerPayload,
+  predecessorHash?: Checksum,
 ): LedgerEntry {
-  const entry: LedgerEntry = {
+  const unhashed: LedgerEntry = {
     id,
     kind,
     timestamp: new Date().toISOString(),
     predecessor_digest: predecessorHash ?? brand<string, "Checksum">("0".repeat(64)),
     ...payload,
-    hash: brand<string, "Checksum">("a".repeat(64)),
   };
 
-  if (!predecessorHash) {
-    // Compute actual hash
-    const { hash: _, ...rest } = entry;
-    const hash = computeEntryHash(rest as LedgerEntry);
-    entry.hash = hash;
-  }
-
-  return entry;
+  // With an explicit predecessor the hash is a placeholder; otherwise the real one.
+  const hash = predecessorHash ? brand<string, "Checksum">("a".repeat(64)) : computeEntryHash(unhashed);
+  return { ...unhashed, hash };
 }

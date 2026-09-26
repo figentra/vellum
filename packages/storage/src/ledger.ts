@@ -12,6 +12,17 @@ import type { LedgerEntry, Checksum } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
 import { createFilesystem } from "./fs.js";
 
+/**
+ * A ledger entry before the ledger assigns its predecessor digest and hash.
+ *
+ * `Omit` over the LedgerEntry union keeps only the keys common to every
+ * member (the header), which would forbid every payload field; distributing
+ * over the union keeps each member's payload.
+ */
+export type NewLedgerEntry = WithoutChainFields<LedgerEntry>;
+
+type WithoutChainFields<E> = E extends unknown ? Omit<E, "predecessor_digest" | "hash"> : never;
+
 /** Initial hash for first entry (all zeros) */
 const INITIAL_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
 
@@ -58,23 +69,23 @@ export async function getLastEntry(ledgerPath: string): Promise<LedgerEntry | nu
  */
 export async function appendLedgerEntry(
   ledgerPath: string,
-  entry: Omit<LedgerEntry, "predecessor_digest" | "hash">,
+  entry: NewLedgerEntry,
 ): Promise<LedgerEntry> {
   // Get predecessor hash
   const lastEntry = await getLastEntry(ledgerPath);
   const predecessor_digest = lastEntry?.hash ?? brand<string, "Checksum">(INITIAL_HASH);
 
   // Compute new entry hash
-  const newEntry = {
+  const newEntry: LedgerEntry = {
     ...entry,
     predecessor_digest,
-  } as unknown as LedgerEntry;
+  };
 
   const hash = computeEntryHash(newEntry);
-  const completeEntry = {
+  const completeEntry: LedgerEntry = {
     ...newEntry,
     hash,
-  } as unknown as LedgerEntry;
+  };
 
   // Atomic append: write to temp, then append
   const line = JSON.stringify(completeEntry) + "\n";

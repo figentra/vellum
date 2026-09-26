@@ -41,6 +41,7 @@ export {
   computeEntryHash,
   verifyLedgerIntegrity,
   detectFork,
+  type NewLedgerEntry,
 } from "./ledger.js";
 
 // ============================================================================
