@@ -160,5 +160,13 @@ export {
 // Check Mode
 // ============================================================================
 
-export { runCheckMode, isCheckMode, checkSingleSpec, formatCheckResult } from "./mode/check.js";
+export {
+  runCheckMode,
+  checkSingleSpec,
+  formatCheckResult,
+  type CheckModeSpec,
+  type CheckModeResult,
+  type CheckModeSpecResult,
+  type CheckSummary,
+} from "./mode/check.js";
 

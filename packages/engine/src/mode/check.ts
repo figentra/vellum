@@ -1,35 +1,71 @@
 /**
- * @stellum/engine — Check Mode Logic
+ * @vellum/engine — Check Mode Logic
  *
- * Implements --check mode for CI-safe verification.
- * No side effects, no file modifications.
- * Pure function - no I/O.
+ * Check Mode is the CI-safe status check (criteria 6.6-6.12). It fails a spec
+ * whose Effective Lifecycle State is INVALID, whose ledger has an integrity
+ * failure or fork, or whose Recorded Lifecycle State differs from its
+ * Effective Lifecycle State; a Legacy Spec passes unless its Legacy Stage is
+ * `invalid`. It does not run strict verification: a spec in review is not
+ * expected to have evidence, and a spec that claims a later state than its
+ * content supports is caught as a state mismatch.
  *
- * @see design.md Criterion 6.6-6.10
+ * Pure function - no I/O, no side effects.
+ *
+ * @see requirements.md Criteria 6.6-6.12
  */
 
 import type {
-  Artifact,
-  LedgerEntry,
   ApprovalPolicy,
+  Artifact,
   Finding,
   GitCommit,
+  LedgerEntry,
+  LedgerHead,
   RiskClass,
 } from "@vellum/protocol";
+import { EXIT_STATUS } from "@vellum/protocol";
+import type { ApprovalCommitResolution } from "../approval/records.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
-import { strictVerify } from "../verify/strict.js";
+import {
+  computeEffectiveLifecycleState,
+  type EffectiveState,
+} from "../lifecycle/effective-state.js";
 
 /** One spec as check mode verifies it: everything read from the repository. */
 export interface CheckModeSpec {
+  /** The spec's slug, e.g. "001-login" */
   readonly id: string;
+  /**
+   * Set for a Legacy Spec (not under Vellum management): its Legacy Stage.
+   * The remaining fields are then not read.
+   */
+  readonly legacyStage?: string;
   readonly artifacts: readonly Artifact[];
   readonly ledger: readonly LedgerEntry[];
-  readonly state: string;
+  /** The Ledger Head beside the ledger; null when its file is absent */
+  readonly ledgerHead: LedgerHead | null;
+  /** The Recorded Lifecycle State as written in requirements.md's frontmatter */
+  readonly recordedState: string;
   readonly policy: ApprovalPolicy | null;
   /** The spec's risk class, which selects the policy's approvers. */
   readonly riskClass: RiskClass;
   /** The approval signal commits the spec's approvals reference. */
   readonly gitCommits: ReadonlyMap<string, GitCommit>;
+  /** The commit that added each approval entry, keyed by entry id */
+  readonly approvalCommits?: ReadonlyMap<number, ApprovalCommitResolution>;
+  /** The verified commit and its ancestors */
+  readonly verifiedHistory?: ReadonlySet<string>;
+}
+
+/** What check mode found for one spec. */
+export interface CheckModeSpecResult {
+  readonly id: string;
+  readonly legacy: boolean;
+  /** Recorded state; null for a Legacy Spec */
+  readonly recordedState: string | null;
+  /** Effective state and how it was reached; null for a Legacy Spec */
+  readonly effective: EffectiveState | null;
+  readonly outcome: "pass" | "fail" | "inconclusive";
 }
 
 /**
@@ -40,8 +76,10 @@ export interface CheckModeResult {
   readonly exitStatus: number;
   /** Whether check passed */
   readonly passed: boolean;
-  /** All findings */
+  /** All findings, failures and undecidable specs alike */
   readonly findings: readonly Finding[];
+  /** Per-spec results, in input order */
+  readonly specs: readonly CheckModeSpecResult[];
   /** Summary of checks */
   readonly summary: CheckSummary;
 }
@@ -51,137 +89,179 @@ export interface CheckModeResult {
  */
 export interface CheckSummary {
   readonly specsChecked: number;
+  readonly legacySpecs: number;
   readonly invalidStates: number;
   readonly ledgerFailures: number;
   readonly stateMismatches: number;
+  /** Specs whose Effective Lifecycle State could not be decided */
+  readonly inconclusive: number;
 }
 
-/**
- * Create a simple finding.
- */
 function makeFinding(file: string, line: number, rule: string, message: string): Finding {
   return { file, line, rule, message };
 }
 
 /**
- * Run check mode verification.
- * Verifies all specs without modifying files.
+ * Run check mode over specs, modifying nothing.
+ *
+ * Exit status: 1 when any spec fails (criteria 6.8-6.10, 6.12); otherwise 2
+ * when any spec's Effective Lifecycle State could not be decided; otherwise 0
+ * (criterion 6.7).
  *
  * @param specs - Specs to check
  * @returns Check result
  */
 export function runCheckMode(specs: readonly CheckModeSpec[]): CheckModeResult {
-  const allFindings: Finding[] = [];
+  const findings: Finding[] = [];
+  const results: CheckModeSpecResult[] = [];
+  let legacySpecs = 0;
   let invalidStates = 0;
   let ledgerFailures = 0;
   let stateMismatches = 0;
+  let inconclusive = 0;
 
-  // Check each spec
   for (const spec of specs) {
-    // Criterion 6.8: Check for INVALID state
-    if (spec.state === "INVALID") {
-      invalidStates++;
-      allFindings.push(
-        makeFinding(spec.id, 0, "STATE_INVALID", `Spec ${spec.id} is in INVALID state`),
-      );
+    const specDir = `.agents/specs/${spec.id}`;
+
+    // Criteria 6.11-6.12: a Legacy Spec passes unless its stage is invalid
+    if (spec.legacyStage !== undefined) {
+      legacySpecs++;
+      const invalid = spec.legacyStage === "invalid";
+      if (invalid) {
+        findings.push(
+          makeFinding(
+            specDir,
+            0,
+            "LEGACY_STAGE_INVALID",
+            `Legacy spec ${spec.id} has an invalid Legacy Stage (a later artifact without an earlier one)`,
+          ),
+        );
+      }
+      results.push({
+        id: spec.id,
+        legacy: true,
+        recordedState: null,
+        effective: null,
+        outcome: invalid ? "fail" : "pass",
+      });
+      continue;
     }
 
-    // Criterion 6.9: Check ledger integrity
-    const ledgerResult = checkLedgerIntegrity(spec.ledger);
-    if (!ledgerResult.valid) {
+    let failed = false;
+
+    // Criterion 6.9: ledger integrity failures and forks, with the tail
+    const integrity = checkLedgerIntegrity(spec.ledger, spec.ledgerHead);
+    if (!integrity.valid) {
       ledgerFailures++;
-      for (const failure of ledgerResult.failures) {
-        allFindings.push(
+      failed = true;
+      for (const failure of integrity.failures) {
+        const ids =
+          failure.other_entry_id !== undefined
+            ? `entries ${failure.other_entry_id} and ${failure.entry_id}`
+            : `entry ${failure.entry_id}`;
+        findings.push(
           makeFinding(
-            `${spec.id}/.sdlc/ledger.jsonl`,
+            `${specDir}/.sdlc/ledger.jsonl`,
             failure.entry_id,
             "LEDGER_INTEGRITY",
-            failure.message,
+            `Spec ${spec.id}, ${ids}: ${failure.message}`,
           ),
         );
       }
     }
 
-    // Run strict verification
-    const verifyResult = strictVerify(
-      spec.artifacts,
-      spec.ledger,
-      spec.policy,
-      spec.gitCommits,
-      spec.riskClass,
-    );
+    const effective = computeEffectiveLifecycleState({
+      artifacts: spec.artifacts,
+      ledger: spec.ledger,
+      recordedState: spec.recordedState,
+      policy: spec.policy,
+      riskClass: spec.riskClass,
+      gitCommits: spec.gitCommits,
+      ledgerHead: spec.ledgerHead,
+      ...(spec.approvalCommits ? { approvalCommits: spec.approvalCommits } : {}),
+      ...(spec.verifiedHistory ? { verifiedHistory: spec.verifiedHistory } : {}),
+    });
 
-    allFindings.push(...verifyResult.findings);
+    let undecided = false;
+    if (effective.kind === "inconclusive") {
+      undecided = true;
+      findings.push(
+        makeFinding(
+          `${specDir}/requirements.md`,
+          0,
+          "STATE_INCONCLUSIVE",
+          `Spec ${spec.id} records ${spec.recordedState}; its effective state holds through ${effective.holdsThrough} and cannot be decided further: ${effective.reason}`,
+        ),
+      );
+    } else if (effective.state === "INVALID") {
+      // Criterion 6.8
+      invalidStates++;
+      failed = true;
+      findings.push(
+        makeFinding(
+          `${specDir}/requirements.md`,
+          0,
+          "STATE_INVALID",
+          `Spec ${spec.id} is INVALID: ${effective.failedPrecondition ?? `recorded as ${spec.recordedState}`}`,
+        ),
+      );
+    } else if (effective.state !== spec.recordedState) {
+      // Criterion 6.10
+      stateMismatches++;
+      failed = true;
+      findings.push(
+        makeFinding(
+          `${specDir}/requirements.md`,
+          0,
+          "STATE_MISMATCH",
+          `Spec ${spec.id} records ${spec.recordedState} but its effective state is ${effective.state}; failed precondition: ${effective.failedPrecondition ?? "none named"}`,
+        ),
+      );
+    }
+
+    if (undecided && !failed) inconclusive++;
+    results.push({
+      id: spec.id,
+      legacy: false,
+      recordedState: spec.recordedState,
+      effective,
+      outcome: failed ? "fail" : undecided ? "inconclusive" : "pass",
+    });
   }
 
-  // Compute exit status
-  const passed = allFindings.length === 0;
-
-  // Criterion 6.7: Exit 0 for clean spec
-  // Criterion 6.8-6.10: Exit 1 for violations
-  const exitStatus = passed ? 0 : 1;
+  const anyFailed = results.some((r) => r.outcome === "fail");
+  const anyInconclusive = results.some((r) => r.outcome === "inconclusive");
+  const exitStatus = anyFailed
+    ? EXIT_STATUS.FAILURE
+    : anyInconclusive
+      ? EXIT_STATUS.INCONCLUSIVE
+      : EXIT_STATUS.SUCCESS;
 
   return {
     exitStatus,
-    passed,
-    findings: Object.freeze(allFindings),
+    passed: exitStatus === EXIT_STATUS.SUCCESS,
+    findings: Object.freeze(findings),
+    specs: Object.freeze(results),
     summary: {
       specsChecked: specs.length,
+      legacySpecs,
       invalidStates,
       ledgerFailures,
       stateMismatches,
+      inconclusive,
     },
   };
 }
 
 /**
- * Check if running in check mode.
- * (In production, would check CLI args)
+ * Run check mode on a single spec.
  */
-export function isCheckMode(args: readonly string[]): boolean {
-  return args.includes("--check") || args.includes("--dry-run");
-}
-
-/**
- * Run a single spec check.
- */
-export function checkSingleSpec(spec: CheckModeSpec): { passed: boolean; findings: readonly Finding[] } {
-  const findings: Finding[] = [];
-
-  // Check state
-  if (spec.state === "INVALID") {
-    findings.push(makeFinding(spec.id, 0, "STATE_INVALID", `Spec is in INVALID state`));
-  }
-
-  // Check ledger
-  const ledgerResult = checkLedgerIntegrity(spec.ledger);
-  if (!ledgerResult.valid) {
-    for (const failure of ledgerResult.failures) {
-      findings.push(
-        makeFinding(
-          `${spec.id}/.sdlc/ledger.jsonl`,
-          failure.entry_id,
-          "LEDGER_INTEGRITY",
-          failure.message,
-        ),
-      );
-    }
-  }
-
-  // Verify
-  const verifyResult = strictVerify(
-    spec.artifacts,
-    spec.ledger,
-    spec.policy,
-    spec.gitCommits,
-    spec.riskClass,
-  );
-  findings.push(...verifyResult.findings);
-
-  return {
-    passed: findings.length === 0,
-    findings: Object.freeze(findings),
-  };
+export function checkSingleSpec(spec: CheckModeSpec): {
+  passed: boolean;
+  findings: readonly Finding[];
+} {
+  const result = runCheckMode([spec]);
+  return { passed: result.passed, findings: result.findings };
 }
 
 /**
@@ -190,14 +270,17 @@ export function checkSingleSpec(spec: CheckModeSpec): { passed: boolean; finding
 export function formatCheckResult(result: CheckModeResult): string {
   const lines: string[] = [];
 
-  lines.push(`Check mode: ${result.passed ? "PASS" : "FAIL"}`);
+  const verdict = result.passed ? "PASS" : result.exitStatus === 2 ? "INCONCLUSIVE" : "FAIL";
+  lines.push(`Check mode: ${verdict}`);
   lines.push(`Exit status: ${result.exitStatus}`);
   lines.push(``);
   lines.push(`Summary:`);
   lines.push(`  Specs checked: ${result.summary.specsChecked}`);
+  lines.push(`  Legacy specs: ${result.summary.legacySpecs}`);
   lines.push(`  Invalid states: ${result.summary.invalidStates}`);
   lines.push(`  Ledger failures: ${result.summary.ledgerFailures}`);
   lines.push(`  State mismatches: ${result.summary.stateMismatches}`);
+  lines.push(`  Undecided: ${result.summary.inconclusive}`);
 
   if (result.findings.length > 0) {
     lines.push(``);

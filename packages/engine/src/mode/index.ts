@@ -2,4 +2,12 @@
  * @vellum/engine — Check mode module
  */
 
-export { runCheckMode, isCheckMode, checkSingleSpec, formatCheckResult } from "./check.js";
+export {
+  runCheckMode,
+  checkSingleSpec,
+  formatCheckResult,
+  type CheckModeSpec,
+  type CheckModeResult,
+  type CheckModeSpecResult,
+  type CheckSummary,
+} from "./check.js";
