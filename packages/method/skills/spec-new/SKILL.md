@@ -111,20 +111,16 @@ Go to Step 2 for either mode. Quick mode diverges at Step 5.
 
 ## Step 2 — derive the spec directory
 
-**Where specs live.** The stage detector resolves the specs root and reports it as
-`root` in its JSON — `.agents/specs/` when it exists, otherwise `.claude/specs/`,
-otherwise a root `specs/`, searching upward to the repository root so it works
-from any directory. **Use the root it reports. Do not hardcode one.** Writing to
-`.agents/specs/` in a repository that uses `.claude/specs/` creates a second root
-the detector will not find, and the next invocation then opens a duplicate spec
-for work that already has one — and numbers it wrongly besides, because "highest
-existing number plus one" can only see the root it looked in.
-
-Below, `<specs-root>` means the root the detector reported.
+**Where specs live.** Vellum reads specs from exactly one place: `.agents/specs/` at
+the root of the git repository that contains the working directory — it finds that
+root from any subdirectory. `vellum status --json` has no `root` field; below,
+`<specs-root>` means `<repository root>/.agents/specs`. Do not write a spec anywhere
+else: a spec in `.claude/specs/` or a root `specs/` is invisible to every `vellum`
+command, and the next invocation opens a duplicate for work that already has one.
 
 Where a repository projects `.agents/` into `.claude/` (one symlink per spec, via
-its own sync tool), the detector reports the `.agents/` side and that is the side
-you read and write — authoring the same spec into both trees makes that sync tool
+its own sync tool), `.agents/` is the side Vellum reads and the side you read and
+write — authoring the same spec into both trees makes that sync tool
 report a permanent conflict and fails the repository's verify gate.
 
 1. **Read the current state with the stage detector.** Do not `ls` and infer:
@@ -135,9 +131,10 @@ report a permanent conflict and fails the repository's verify gate.
 
    Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
 
-   It reports every spec's number, slug, which documents exist, its stage
-   (`empty` · `requirements` · `design` · `tasks` · `invalid`) and the skill that
-   produces the next document.
+   Each entry's `specId` is `<NNN>-<slug>`; the documents that exist are the keys of
+   its `artifacts` (or its `legacyStage`, for a legacy spec). The JSON has no `stage`
+   field — the `/spec` skill's Step 1 gives the full field list and how the stage
+   follows from the documents present.
 
 2. **Determine `NNN`.** Highest existing number plus one, three digits, zero-padded,
    taking the numbers from the `specs[].number` values the detector just reported for

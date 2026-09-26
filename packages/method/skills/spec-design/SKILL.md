@@ -15,15 +15,12 @@ You own `design.md` only. You do not touch `requirements.md`. You do not write
 
 ## Step 0 — locate the spec and refuse if requirements are absent
 
-**Where specs live.** The stage detector resolves the specs root and reports it as
-`root` in its JSON — `.agents/specs/` when it exists, otherwise `.claude/specs/`,
-otherwise a root `specs/`, searching upward to the repository root so it works
-from any directory. **Use the root it reports. Do not hardcode one.** Writing to
-`.agents/specs/` in a repository that uses `.claude/specs/` creates a second root
-the detector will not find, and the next invocation then opens a duplicate spec
-for work that already has one.
-
-Below, `<specs-root>` means the root the detector reported.
+**Where specs live.** Vellum reads specs from exactly one place: `.agents/specs/` at
+the root of the git repository that contains the working directory — it finds that
+root from any subdirectory. `vellum status --json` has no `root` field; below,
+`<specs-root>` means `<repository root>/.agents/specs`. Do not write a spec anywhere
+else: a spec in `.claude/specs/` or a root `specs/` is invisible to every `vellum`
+command, and the next invocation opens a duplicate for work that already has one.
 
 1. **Read the current state with the stage detector.** Do not `ls` and infer:
 
@@ -34,10 +31,11 @@ Below, `<specs-root>` means the root the detector reported.
 
    Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
 
-   It reports each spec's stage (`empty` · `requirements` · `design` · `tasks` · `invalid`)
-   and the skill that produces the next document. If the user named a spec, resolve it by
-   fragment. Otherwise use the one at stage `requirements` — that is exactly the set this
-   skill acts on. If several are, list them and ask which; this is the only question you
+   The JSON has no `stage` field: the documents a spec has are the keys of its
+   `artifacts` (or its `legacyStage`, for a legacy spec), and the `/spec` skill's Step 1
+   maps them to a stage. If the user named a spec, resolve it by fragment. Otherwise use
+   the one at stage `requirements` (requirements.md and no design.md) — that is exactly
+   the set this skill acts on. If several are, list them and ask which; this is the only question you
    ask up front.
 
 2. **Act on the reported stage:**

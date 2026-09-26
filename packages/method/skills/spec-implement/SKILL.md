@@ -245,8 +245,11 @@ is not actually done.
 creating the section at the end of the file if it does not exist. `[x]` on its
 own is unfalsifiable — the executor writes the character and the orchestrator
 "confirms" the work by reading the character the executor just wrote. The log
-is the row that can contradict it, and `vellum lint` checks the log's rows
-(`EXECUTION_LOG_FORMAT_INVALID`, `EXECUTION_LOG_ENTRY_INVALID`):
+is the row a reader can check it against. `vellum lint` does not check Execution Log rows in this version (the
+`EXECUTION_LOG_*` rule identifiers have no implementation). The check that can
+contradict a `[x]` is `vellum verify`: it requires, for every required task, an
+Evidence Entry the engine itself recorded when `vellum task complete` ran the
+verification command:
 
 ```
 ## Execution Log
@@ -258,7 +261,7 @@ is the row that can contradict it, and `vellum lint` checks the log's rows
 
 Five cells exactly, in that order. `Criteria` may name **only** criteria the
 task's own `_Requirements:_` trailer carries — claiming one it does not is what
-a fabricated entry looks like, and the linter rejects it. `Command` is the
+a fabricated entry looks like. `Command` is the
 verification command as you actually ran it, with any `|` escaped as `\|`.
 `Exit` is its real exit status, an integer. Rows are appended, never rewritten.
 

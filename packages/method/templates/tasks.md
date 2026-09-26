@@ -105,10 +105,10 @@ first task that produces something runnable, and say how many waves the graph ha
   `[x]` is a character an executor wrote about its own work, confirmed by reading the
   character it just wrote.
 
-  `vellum lint` checks: every `[x]` leaf has a row; every row names a real leaf; every
-  row's Criteria are a subset of that task's own `_Requirements:_` trailer. The last
-  is the falsifiable one — claiming a criterion the task does not carry is what a
-  fabricated entry looks like.
+  Each row's Criteria must be a subset of that task's own `_Requirements:_` trailer —
+  claiming a criterion the task does not carry is what a fabricated entry looks like.
+  `vellum lint` does not check these rows in this version; `vellum verify` is what
+  contradicts a `[x]`, by requiring the Evidence Entry `vellum task complete` records.
 
   Delete the example row. Keep the header.
 -->

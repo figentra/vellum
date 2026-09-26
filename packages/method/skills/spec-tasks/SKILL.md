@@ -30,9 +30,11 @@ spec engine turns into an unreviewed commit.
    vellum status --json
    ```
 
-   It reports each spec's stage and the resolved `root`. Use that root everywhere
-   below; `<specs-root>` means exactly that value. If the spec is ambiguous, list
-   the candidates and ask which.
+   Each entry's `specId` is `<NNN>-<slug>` and the documents it has are the keys of
+   its `artifacts`; the JSON has no `stage` or `root` field. Specs live in
+   `.agents/specs/` at the repository root, the only place Vellum reads them;
+   `<specs-root>` below means that directory. If the spec is ambiguous, list the
+   candidates and ask which.
 
 2. Check for **both** inputs:
 
@@ -209,7 +211,9 @@ Emit a single fenced ` ```json ` block under `## Task Dependency Graph`, recordi
 
 That is the whole schema. No `files`, no `dependsOn`, no `optional` — the `*` on the task
 line already carries optionality, and nothing reads the other two. `vellum lint` validates
-membership, uniqueness and contiguous ids; `spec-run` needs the wave list and nothing more.
+membership, uniqueness, the parent and checkpoint exclusions, and contiguous ids (a `[x]`
+task still listed after it completed is not a finding); `spec-run` needs the wave list and
+nothing more.
 A graph carrying per-task file lists ran to two-thirds of one document and was checked by
 no tool at all.
 

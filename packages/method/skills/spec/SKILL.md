@@ -2,7 +2,7 @@
 name: spec
 description: Enter the spec lifecycle. Detects which stage a spec is at and asks which step to run next, instead of you having to remember whether it needs spec-new, spec-clarify, spec-design, spec-tasks, spec-run, spec-verify or spec-converge.
 argument-hint: [spec number, slug fragment, or a description of something new]
-allowed-tools: Bash(node:*), Bash(ls:*), Bash(rmdir:*), Read, AskUserQuestion, Skill
+allowed-tools: Bash(vellum:*), Bash(npx vellum:*), Bash(ls:*), Bash(rmdir:*), Read, AskUserQuestion, Skill
 ---
 
 # /spec — the one entry point
@@ -32,11 +32,35 @@ vellum status --json
 
 Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
 
-The output gives every spec's number, slug, which of the three documents exist,
-its stage (`empty` · `requirements` · `design` · `tasks` · `invalid`) and the
-skill that produces the next document. Do not `ls` and reason about it yourself;
-the detector already handles partial slugs, missing directories and broken
-chains, and five callers reimplementing it is how they drift apart.
+`vellum status --json` prints one document, `{ "command": "status", "policy", "specs": [...] }`,
+with one entry per directory under `.agents/specs/`. It has no `stage` or `root`
+field; read these instead:
+
+- a spec under Vellum management: `specId` (the directory name, `<NNN>-<slug>`),
+  `artifacts` with one key for each of `requirements`, `design`, `tasks` that exists
+  (its `version`, `state`, `checksum`, `checksumCurrent`), `recordedState`,
+  `effectiveState`, `effective` (the precondition that failed), `approvals`,
+  `verification` and `ledger`;
+- a legacy spec (no lifecycle frontmatter and no machine folder): `specId`, `legacy: true` and
+  `legacyStage` — `empty` (no requirements), `design` (requirements only), `tasks`
+  (requirements and design), `in-progress` (all three) or `invalid` (tasks without
+  requirements);
+- a spec it could not read: `specId`, `result: "INCONCLUSIVE"` and `problems`.
+
+The **stage** this method uses is derived from which documents exist — the keys of
+`artifacts`, or `legacyStage` for a legacy spec:
+
+| Documents present                        | Stage          | `legacyStage` |
+| ---------------------------------------- | -------------- | ------------- |
+| none                                     | `empty`        | `empty`       |
+| requirements                             | `requirements` | `design`      |
+| requirements, design                     | `design`       | `tasks`       |
+| requirements, design, tasks              | `tasks`        | `in-progress` |
+| a later document without an earlier one  | `invalid`      | `invalid`     |
+
+The skill that produces the next document follows from the stage (Step 3's table).
+Run `npx vellum` where `vellum` is not on the PATH. Do not `ls` and reason about the
+documents yourself; five callers reimplementing the detection is how they drift apart.
 
 ## Step 2 — work out what the argument means
 

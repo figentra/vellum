@@ -131,6 +131,27 @@ test("the skills call the stage detector and validator through the CLI", () => {
   assert.doesNotMatch(all, /spec-(status|lint)\.mjs/);
 });
 
+test("a skill that restricts Bash may run the vellum commands it tells the reader to run", () => {
+  for (const name of EXPECTED_SKILLS) {
+    const text = read(join(METHOD, "skills", name, "SKILL.md"));
+    const allowed = /^allowed-tools:\s*(.+)$/m.exec(text)?.[1];
+    if (allowed === undefined || !/```bash\n[^`]*\bvellum\b/.test(text)) continue;
+    assert.match(allowed, /Bash\(vellum:\*\)/, `${name}: runs vellum but allowed-tools does not grant Bash(vellum:*)`);
+    assert.match(allowed, /Bash\(npx vellum:\*\)/, `${name}: runs vellum but allowed-tools does not grant Bash(npx vellum:*)`);
+  }
+});
+
+test("no method file claims vellum status --json reports a stage or root field", () => {
+  const claims = [];
+  for (const file of dataFiles()) {
+    const text = read(file);
+    if (/reports? (it as )?`root`|resolved `root`|root it reports|each spec's stage \(|its stage\s*\(`empty`/.test(text)) {
+      claims.push(relative(METHOD, file));
+    }
+  }
+  assert.deepEqual(claims, []);
+});
+
 test("no method file carries a product, repository or plugin specific", () => {
   const forbidden = [
     [/basalt/i, "basalt"],

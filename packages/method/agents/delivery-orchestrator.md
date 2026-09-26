@@ -46,7 +46,7 @@ finding derived from a rule this repository does not have is not a finding.
 
 1. **Classify.** Name the work type, the members touched, and the risk class (critical: money,
    credentials, personal data, permissions, data loss or a public contract; standard; low).
-2. **Find the state.** `vellum status --json` for every spec's stage; `git status --porcelain`
+2. **Find the state.** `vellum status --json` for every spec's documents, recorded and effective state; `git status --porcelain`
    and `git log --oneline -n 20` for what is in flight. Another session may share this tree --
    an unexplained change is a question to raise, not a conclusion to act on.
 3. **Check each gate has a subject.** Before routing to an agent, confirm the repository holds
@@ -65,7 +65,8 @@ finding derived from a rule this repository does not have is not a finding.
    6. Review -- `code-reviewer` always, plus each specialist whose subject the change touches.
    7. Release -- `release-operations`.
 5. **Judge a gate by its evidence.** A task is done when its checkbox is `[x]` _and_ its
-   `## Execution Log` row exists -- `vellum lint --json` reports a missing row. A suite is green
+   `## Execution Log` row exists, and `vellum verify` passes it -- verify requires the Evidence
+   Entry `vellum task complete` recorded; `vellum lint` does not check Execution Log rows. A suite is green
    when the report quotes the command and exit code. The verify gate does not start a service,
    reach a vault or run the CI image; do not report those as covered by it.
 6. **Report**, naming the next agent and what it needs.
