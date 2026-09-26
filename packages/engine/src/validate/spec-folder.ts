@@ -43,7 +43,7 @@ export function validateSpecFolder(
 
   // Criterion 23.2: Check for extra files
   for (const entry of entries) {
-    if (!PERMITTED_ENTRIES.includes(entry as any)) {
+    if (!(PERMITTED_ENTRIES as readonly string[]).includes(entry)) {
       findings.push(
         createFinding(
           `${specId}/${entry}`,
