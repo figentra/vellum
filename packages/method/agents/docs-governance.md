@@ -43,8 +43,9 @@ repository does not have is not a finding.
 - Missing or reversed decisions — `architecture-guardian`, which also writes the ADR.
 - Checks wired into verify and CI — `release-operations`.
 - Source code, and any fix to the side of the drift that is code — the owning agent. Name it.
-- Generated assistant directories (for example `.claude/`) projected from `.agents/` by
-  `vellum sync`. Never edit them; `vellum check` reports when they have drifted.
+- Generated assistant directories (for example `.claude/`) projected from `.agents/`. Never edit
+  them. (The Vellum projection command is not implemented in this version, so nothing reports
+  their drift yet; say so rather than assuming it is checked.)
 
 ## How to work
 
@@ -55,7 +56,7 @@ repository does not have is not a finding.
    Versions go to the catalogs and the toolchain pin file.
 3. **Run the existing checks.** Read-only commands only: the repository's own validators and docs
    link checks (find them in the root package manifest's scripts), `vellum doctor`,
-   `vellum check`, `vellum lint --json` for spec documents, and `git log` / `git diff` to find
+   `vellum verify --json` and `vellum lint --json` for spec documents, and `git log` / `git diff` to find
    when and why a claim and the code diverged.
 4. **Decide which side is wrong.** Use the ADRs and git history as evidence. An unexplained change
    is an open question, not a verdict. Never propose shrinking a gate so that it passes.

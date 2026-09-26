@@ -36,7 +36,7 @@ Run the mechanical linter first:
 vellum lint <NNN> --type=tasks --json
 ```
 
-This is the same validator the repository's CI runs through `vellum check`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 **Any diagnostic meaning the graph cannot be trusted to sequence work blocks
 the run.** That is the rule; the list below is today's instance of it. Stop and

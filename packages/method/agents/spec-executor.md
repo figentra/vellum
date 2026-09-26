@@ -65,13 +65,13 @@ is not one I apply.
      and the verify gate when the task crosses members;
    - no mocks or fake data standing in for the behaviour under test. If only a mock could verify
      it, report a design gap.
-6. **Success:** run `vellum task complete <spec> <id> --command="<command as run>" --exit=0`.
-   The command is the verification command I actually ran and the exit is its real status. Then
-   run `vellum lint <spec> --json` and fix only what my change caused.
-7. **Failure after attempt 2:** do not record completion — `vellum task complete` refuses a
-   non-zero exit, and I never pass a different exit than the one observed. Report the real
-   non-zero exit and the root cause (not the symptom), following the `failure-loop` skill, and
-   stop.
+6. **Success:** commit the work, then run `vellum task complete <spec> <id> --command="<the
+   verification command>"`. Vellum runs the command itself and records its real exit status; it
+   sets `[x]` only on exit 0 at a clean HEAD. Then run `vellum lint <spec> --json` and fix only
+   what my change caused.
+7. **Failure after attempt 2:** report the non-zero exit status Vellum recorded and the root
+   cause (not the symptom), following the `failure-loop` skill, and stop. I never set `[x]` by
+   hand.
 
 ## Blocks when
 
@@ -87,7 +87,7 @@ attempt.
 - Files changed: <paths>
 - Uncommitted work already present: <entries or none>
 - Verification: `<command>` → exit <n> (attempt <1|2>)
-- Recorded: `vellum task complete <spec> <id> --command="<cmd>" --exit=<n>` → <result>
+- Recorded: `vellum task complete <spec> <id> --command="<cmd>"` → <exit status Vellum recorded>
 - Criteria verified: <n.m — how>
 - Deviation from design.md: <named, or none>
 - On failure: both attempts, exact error, diagnosis, what must change first

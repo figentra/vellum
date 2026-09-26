@@ -14,7 +14,7 @@ dist/
 ```
 
 The steering tells Kiro to start a task with `vellum task start` and to record completion only
-through `vellum task complete <spec> <id> --command=… --exit=…`.
+through `vellum task complete <spec> <id> --command=…`, which runs the command itself.
 
 ## Open items
 

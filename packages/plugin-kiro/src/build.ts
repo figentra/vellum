@@ -59,8 +59,9 @@ This workspace manages specs with Vellum. Specs live in \`.agents/specs/<NNN>-<s
 - Before implementing a task, run \`vellum task start <NNN> <task-id>\`. If it refuses, stop and
   report its output.
 - Record task completion only through \`vellum task complete <NNN> <task-id>
-  --command="<the verification command>" --exit=<its exit status>\`. Do not mark a task done any
-  other way: a checkbox edited by hand is not evidence, and a non-zero exit is refused.
+  --command="<the verification command>"\`. Vellum runs the command itself and records its real
+  exit status; it sets \`[x]\` only on exit 0. Do not mark a task done any other way: a checkbox
+  edited by hand is not evidence.
 - A document is approved by a human with \`vellum approve <NNN> <artifact>\`; never approve on the
   user's behalf.
 `;

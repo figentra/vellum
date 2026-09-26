@@ -36,7 +36,7 @@ Standing roles: what each one owns and whether it can block a merge.
 
 **Where enforcement and prose disagree, the enforcement is the fact.** A rule is real when
 something fails when it is broken: the repository's verify gate, its lint configuration, its
-boundary checks, `vellum check`. If an agent's charter and a check disagree, the charter is the
+boundary checks, `vellum lint` and `vellum verify`. If an agent's charter and a check disagree, the charter is the
 bug. A rule with no failing check is a comment.
 
 **Never report a stage complete on the strength of a gate that could not have observed it.** A

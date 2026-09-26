@@ -33,7 +33,7 @@ diagnostic below unreliable:
 vellum lint <NNN> --type=tasks --json
 ```
 
-This is the same validator the repository's CI runs through `vellum check`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 Include its output in your report as a preface, but do not let a lint failure
 stop the traceability audit — report both.

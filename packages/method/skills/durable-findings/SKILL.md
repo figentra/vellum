@@ -102,8 +102,8 @@ that absence is itself a finding:
 | Destination | What already fails if it is missing or stale                                    |
 | ----------- | ------------------------------------------------------------------------------- |
 | ADR         | the repository's docs validator — a stale ADR index or navigation entry         |
-| Rule        | `vellum sync --check` — the assistant projections of `.agents/` go stale        |
-| Skill       | `vellum sync --check` — the same projection check                               |
+| Rule        | none yet — Vellum's projection check is not implemented; say so                 |
+| Skill       | none yet — the same missing projection check                                    |
 | Check       | the repository's verify gate, and the CI stage that runs it on every change     |
 | Requirement | `vellum lint` — traceability trailers must reference a criterion that exists    |
 | Test        | the repository's verify gate — its test task                                    |

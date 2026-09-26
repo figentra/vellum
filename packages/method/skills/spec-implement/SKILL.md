@@ -216,25 +216,26 @@ hypothesis about the cause, and make one corrected attempt (Attempt 2).
 
 ## Step 6 — success: mark the task done
 
-Record the completion with the command that verified it and that command's exit status —
-the evidence, not a claim:
+Record the completion by handing Vellum the verification command. Vellum runs it itself,
+records its real exit status, timestamps, duration and HEAD commit as evidence, and only then
+decides the marker — you never report an exit status:
 
 ```bash
-vellum task complete <NNN> <task-id> --command="<the verification command>" --exit=<its exit status>
+vellum task complete <NNN> <task-id> --command="<the verification command>"
 ```
 
-When it succeeds it moves the task's marker to `[x]`. Re-read the line; if it does not show
-`[x]`, rewrite that one checkbox yourself — same re-read-immediately-before and same
-retry-once-on-a-stale-read rejection as Step 3.
-
-A non-zero `--exit` is refused by design; a task whose verification failed goes to
-Step 7, not here. Then run the linter against this spec's `tasks.md`:
+It sets the task's marker to `[x]` only when the command exits 0 and the working tree matches
+HEAD outside the spec directory (commit your work first). Exit 1 means the command failed,
+the evidence was recorded as uncommitted, or completion was refused; the marker is left as it
+was, and a failed run is recorded as a failed attempt. Do not set `[x]` yourself — a task whose
+recorded verification failed goes to Step 7, not here. Then run the linter against this spec's
+`tasks.md`:
 
 ```bash
 vellum lint <NNN> --type=tasks --json
 ```
 
-This is the same validator the repository's CI runs through `vellum check`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 If it reports a diagnostic on the line you just edited, fix your edit (not the
 rest of the file) before finishing — a state store that fails its own linter
