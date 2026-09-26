@@ -9,13 +9,17 @@
 
 import type {
   Artifact,
-  ArtifactKind,
   LedgerEntry,
   ApprovalPolicy,
   Finding,
   CheckResult,
+  GitCommit,
+  RiskClass,
+  TaskLine,
 } from "@vellum/protocol";
-import { computeChecksum } from "@vellum/protocol";
+import { canonicalArtifactBody, computeChecksum, parseTaskLine } from "@vellum/protocol";
+import { approvalRecords } from "../approval/records.js";
+import { computeCoverage } from "../coverage/validate.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
 import { verifyApproval } from "../approval/verify.js";
 import { createFinding } from "../validate/finding.js";
@@ -48,16 +52,15 @@ export interface StrictVerificationResult {
  * @param ledger - The spec's ledger
  * @param policy - Approval policy
  * @param gitCommits - Git commits referenced in approvals
+ * @param riskClass - The spec's risk class, which selects the policy's approvers
  * @returns Verification result
  */
 export function strictVerify(
   artifacts: readonly Artifact[],
   ledger: readonly LedgerEntry[],
   policy: ApprovalPolicy | null,
-  gitCommits: ReadonlyMap<
-    string,
-    { signature?: string; sessionMetadata?: { isAssistant?: boolean } }
-  >,
+  gitCommits: ReadonlyMap<string, GitCommit>,
+  riskClass: RiskClass,
 ): StrictVerificationResult {
   const findings: Finding[] = [];
 
@@ -71,54 +74,49 @@ export function strictVerify(
     }
   }
 
-  // Count approvals and verify each (criterion 12.5)
+  // Each artifact must be present to be verified at all
+  const byKind = new Map(artifacts.map((artifact) => [artifact.kind, artifact] as const));
+  for (const kind of ["requirements", "design", "tasks"] as const) {
+    if (!byKind.has(kind)) {
+      findings.push(createFinding(`${kind}.md`, 0, "ARTIFACT_MISSING", `${kind}.md is missing`));
+    }
+  }
+
+  // Verify each approval against the current artifact checksum (criterion 12.5)
+  const records = approvalRecords(ledger);
   let validApprovals = 0;
-  let totalApprovals = 0;
-
-  for (const entry of ledger) {
-    if (entry.kind === "approval") {
-      totalApprovals++;
-      const payload = entry as any;
-
-      const artifactKind: ArtifactKind = payload.artifact?.replace(".md", "") ?? "requirements";
-      const current = artifacts.find((artifact) => artifact.kind === artifactKind);
-      if (!current) {
-        findings.push(
-          createFinding(
-            ".sdlc/ledger.jsonl",
-            entry.id,
-            "APPROVAL_INVALID",
-            `Approval invalid: approved artifact ${artifactKind}.md is not present`,
-          ),
-        );
-        continue;
-      }
-
-      const result = verifyApproval(
-        {
-          approver: payload.identity ?? payload.approver ?? "",
-          artifact: artifactKind,
-          artifactChecksum: payload.artifact_checksum ?? payload.artifactChecksum ?? "",
-          signalCommit: payload.approval_signal?.commit ?? payload.signalCommit ?? "",
-        },
-        policy,
-        "standard",
-        gitCommits as any,
-        computeChecksum(current.body),
+  for (const record of records) {
+    const current = byKind.get(record.artifact);
+    if (!current) {
+      findings.push(
+        createFinding(
+          ".sdlc/ledger.jsonl",
+          record.entryId,
+          "APPROVAL_INVALID",
+          `Approval invalid: approved artifact ${record.artifact}.md is not present`,
+        ),
       );
+      continue;
+    }
 
-      if (result.valid) {
-        validApprovals++;
-      } else {
-        findings.push(
-          createFinding(
-            ".sdlc/ledger.jsonl",
-            entry.id,
-            "APPROVAL_INVALID",
-            `Approval invalid: ${result.reason}`,
-          ),
-        );
-      }
+    const result = verifyApproval(
+      record,
+      policy,
+      riskClass,
+      gitCommits,
+      computeChecksum(current.body),
+    );
+    if (result.valid) {
+      validApprovals++;
+    } else {
+      findings.push(
+        createFinding(
+          ".sdlc/ledger.jsonl",
+          record.entryId,
+          "APPROVAL_INVALID",
+          `Approval invalid: ${result.reason}`,
+        ),
+      );
     }
   }
 
@@ -129,8 +127,8 @@ export function strictVerify(
   for (const entry of ledger) {
     if (entry.kind === "evidence") {
       totalEvidence++;
-      const payload = entry as any;
-      if (payload.exit_status === 0) {
+      const exitStatus = (entry as unknown as { readonly exit_status?: unknown }).exit_status;
+      if (exitStatus === 0) {
         validEvidence++;
       } else {
         findings.push(
@@ -138,22 +136,56 @@ export function strictVerify(
             ".sdlc/ledger.jsonl",
             entry.id,
             "EVIDENCE_FAILED",
-            `Evidence entry has non-zero exit status: ${payload.exit_status}`,
+            `Evidence entry has non-zero exit status: ${String(exitStatus)}`,
           ),
         );
       }
     }
   }
 
-  // Compute overall result
-  const criteriaCovered = true; // Would need to parse requirements.md
-  const propertiesCited = true; // Would need to parse design.md
+  // Criteria coverage and property citation (criteria 12.2, 12.3), computed
+  // from the artifacts rather than assumed
+  const requirements = byKind.get("requirements");
+  const design = byKind.get("design");
+  const tasksArtifact = byKind.get("tasks");
+  let criteria = { satisfied: 0, total: 0 };
+  let properties = { satisfied: 0, total: 0 };
+  if (requirements && design && tasksArtifact) {
+    // Parsed in canonical form, so CRLF or re-padded tables read as the
+    // approved text does.
+    const coverage = computeCoverage(
+      canonicalArtifactBody(requirements.body),
+      canonicalArtifactBody(design.body),
+      taskLines(canonicalArtifactBody(tasksArtifact.body)),
+    );
+    criteria = {
+      satisfied: coverage.examined.criteria - coverage.uncoveredCriteria.length,
+      total: coverage.examined.criteria,
+    };
+    properties = {
+      satisfied: coverage.examined.properties - coverage.uncitedProperties.length,
+      total: coverage.examined.properties,
+    };
+    if (coverage.examined.criteria === 0) {
+      findings.push(
+        createFinding("requirements.md", 0, "CRITERIA_NOT_COVERED", "requirements.md defines no criteria"),
+      );
+    }
+    for (const id of coverage.uncoveredCriteria) {
+      findings.push(
+        createFinding("tasks.md", 0, "CRITERIA_NOT_COVERED", `Criterion ${id} is covered by no task`),
+      );
+    }
+    for (const id of coverage.uncitedProperties) {
+      findings.push(
+        createFinding("tasks.md", 0, "PROPERTY_NOT_CITED", `Property ${id} is cited by no task`),
+      );
+    }
+  }
 
-  const criteria = { satisfied: criteriaCovered ? 1 : 0, total: 1 };
-  const properties = { satisfied: propertiesCited ? 1 : 0, total: 1 };
   const tasks = { satisfied: validEvidence, total: totalEvidence };
   const evidence = { satisfied: validEvidence, total: totalEvidence };
-  const approvals = { satisfied: validApprovals, total: totalApprovals };
+  const approvals = { satisfied: validApprovals, total: records.length };
 
   // Overall PASS if all checks pass (criterion 12.1)
   const result: CheckResult = findings.length === 0 ? "PASS" : "FAIL";
@@ -167,6 +199,14 @@ export function strictVerify(
     approvals,
     findings: Object.freeze(findings),
   };
+}
+
+/** Parse the task lines of a tasks.md body, keeping their 1-based line numbers. */
+function taskLines(body: string): TaskLine[] {
+  return body.split("\n").flatMap((line, index) => {
+    const parsed = parseTaskLine(line);
+    return parsed ? [{ ...parsed, lineNumber: index + 1 }] : [];
+  });
 }
 
 /**

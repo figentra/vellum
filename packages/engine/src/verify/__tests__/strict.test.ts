@@ -1,87 +1,112 @@
 /**
- * strictVerify checks each approval against the current artifact's checksum.
+ * strictVerify checks approvals against the current artifacts, under the
+ * spec's risk class, and computes coverage rather than assuming it.
  */
 
 import { describe, expect, it } from "vitest";
-import type { ApprovalPolicy, Artifact, GitCommit, LedgerEntry } from "@vellum/protocol";
-import { brand, computeChecksum } from "@vellum/protocol";
 import { strictVerify } from "../strict.js";
+import {
+  allArtifacts,
+  approvals,
+  artifact,
+  commits,
+  policyFor,
+  REQUIREMENTS,
+  DESIGN,
+  TASKS,
+} from "./fixtures.js";
 
-const APPROVED_BODY = "# Requirements\n\n| Term | Meaning |\n| --- | --- |\n| Spec | A folder |\n";
-const SIGNAL = "a".repeat(40);
+const policy = policyFor("standard");
 
-const policy: ApprovalPolicy = {
-  approvers: new Map([["standard", new Map([["requirements", ["alice@example.com"]]])]]),
-  requiredCount: new Map([["standard", new Map([["requirements", 1]])]]),
-};
-const commits = new Map<string, GitCommit>([
-  [
-    SIGNAL,
-    {
-      sha: brand<string, "CommitSha">(SIGNAL),
-      author: { name: "Alice", email: "alice@example.com" },
-      committer: { name: "Alice", email: "alice@example.com" },
-      message: "approve: requirements",
-      timestamp: "2026-09-26T10:00:00Z",
-      signature: "-----BEGIN SSH SIGNATURE-----",
-    },
-  ],
-]);
+describe("strictVerify", () => {
+  it("passes a complete, approved, covered spec", () => {
+    const result = strictVerify(allArtifacts(), approvals(), policy, commits, "standard");
 
-const approval = {
-  kind: "approval",
-  id: 1,
-  predecessor_digest: null,
-  timestamp: "2026-09-26T10:00:00Z",
-  artifact: "requirements.md",
-  artifact_version: 1,
-  artifact_checksum: computeChecksum(APPROVED_BODY),
-  identity: "alice@example.com",
-  identity_key: "SHA256:alice",
-  session_type: "human",
-  approval_signal: { commit: SIGNAL, message_prefix: "approve:" },
-} as unknown as LedgerEntry;
+    expect(result.findings).toEqual([]);
+    expect(result.result).toBe("PASS");
+    expect(result.approvals).toEqual({ satisfied: 3, total: 3 });
+    expect(result.criteria).toEqual({ satisfied: 2, total: 2 });
+    expect(result.properties).toEqual({ satisfied: 2, total: 2 });
+  });
 
-const artifact = (body: string): Artifact => ({
-  kind: "requirements",
-  path: "/repo/.agents/specs/001-x/requirements.md",
-  body,
-  frontmatter: {
-    version: 1,
-    checksum: computeChecksum(body),
-    state: "IN_REVIEW",
-    createdAt: "2026-09-26T09:00:00Z",
-    updatedAt: "2026-09-26T09:00:00Z",
-  },
-});
-
-describe("strictVerify approvals", () => {
   it("counts an approval whose artifact was only reformatted", () => {
-    const reformatted = APPROVED_BODY.replace("| Term | Meaning |", "|Term|Meaning|").replace(
+    const reformatted = REQUIREMENTS.replace("| Term | Meaning |", "|Term|Meaning|").replace(
       /\n/g,
       "\r\n",
     );
-    const result = strictVerify([artifact(reformatted)], [approval], policy, commits);
+    const result = strictVerify(
+      allArtifacts({ requirements: reformatted }),
+      approvals(),
+      policy,
+      commits,
+      "standard",
+    );
 
-    expect(result.approvals).toEqual({ satisfied: 1, total: 1 });
+    expect(result.approvals).toEqual({ satisfied: 3, total: 3 });
     expect(result.findings).toEqual([]);
   });
 
   it("rejects an approval whose artifact content changed since", () => {
-    const edited = APPROVED_BODY.replace("A folder", "A file");
-    const result = strictVerify([artifact(edited)], [approval], policy, commits);
+    const edited = REQUIREMENTS.replace("A folder", "A file");
+    const result = strictVerify(
+      allArtifacts({ requirements: edited }),
+      approvals(),
+      policy,
+      commits,
+      "standard",
+    );
 
     expect(result.result).toBe("FAIL");
-    expect(result.approvals).toEqual({ satisfied: 0, total: 1 });
+    expect(result.approvals).toEqual({ satisfied: 2, total: 3 });
     expect(result.findings.map((f) => f.message)).toEqual(["Approval invalid: CHECKSUM_MISMATCH"]);
   });
 
-  it("rejects an approval whose artifact is not supplied", () => {
-    const result = strictVerify([], [approval], policy, commits);
+  it("reports missing artifacts and approvals of them", () => {
+    const result = strictVerify(
+      [artifact("design", DESIGN), artifact("tasks", TASKS)],
+      approvals(),
+      policy,
+      commits,
+      "standard",
+    );
 
-    expect(result.approvals).toEqual({ satisfied: 0, total: 1 });
+    expect(result.result).toBe("FAIL");
     expect(result.findings.map((f) => f.message)).toEqual([
+      "requirements.md is missing",
       "Approval invalid: approved artifact requirements.md is not present",
     ]);
+  });
+
+  it("fails when a criterion is covered by no task", () => {
+    const uncovered = TASKS.replace(" <!-- criteria: 1.2 -->", "");
+    const result = strictVerify(
+      allArtifacts({ tasks: uncovered }),
+      [],
+      policy,
+      commits,
+      "standard",
+    );
+
+    expect(result.result).toBe("FAIL");
+    expect(result.criteria).toEqual({ satisfied: 1, total: 2 });
+    expect(result.findings.map((f) => f.message)).toContain("Criterion 1.2 is covered by no task");
+  });
+
+  it("fails when a property is cited by no task", () => {
+    const uncited = TASKS.replace(" <!-- properties: P2 -->", "");
+    const result = strictVerify(allArtifacts({ tasks: uncited }), [], policy, commits, "standard");
+
+    expect(result.properties).toEqual({ satisfied: 1, total: 2 });
+    expect(result.findings.map((f) => f.message)).toContain("Property P2 is cited by no task");
+  });
+
+  it("verifies approvals under the spec's risk class, not a fixed one", () => {
+    const highOnly = policyFor("high");
+
+    const high = strictVerify(allArtifacts(), approvals(), highOnly, commits, "high");
+    const standard = strictVerify(allArtifacts(), approvals(), highOnly, commits, "standard");
+
+    expect(high.approvals).toEqual({ satisfied: 3, total: 3 });
+    expect(standard.approvals).toEqual({ satisfied: 0, total: 3 });
   });
 });

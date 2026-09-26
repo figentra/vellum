@@ -8,9 +8,29 @@
  * @see design.md Criterion 6.6-6.10
  */
 
-import type { Artifact, LedgerEntry, ApprovalPolicy, Finding } from "@vellum/protocol";
+import type {
+  Artifact,
+  LedgerEntry,
+  ApprovalPolicy,
+  Finding,
+  GitCommit,
+  RiskClass,
+} from "@vellum/protocol";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
 import { strictVerify } from "../verify/strict.js";
+
+/** One spec as check mode verifies it: everything read from the repository. */
+export interface CheckModeSpec {
+  readonly id: string;
+  readonly artifacts: readonly Artifact[];
+  readonly ledger: readonly LedgerEntry[];
+  readonly state: string;
+  readonly policy: ApprovalPolicy | null;
+  /** The spec's risk class, which selects the policy's approvers. */
+  readonly riskClass: RiskClass;
+  /** The approval signal commits the spec's approvals reference. */
+  readonly gitCommits: ReadonlyMap<string, GitCommit>;
+}
 
 /**
  * Check mode result.
@@ -50,15 +70,7 @@ function makeFinding(file: string, line: number, rule: string, message: string):
  * @param specs - Specs to check
  * @returns Check result
  */
-export function runCheckMode(
-  specs: Array<{
-    readonly id: string;
-    readonly artifacts: readonly Artifact[];
-    readonly ledger: readonly LedgerEntry[];
-    readonly state: string;
-    readonly policy: ApprovalPolicy | null;
-  }>,
-): CheckModeResult {
+export function runCheckMode(specs: readonly CheckModeSpec[]): CheckModeResult {
   const allFindings: Finding[] = [];
   let invalidStates = 0;
   let ledgerFailures = 0;
@@ -95,7 +107,8 @@ export function runCheckMode(
       spec.artifacts,
       spec.ledger,
       spec.policy,
-      new Map(), // Git commits would be passed in production
+      spec.gitCommits,
+      spec.riskClass,
     );
 
     allFindings.push(...verifyResult.findings);
@@ -132,13 +145,7 @@ export function isCheckMode(args: readonly string[]): boolean {
 /**
  * Run a single spec check.
  */
-export function checkSingleSpec(spec: {
-  readonly id: string;
-  readonly artifacts: readonly Artifact[];
-  readonly ledger: readonly LedgerEntry[];
-  readonly state: string;
-  readonly policy: ApprovalPolicy | null;
-}): { passed: boolean; findings: readonly Finding[] } {
+export function checkSingleSpec(spec: CheckModeSpec): { passed: boolean; findings: readonly Finding[] } {
   const findings: Finding[] = [];
 
   // Check state
@@ -162,7 +169,13 @@ export function checkSingleSpec(spec: {
   }
 
   // Verify
-  const verifyResult = strictVerify(spec.artifacts, spec.ledger, spec.policy, new Map());
+  const verifyResult = strictVerify(
+    spec.artifacts,
+    spec.ledger,
+    spec.policy,
+    spec.gitCommits,
+    spec.riskClass,
+  );
   findings.push(...verifyResult.findings);
 
   return {
