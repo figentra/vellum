@@ -25,6 +25,8 @@ export interface EvidenceValidationResult {
  *
  * @param evidence - Evidence payload from ledger
  * @param commits - Available git commits
+ * @param now - The current instant as an ISO 8601 UTC timestamp, supplied by
+ *   the caller (the engine reads no clock); timestamps after it are rejected
  * @returns Validation result
  */
 export function validateEvidence(
@@ -37,8 +39,13 @@ export function validateEvidence(
     readonly uncommitted?: boolean;
   },
   commits: ReadonlyMap<string, unknown>,
+  now: string,
 ): EvidenceValidationResult {
   const errors: string[] = [];
+  const nowMs = Date.parse(now);
+  if (Number.isNaN(nowMs)) {
+    throw new RangeError(`validateEvidence: 'now' is not a timestamp: ${now}`);
+  }
 
   // Criterion 9.8: Non-zero exit status handling
   if (evidence.exit_status !== undefined && evidence.exit_status !== 0) {
@@ -59,7 +66,7 @@ export function validateEvidence(
       }
 
       // Check not in future
-      if (start.getTime() > Date.now()) {
+      if (start.getTime() > nowMs) {
         errors.push(`Start timestamp is in the future: ${evidence.start_timestamp}`);
       }
     } catch (error) {
@@ -75,7 +82,7 @@ export function validateEvidence(
       }
 
       // Check not in future
-      if (finish.getTime() > Date.now()) {
+      if (finish.getTime() > nowMs) {
         errors.push(`Finish timestamp is in the future: ${evidence.finish_timestamp}`);
       }
     } catch (error) {

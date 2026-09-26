@@ -13,6 +13,7 @@ import {
   validateRiskClassDeclaration,
   getTable1ADefaults,
   VALID_RISK_CLASSES,
+  recordRiskClassChange,
 } from "../risk-class-handler";
 
 describe("risk-class-handler", () => {
@@ -110,5 +111,23 @@ describe("risk-class-handler", () => {
       expect(critical.approvalsPerArtifact).toBe(2);
       expect(critical.releaseGate).toBe("explicit_with_rollback_path");
     });
+  });
+});
+
+describe("recordRiskClassChange", () => {
+  const change = {
+    specId: "007-queue",
+    previousClass: "standard",
+    newClass: "high",
+    timestamp: "2001-02-03T04:05:06.000Z",
+    reason: "touches payments",
+  } as const;
+
+  it("derives the Decision identifier from the change, not the clock", async () => {
+    const first = await recordRiskClassChange(".sdlc/ledger.jsonl", change);
+    const second = await recordRiskClassChange(".sdlc/ledger.jsonl", change);
+
+    expect(first.id).toBe("decision-007-queue-2001-02-03T04:05:06.000Z");
+    expect(second).toEqual(first);
   });
 });

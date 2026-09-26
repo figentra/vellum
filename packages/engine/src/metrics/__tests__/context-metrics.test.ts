@@ -51,6 +51,16 @@ describe("computeTaskMetrics", () => {
 });
 
 describe("aggregateContextMetrics", () => {
+  const NOW = "2001-02-03T04:05:06.000Z";
+
+  it("stamps the caller-supplied instant, not the clock", () => {
+    const withBundles = [computeTaskMetrics("1.1", "spec-1", "bundle", "original")];
+    const withoutBundles = [computeTaskMetrics("1.1", "spec-1", null, "original")];
+
+    expect(aggregateContextMetrics(withBundles, specScope, 0, NOW).timestamp).toBe(NOW);
+    expect(aggregateContextMetrics(withoutBundles, specScope, 0, NOW).timestamp).toBe(NOW);
+  });
+
   it("aggregates metrics across tasks", () => {
     const taskMetrics = [
       computeTaskMetrics("1.1", "spec-1", "small", "large content here"),
@@ -58,7 +68,7 @@ describe("aggregateContextMetrics", () => {
       computeTaskMetrics("1.3", "spec-1", null, "uncomputed content"),
     ];
 
-    const aggregated = aggregateContextMetrics(taskMetrics, specScope, 0);
+    const aggregated = aggregateContextMetrics(taskMetrics, specScope, 0, NOW);
 
     expect(aggregated.scope).toEqual(specScope);
     expect(aggregated.total_tasks).toBe(3);
@@ -70,7 +80,7 @@ describe("aggregateContextMetrics", () => {
   it("counts full artifact fallbacks", () => {
     const taskMetrics = [computeTaskMetrics("1.1", "spec-1", "bundle", "original")];
 
-    const aggregated = aggregateContextMetrics(taskMetrics, repositoryScope, 5);
+    const aggregated = aggregateContextMetrics(taskMetrics, repositoryScope, 5, NOW);
 
     expect(aggregated.full_artifact_fallbacks).toBe(5);
   });
@@ -81,7 +91,7 @@ describe("aggregateContextMetrics", () => {
       computeTaskMetrics("1.2", "spec-1", null, "original"),
     ];
 
-    const aggregated = aggregateContextMetrics(taskMetrics, repositoryScope, 2);
+    const aggregated = aggregateContextMetrics(taskMetrics, repositoryScope, 2, NOW);
 
     expect(aggregated.tasks_with_bundles).toBe(0);
     expect(aggregated.size_ratio).toBe(0);

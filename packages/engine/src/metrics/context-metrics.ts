@@ -93,12 +93,15 @@ export function computeTaskMetrics(
  * @param taskMetrics - Array of task metrics
  * @param scope - Metrics scope
  * @param fallbackCount - Number of tasks that fell back to full artifacts
+ * @param now - The aggregation instant as an ISO 8601 UTC timestamp, supplied
+ *   by the caller (the engine reads no clock)
  * @returns Aggregated metrics
  */
 export function aggregateContextMetrics(
   taskMetrics: TaskContextMetrics[],
   scope: MetricsScope,
   fallbackCount: number,
+  now: string,
 ): AggregatedContextMetrics {
   const computed = taskMetrics.filter((m) => m.computed);
   const totalTasks = taskMetrics.length;
@@ -113,7 +116,7 @@ export function aggregateContextMetrics(
       average_original_size_bytes: 0,
       size_ratio: 0,
       full_artifact_fallbacks: fallbackCount,
-      timestamp: new Date().toISOString(),
+      timestamp: now,
     };
   }
 
@@ -128,7 +131,7 @@ export function aggregateContextMetrics(
     average_original_size_bytes: Math.round(totalOriginalSize / tasksWithBundles),
     size_ratio: totalBundleSize / totalOriginalSize,
     full_artifact_fallbacks: fallbackCount,
-    timestamp: new Date().toISOString(),
+    timestamp: now,
   };
 }
 

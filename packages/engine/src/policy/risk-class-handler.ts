@@ -87,7 +87,9 @@ export async function recordRiskClassChange(
   change: RiskClassChange,
 ): Promise<DecisionRecord> {
   const decision: DecisionRecord = {
-    id: `decision-${change.specId}-${Date.now()}`,
+    // Derived from the change itself, not the clock: the same change always
+    // yields the same Decision identifier.
+    id: `decision-${change.specId}-${change.timestamp}`,
     decisionId: "risk-class-change",
     actor: "policy-engine",
     timestamp: change.timestamp,
