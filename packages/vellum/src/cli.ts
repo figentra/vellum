@@ -5,4 +5,4 @@
  * Thin wrapper that invokes @vellum/cli
  */
 
-import "../ packages/cli/src/cli.js";
+import "@vellum/cli";

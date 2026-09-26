@@ -5,4 +5,4 @@
  * Thin wrapper that invokes @vellum/mcp
  */
 
-import "../ packages/mcp/src/server.js";
+import "@vellum/mcp";
