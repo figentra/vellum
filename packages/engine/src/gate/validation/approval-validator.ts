@@ -1,10 +1,30 @@
 /**
- * Approval Validator - validates approvals against policy.
+ * Approval Validator - the merge gate's view of approval verification.
+ *
+ * There is one approval verifier: `verifyApproval` in approval/verify.ts. This
+ * module only adapts its result to the gate's error-list shape, so an approval
+ * the gate accepts is exactly one strict verification and status accept:
+ * signed by a key the Approval Policy lists for the approving identity
+ * (criterion 7.3, `SIGNER_NOT_AUTHORIZED` otherwise), from a human session,
+ * by an authorised approver at the spec's risk class, and bound to the
+ * artifact's current checksum.
  *
  * @see requirements.md Requirement 6.1
  */
 
-import type { ApprovalPayload, GitCommit } from "@vellum/protocol";
+import type {
+  ApprovalPayload,
+  ApprovalPolicy,
+  ArtifactKind,
+  Checksum,
+  GitCommit,
+  RiskClass,
+} from "@vellum/protocol";
+import {
+  diagnoseInvalidApproval,
+  verifyApproval,
+  type ApprovalRejectionReason,
+} from "../../approval/verify.js";
 
 /**
  * Approval validation result.
@@ -14,58 +34,57 @@ export interface ApprovalValidationResult {
   valid: boolean;
   /** Validation errors */
   errors: string[];
+  /** Why verifyApproval rejected the approval (absent when valid or not verified) */
+  reason?: ApprovalRejectionReason;
 }
 
 /**
- * Policy requirements an approval is checked against.
+ * Everything an approval is verified against.
  */
-export interface ApprovalValidationPolicy {
-  readonly requiresSignedCommits: boolean;
-  readonly authorizedApprovers: readonly string[];
+export interface ApprovalValidationContext {
+  /** The Approval Policy; null when it is missing (no approval is then valid) */
+  readonly policy: ApprovalPolicy | null;
+  /** The spec's risk class, which selects the policy's approvers */
+  readonly riskClass: RiskClass;
+  /** Git commits keyed by SHA, holding each approval's signal commit */
+  readonly commits: ReadonlyMap<string, GitCommit>;
+  /** The current Artifact Checksum of each artifact present */
+  readonly currentChecksums: ReadonlyMap<ArtifactKind, Checksum>;
 }
 
 /**
- * Validate an approval against policy requirements.
- *
- * Whether the approval came from an assistant session is read from the
- * approval's signal commit (design: "If the signal commit's metadata indicates
- * an assistant session, reject"), so the caller supplies the commits.
+ * Validate one approval with verifyApproval.
  *
  * @param approval - Approval to validate
- * @param policy - Policy requirements
- * @param commits - Git commits keyed by SHA, containing the approval's signal commit
+ * @param context - Policy, risk class, signal commits and current checksums
  * @returns Validation result
  */
 export function validateApproval(
   approval: ApprovalPayload,
-  policy: ApprovalValidationPolicy,
-  commits: ReadonlyMap<string, GitCommit>,
+  context: ApprovalValidationContext,
 ): ApprovalValidationResult {
-  const errors: string[] = [];
-  const signal = commits.get(approval.signalCommit);
-
-  if (!signal) {
-    errors.push(`Approval signal commit ${approval.signalCommit} not found`);
-  } else {
-    // Check session type is human (criterion 6.1)
-    if (signal.sessionMetadata?.isAssistant) {
-      errors.push("Assistant sessions cannot approve artifacts");
-    }
-
-    // Check approval signal commit is signed (if required)
-    if (policy.requiresSignedCommits && !signal.signature) {
-      errors.push(`Approval signal commit ${approval.signalCommit} is not signed`);
-    }
+  const currentChecksum = context.currentChecksums.get(approval.artifact);
+  if (currentChecksum === undefined) {
+    return {
+      valid: false,
+      errors: [
+        `Approval of ${approval.artifact} cannot be verified: ${approval.artifact}.md is not present`,
+      ],
+    };
   }
 
-  // Check identity is authorized
-  if (!policy.authorizedApprovers.includes(approval.approver)) {
-    errors.push(`Approver ${approval.approver} is not authorized`);
-  }
-
+  const result = verifyApproval(
+    approval,
+    context.policy,
+    context.riskClass,
+    context.commits,
+    currentChecksum,
+  );
+  if (result.valid) return { valid: true, errors: [] };
   return {
-    valid: errors.length === 0,
-    errors,
+    valid: false,
+    errors: [diagnoseInvalidApproval(approval, result)],
+    reason: result.reason,
   };
 }
 
@@ -84,19 +103,17 @@ export function isApprovalStale(approval: ApprovalPayload, currentChecksum: stri
  * Validate approvals for a set of artifacts.
  *
  * @param approvals - Approvals to validate
- * @param policy - Policy requirements
- * @param commits - Git commits keyed by SHA, containing each approval's signal commit
+ * @param context - Policy, risk class, signal commits and current checksums
  * @returns Validation result for all approvals
  */
 export function validateApprovals(
   approvals: readonly ApprovalPayload[],
-  policy: ApprovalValidationPolicy,
-  commits: ReadonlyMap<string, GitCommit>,
+  context: ApprovalValidationContext,
 ): ApprovalValidationResult {
   const errors: string[] = [];
 
   for (const approval of approvals) {
-    const result = validateApproval(approval, policy, commits);
+    const result = validateApproval(approval, context);
     errors.push(...result.errors);
   }
 
