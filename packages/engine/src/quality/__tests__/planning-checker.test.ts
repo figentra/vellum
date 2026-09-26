@@ -15,9 +15,7 @@ describe("parseTasks", () => {
     const tasks = parseTasks(tasksText);
 
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].id).toBe("1");
-    expect(tasks[0].title).toBe("Create the file");
-    expect(tasks[0].state).toBe("pending");
+    expect(tasks[0]).toMatchObject({ id: "1", title: "Create the file", state: "pending" });
   });
 
   it("parses task with Requirements trailer", () => {
@@ -29,7 +27,7 @@ _Requirements: 1.1, 1.2_
     const tasks = parseTasks(tasksText);
 
     expect(tasks).toHaveLength(1);
-    expect(tasks[0].referenced_criteria).toEqual(["1.1", "1.2"]);
+    expect(tasks[0]?.referenced_criteria).toEqual(["1.1", "1.2"]);
   });
 
   it("marks test tasks", () => {
@@ -39,7 +37,7 @@ _Requirements: 1.1, 1.2_
 
     const tasks = parseTasks(tasksText);
 
-    expect(tasks[0].is_test).toBe(true);
+    expect(tasks[0]?.is_test).toBe(true);
   });
 });
 

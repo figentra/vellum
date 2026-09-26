@@ -34,7 +34,7 @@ export function extractGlossaryTerms(glossaryText: string): GlossaryTerm[] {
     if (!line) continue;
     // Match glossary table format: | Term | Definition |
     const match = line.match(/\|\s*([A-Z][A-Za-z0-9_\s]+?)\s*\|\s*(.+?)\s*\|/);
-    if (match) {
+    if (match?.[1] !== undefined && match[2] !== undefined) {
       terms.push({
         term: match[1].trim(),
         definition: match[2].trim(),

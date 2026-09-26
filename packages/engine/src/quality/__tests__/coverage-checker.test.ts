@@ -133,4 +133,25 @@ Description here.
 
     expect(findings).toHaveLength(0);
   });
+
+  it("parses coverage table rows and property definitions", () => {
+    const design = `
+## Requirement coverage
+| 1.1 | Property 1 |
+| 1.2 | Property 2 |
+
+**Property 1: First**
+**Validates: Requirements 1.1**
+
+**Property 2: Second**
+`;
+    expect(parseCoverageTable(design).map((r) => [r.criterion_reference, r.property])).toEqual([
+      ["1.1", "1"],
+      ["1.2", "2"],
+    ]);
+    expect(parseProperties(design).map((p) => [p.number, p.validates])).toEqual([
+      ["1", ["1.1"]],
+      ["2", undefined],
+    ]);
+  });
 });

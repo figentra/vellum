@@ -63,7 +63,7 @@ export function parseCoverageTable(designText: string): CoverageRow[] {
     // Parse table row
     if (inCoverageTable && line.trim().startsWith("|")) {
       const match = line.match(/\|\s*([0-9.]+)\s*\|\s*(?:Property\s+)?(\d+)/);
-      if (match) {
+      if (match?.[1] !== undefined && match[2] !== undefined) {
         rows.push({
           criterion_reference: match[1],
           property: match[2],
@@ -92,7 +92,7 @@ export function parseProperties(designText: string): PropertyDefinition[] {
 
     // Match property heading: **Property N:**
     const match = line.match(/\*\*Property\s+(\d+):\s*(.+?)\*\*/);
-    if (match) {
+    if (match?.[1] !== undefined && match[2] !== undefined) {
       const prop: PropertyDefinition = {
         number: match[1],
         title: match[2],
@@ -104,7 +104,7 @@ export function parseProperties(designText: string): PropertyDefinition[] {
         const nextLine = lines[j];
         if (!nextLine) continue;
         const validatesMatch = nextLine.match(/\*\*Validates:\s*Requirements\s+([0-9.,\s]+)\*\*/i);
-        if (validatesMatch) {
+        if (validatesMatch?.[1] !== undefined) {
           prop.validates = validatesMatch[1].split(",").map((s) => s.trim());
           break;
         }

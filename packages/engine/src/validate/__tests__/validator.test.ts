@@ -84,8 +84,7 @@ describe("Protocol Validator", () => {
 
       sortFindings(findings);
 
-      expect(findings[0].file).toBe("a.md");
-      expect(findings[1].file).toBe("b.md");
+      expect(findings.map((f) => f.file)).toEqual(["a.md", "b.md"]);
     });
 
     it("should order findings by line number when files are equal", () => {
@@ -96,8 +95,7 @@ describe("Protocol Validator", () => {
 
       sortFindings(findings);
 
-      expect(findings[0].line).toBe(5);
-      expect(findings[1].line).toBe(10);
+      expect(findings.map((f) => f.line)).toEqual([5, 10]);
     });
 
     it("should order findings by rule identifier when file and line are equal", () => {
@@ -109,8 +107,20 @@ describe("Protocol Validator", () => {
       sortFindings(findings);
 
       // ARTIFACT_MISSING comes before TASK_LINE_INVALID alphabetically
-      expect(findings[0].rule).toBe(RuleIdentifier.ARTIFACT_MISSING);
-      expect(findings[1].rule).toBe(RuleIdentifier.TASK_LINE_INVALID);
+      expect(findings.map((f) => f.rule)).toEqual([
+        RuleIdentifier.ARTIFACT_MISSING,
+        RuleIdentifier.TASK_LINE_INVALID,
+      ]);
+    });
+
+    it("compareFindings orders by file, then line, then rule, and is zero for equal findings", () => {
+      const base: Finding = { file: "a.md", line: 2, rule: RuleIdentifier.ARTIFACT_MISSING, message: "" };
+      expect(compareFindings(base, { ...base, file: "b.md", line: 1 })).toBeLessThan(0);
+      expect(compareFindings(base, { ...base, line: 1 })).toBeGreaterThan(0);
+      expect(
+        compareFindings(base, { ...base, rule: RuleIdentifier.TASK_LINE_INVALID }),
+      ).toBeLessThan(0);
+      expect(compareFindings(base, { ...base })).toBe(0);
     });
   });
 });
