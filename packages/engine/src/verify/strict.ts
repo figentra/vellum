@@ -43,7 +43,7 @@ export interface StrictVerificationResult {
  * @returns Verification result
  */
 export function strictVerify(
-  artifacts: readonly Artifact[],
+  _artifacts: readonly Artifact[],
   ledger: readonly LedgerEntry[],
   policy: ApprovalPolicy | null,
   gitCommits: ReadonlyMap<

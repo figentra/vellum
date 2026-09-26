@@ -7,13 +7,7 @@
  * @see design.md Criterion 6
  */
 
-import type {
-  Artifact,
-  LedgerEntry,
-  LifecycleState,
-  ApprovalPolicy,
-  CheckResult,
-} from "@vellum/protocol";
+import type { Artifact, LedgerEntry, LifecycleState, ApprovalPolicy } from "@vellum/protocol";
 
 /**
  * Status report for a spec.
@@ -108,16 +102,18 @@ export function computeStatusReport(
   const effectiveState = state;
   const stateMismatch = false;
 
+  const artfs: { requirements?: ArtifactStatus; design?: ArtifactStatus; tasks?: ArtifactStatus } =
+    {};
+  if (requirements) artfs.requirements = getArtifactStatus(requirements);
+  if (design) artfs.design = getArtifactStatus(design);
+  if (tasks) artfs.tasks = getArtifactStatus(tasks);
+
   return {
     specId,
     recordedState: state,
     effectiveState,
     stateMismatch,
-    artifacts: {
-      requirements: requirements ? getArtifactStatus(requirements) : undefined,
-      design: design ? getArtifactStatus(design) : undefined,
-      tasks: tasks ? getArtifactStatus(tasks) : undefined,
-    },
+    artifacts: artfs,
     approvals,
     verification,
   };

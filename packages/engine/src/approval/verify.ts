@@ -83,7 +83,7 @@ export function verifyApproval(
  * Pure function - iterates and verifies.
  */
 export function countValidApprovals(
-  approvals: readonly Array<{
+  approvals: ReadonlyArray<{
     approver: string;
     artifact: ArtifactKind;
     artifactChecksum: Checksum;

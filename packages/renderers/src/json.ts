@@ -141,18 +141,30 @@ export function renderErrorJson(error: {
   message: string;
   details?: unknown;
 }): string {
-  const result: Record<string, unknown> = {
-    error: {
-      code: error.code,
-      message: error.message,
-    },
-  };
-
   if (error.details !== undefined) {
-    result.error = { ...result.error, details: error.details };
+    return JSON.stringify(
+      {
+        error: {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+        },
+      },
+      null,
+      2,
+    );
   }
 
-  return JSON.stringify(result, null, 2);
+  return JSON.stringify(
+    {
+      error: {
+        code: error.code,
+        message: error.message,
+      },
+    },
+    null,
+    2,
+  );
 }
 
 /**

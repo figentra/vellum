@@ -79,28 +79,30 @@ export function buildContextBundle(
       const extracted = extractSections(content, includeSections);
       if (extracted) {
         content = extracted.content;
-        extractedSections = extracted.headings;
+        extractedSections = [...extracted.headings];
       }
     }
 
     // Check if content fits in budget
     if (content.length <= remainingBudget) {
-      includedArtifacts.push({
+      const artifactData: ContextBundle["artifacts"][number] = {
         kind: artifact.kind,
         path,
         content,
-        extractedSections,
-      });
+      };
+      if (extractedSections) artifactData.extractedSections = extractedSections;
+      includedArtifacts.push(artifactData);
       totalSize += content.length;
     } else {
       // Truncate content to fit
       const truncatedContent = truncateContent(content, remainingBudget);
-      includedArtifacts.push({
+      const artifactData: ContextBundle["artifacts"][number] = {
         kind: artifact.kind,
         path,
         content: truncatedContent,
-        extractedSections,
-      });
+      };
+      if (extractedSections) artifactData.extractedSections = extractedSections;
+      includedArtifacts.push(artifactData);
       totalSize += truncatedContent.length;
       truncated = true;
     }
@@ -174,7 +176,8 @@ function extractSections(
     const headingMatch = line.match(/^(#{1,6})\s+(.+)$/);
 
     if (headingMatch) {
-      const headingText = headingMatch[2].trim();
+      const headingText = headingMatch[2]?.trim() ?? "";
+      if (!headingText) continue;
 
       // Check if this heading is in our target list
       const isTarget = sections.some(
@@ -189,10 +192,11 @@ function extractSections(
         headings.push(headingText);
       } else {
         // Check if we're moving to a different heading at same or higher level
-        const level = headingMatch[1].length;
-        const currentLevel = currentHeading
-          ? (lines.find((l) => l.includes(currentHeading))?.match(/^#+/)?.[0]?.length ?? 0)
-          : 0;
+        const level = headingMatch[1]?.length ?? 0;
+        const currentHeadingLine = currentHeading
+          ? lines.find((l) => l.includes(currentHeading))
+          : undefined;
+        const currentLevel = currentHeadingLine?.match(/^#+/)?.[0]?.length ?? 0;
 
         if (level <= currentLevel) {
           inTargetSection = false;
@@ -223,6 +227,7 @@ function truncateContent(content: string, budget: number): string {
   let size = 0;
 
   for (const line of lines) {
+    if (line === undefined) continue;
     if (size + line.length + 1 > budget - 50) {
       // Leave room for truncation marker
       break;

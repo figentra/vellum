@@ -4,7 +4,21 @@
  * Renders human-readable output for terminal with colors and formatting.
  */
 
-import type { SpecMetadata, Finding, LifecycleState, TaskMarker } from "@vellum/protocol";
+import type { Finding, LifecycleState, TaskMarker } from "@vellum/protocol";
+
+/** Spec metadata for rendering */
+export interface SpecInfo {
+  specId: string;
+  specNumber: number;
+  state: LifecycleState;
+  isLegacy: boolean;
+  legacyStage?: string;
+  artifacts: {
+    requirements: boolean;
+    design: boolean;
+    tasks: boolean;
+  };
+}
 
 /** ANSI color codes */
 const COLORS = {

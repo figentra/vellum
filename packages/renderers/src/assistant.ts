@@ -5,10 +5,25 @@
  * Supports Kiro, Claude, and OpenCode formats.
  */
 
-import type { NeutralFrontmatter, ProvenanceMarker } from "@vellum/protocol";
-
 /** Supported assistant types */
 export type AssistantType = "kiro" | "claude" | "opencode";
+
+/** Provenance marker */
+export interface ProvenanceMarker {
+  source: string;
+  generated_at?: string;
+  generator?: string;
+}
+
+/** Neutral frontmatter structure */
+export interface NeutralFrontmatter {
+  name?: string;
+  description?: string;
+  kind: "skill" | "agent" | "rule" | "hook";
+  provenance?: ProvenanceMarker;
+  references?: string[];
+  tags?: string[];
+}
 
 /**
  * Render assistant frontmatter for the specified assistant type.

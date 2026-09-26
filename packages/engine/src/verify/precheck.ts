@@ -8,7 +8,6 @@
  */
 
 import type { Artifact, LedgerEntry, Checksum } from "@vellum/protocol";
-import { createFinding } from "../validate/finding.js";
 
 /**
  * Pre-execution check result.

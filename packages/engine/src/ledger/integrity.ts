@@ -43,11 +43,13 @@ export function checkLedgerIntegrity(entries: readonly LedgerEntry[]): LedgerInt
   const seenDigests = new Map<string, number>();
 
   // Expected predecessor for first entry
-  let expectedPredecessor = INITIAL_PREDECESSOR_HASH;
+  let expectedPredecessor: string | null = INITIAL_PREDECESSOR_HASH;
 
   // Check each entry
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
+    if (!entry) continue; // Skip undefined entries
+
     const entryId = entry.id;
 
     // Check ID sequence
@@ -97,7 +99,14 @@ export function checkLedgerIntegrity(entries: readonly LedgerEntry[]): LedgerInt
 
     // Compute expected predecessor for next entry
     try {
-      expectedPredecessor = computeLedgerEntryHash(entry);
+      // Map ledger entry to computeLedgerEntryHash format
+      expectedPredecessor = computeLedgerEntryHash({
+        seq: entry.id,
+        kind: entry.kind,
+        timestamp: entry.timestamp,
+        predecessorHash: entry.predecessor_digest ?? INITIAL_PREDECESSOR_HASH,
+        payload: entry as unknown as Record<string, unknown>,
+      });
     } catch (error) {
       failures.push({
         entry_id: entryId,
@@ -174,6 +183,6 @@ export function verifyLedgerChain(entries: readonly LedgerEntry[]): {
   const firstFailure = result.failures[0];
   return {
     valid: false,
-    error: firstFailure.message,
+    error: firstFailure?.message ?? "Unknown ledger integrity failure",
   };
 }
