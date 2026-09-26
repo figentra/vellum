@@ -31,7 +31,7 @@ export {
   isQuickPathPermitted,
   permitsQuickPathTransition,
   approverAuthoredArtifact,
-  recordRiskClassChange,
+  buildRiskClassChangeDecision,
   reevaluateControlsAfterChange,
   validateRiskClassDeclaration,
   getTable1ADefaults,
@@ -60,6 +60,7 @@ export {
   type SpecSizeLimitFinding,
   type SplitProposal,
   type ProposedChildSpec,
+  type SlicedRequirement,
 } from "./spec-size-limiter";
 
 export {

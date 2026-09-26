@@ -10,8 +10,9 @@
  * @see Requirement 1.11 - reject approval when approver authored
  */
 
-import type { RiskClass } from "../domain/policy/types";
+import type { Control, RiskClass } from "../domain/policy/types";
 import type { DecisionRecord } from "../domain/decision/types";
+import { resolveControl, type ControlContext, type PolicyRule } from "./control-resolver";
 
 /**
  * Valid Risk Classes.
@@ -76,17 +77,17 @@ export function approverAuthoredArtifact(
 }
 
 /**
- * Record a Risk Class change as a Decision in the Ledger.
+ * Build the Decision that records a Risk Class change (criterion 1.8).
  *
- * @param ledgerPath - path to the ledger
+ * The engine does no I/O: it returns the Decision, and the caller appends it
+ * to the Ledger. (This was `recordRiskClassChange`, whose name and comment
+ * said it recorded the Decision in the Ledger while it only returned it.)
+ *
  * @param change - Risk Class change record
- * @returns Decision Record
+ * @returns Decision Record for the caller to append
  */
-export async function recordRiskClassChange(
-  _ledgerPath: string,
-  change: RiskClassChange,
-): Promise<DecisionRecord> {
-  const decision: DecisionRecord = {
+export function buildRiskClassChangeDecision(change: RiskClassChange): DecisionRecord {
+  return {
     // Derived from the change itself, not the clock: the same change always
     // yields the same Decision identifier.
     id: `decision-${change.specId}-${change.timestamp}`,
@@ -96,34 +97,34 @@ export async function recordRiskClassChange(
     selection: change.newClass,
     rationale: change.reason,
   };
-
-  // In real implementation, would append to ledger at ledgerPath
-  return decision;
 }
 
 /**
- * Re-evaluate Controls after a Risk Class change.
- *
- * This triggers re-computation of Controls for all subsequent transitions.
+ * Re-evaluate Controls after a Risk Class change (criterion 1.9): resolve the
+ * Control the Policy's rules give the new Risk Class, falling back to the
+ * Table 1.A defaults when no rule matches.
  *
  * @param specId - Spec identifier
  * @param newRiskClass - new Risk Class
- * @returns re-evaluation result
+ * @param rules - the Policy's Control rules
+ * @param context - the rest of the context the Control is resolved for (artifact path, change type, environment)
+ * @returns the Control that now applies
+ * @throws {ControlResolutionError} when two rules of equal specificity conflict (criterion 1.5)
  */
 export function reevaluateControlsAfterChange(
   specId: string,
   newRiskClass: RiskClass,
+  rules: readonly PolicyRule[],
+  context: Omit<ControlContext, "riskClass"> = {},
 ): {
   readonly specId: string;
   readonly riskClass: RiskClass;
-  readonly controlsReevaluated: boolean;
+  readonly control: Control;
 } {
-  // In a real implementation, this would trigger Control re-evaluation
-  // For now, we return a confirmation
   return {
     specId,
     riskClass: newRiskClass,
-    controlsReevaluated: true,
+    control: resolveControl(rules, { ...context, riskClass: newRiskClass }),
   };
 }
 

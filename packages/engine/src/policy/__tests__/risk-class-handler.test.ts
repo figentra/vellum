@@ -13,7 +13,8 @@ import {
   validateRiskClassDeclaration,
   getTable1ADefaults,
   VALID_RISK_CLASSES,
-  recordRiskClassChange,
+  buildRiskClassChangeDecision,
+  reevaluateControlsAfterChange,
 } from "../risk-class-handler";
 
 describe("risk-class-handler", () => {
@@ -114,7 +115,7 @@ describe("risk-class-handler", () => {
   });
 });
 
-describe("recordRiskClassChange", () => {
+describe("buildRiskClassChangeDecision", () => {
   const change = {
     specId: "007-queue",
     previousClass: "standard",
@@ -123,11 +124,27 @@ describe("recordRiskClassChange", () => {
     reason: "touches payments",
   } as const;
 
-  it("derives the Decision identifier from the change, not the clock", async () => {
-    const first = await recordRiskClassChange(".sdlc/ledger.jsonl", change);
-    const second = await recordRiskClassChange(".sdlc/ledger.jsonl", change);
+  it("derives the Decision identifier from the change, not the clock", () => {
+    const first = buildRiskClassChangeDecision(change);
+    const second = buildRiskClassChangeDecision(change);
 
     expect(first.id).toBe("decision-007-queue-2001-02-03T04:05:06.000Z");
     expect(second).toEqual(first);
+  });
+});
+
+describe("reevaluateControlsAfterChange (criterion 1.9)", () => {
+  it("resolves the Control for the new Risk Class from the Policy's rules", () => {
+    const strict = { ...getTable1ADefaults("high"), approvalsPerArtifact: 3 };
+    const result = reevaluateControlsAfterChange("007-queue", "high", [
+      { riskClass: "high", control: strict },
+    ]);
+    expect(result.riskClass).toBe("high");
+    expect(result.control.approvalsPerArtifact).toBe(3);
+  });
+
+  it("falls back to Table 1.A when no rule matches the new Risk Class", () => {
+    const result = reevaluateControlsAfterChange("007-queue", "critical", []);
+    expect(result.control).toEqual(getTable1ADefaults("critical"));
   });
 });
