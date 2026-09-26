@@ -181,6 +181,12 @@ const SIGNAL = "a".repeat(40);
 const policy: ApprovalPolicy = {
   approvers: new Map([["standard", new Map([["requirements", ["alice@example.com"]]])]]),
   requiredCount: new Map([["standard", new Map([["requirements", 1]])]]),
+  identities: [
+    {
+      identity: "alice@example.com",
+      keys: [{ type: "ssh", fingerprint: "SHA256:alice", publicKey: "ssh-ed25519 AAAA" }],
+    },
+  ],
 };
 const commits = new Map<string, GitCommit>([
   [
@@ -192,6 +198,7 @@ const commits = new Map<string, GitCommit>([
       message: "approve: requirements",
       timestamp: "2026-09-26T10:00:00Z",
       signature: "-----BEGIN SSH SIGNATURE-----",
+      signer: { type: "ssh", fingerprint: "SHA256:alice" },
     },
   ],
 ]);

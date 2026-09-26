@@ -28,7 +28,13 @@ export {
 // Git Operations
 // ============================================================================
 
-export { createGitOps, verifyCommitSignature, getSignatureStatus } from "./git.js";
+export { createGitOps } from "./git.js";
+
+export {
+  verifyCommitSigner,
+  sshPublicKeyFingerprint,
+  type CommitSignatureCheck,
+} from "./signature.js";
 
 // ============================================================================
 // Ledger Operations
@@ -79,6 +85,9 @@ export {
 
 export {
   loadPolicy,
+  toApprovalPolicy,
+  riskClassForSpec,
+  DEFAULT_POLICY_PATH,
   getApproverByEmail,
   isAuthorisedForRiskClass,
   getRequirementsForRiskClass,

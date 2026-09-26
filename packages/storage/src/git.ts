@@ -275,44 +275,7 @@ function unbrand<T, B>(branded: ReturnType<typeof brand<T, B>>): T {
   return branded;
 }
 
-/**
- * Verify a commit signature.
- * Returns true if signature is valid, false otherwise.
- */
-export function verifyCommitSignature(workingDir: string, sha: string): Promise<boolean> {
-  try {
-    execFileSync("git", ["verify-commit", sha], {
-      cwd: workingDir,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    return Promise.resolve(true);
-  } catch {
-    return Promise.resolve(false);
-  }
-}
-
-/**
- * Get the commit signature status.
- * Returns "valid", "invalid", or "none".
- */
-export async function getSignatureStatus(
-  workingDir: string,
-  sha: string,
-): Promise<"valid" | "invalid" | "none"> {
-  try {
-    const output = execFileSync("git", ["log", "-1", "--format=%GG", sha], {
-      cwd: workingDir,
-      encoding: "utf-8",
-    });
-
-    if (!output.trim()) {
-      return "none";
-    }
-
-    const valid = await verifyCommitSignature(workingDir, sha);
-    return valid ? "valid" : "invalid";
-  } catch {
-    return "none";
-  }
-}
+// Signature verification lives in signature.ts (verifyCommitSigner): it checks
+// a signature only against the Approval Policy's keys. There is deliberately
+// no "does git consider this signature valid" helper here — that question
+// accepts any key the verifying host trusts (criterion 7.3).

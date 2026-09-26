@@ -48,8 +48,13 @@ export interface LedgerEntryHeader {
  * Approval Signal commit reference.
  */
 export interface ApprovalSignal {
-  /** Git commit SHA */
-  commit: string;
+  /**
+   * Git commit SHA of the Approval Signal, or null when the signal is the
+   * commit that adds this entry to the ledger. `vellum approve` writes null:
+   * the approver's own signed commit of the ledger line is the signal, and
+   * verification resolves it from git history.
+   */
+  commit: string | null;
   /** Commit message prefix */
   message_prefix: string;
 }

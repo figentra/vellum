@@ -65,6 +65,12 @@ export function policyFor(riskClass: RiskClass): ApprovalPolicy {
   return {
     approvers: new Map([[riskClass, perArtifact]]),
     requiredCount: new Map([[riskClass, counts]]),
+    identities: [
+      {
+        identity: "alice@example.com",
+        keys: [{ type: "ssh", fingerprint: "SHA256:alice", publicKey: "ssh-ed25519 AAAA" }],
+      },
+    ],
   };
 }
 
@@ -78,6 +84,7 @@ export const commits = new Map<string, GitCommit>([
       message: "approve: spec",
       timestamp: "2026-09-26T10:00:00Z",
       signature: "-----BEGIN SSH SIGNATURE-----",
+      signer: { type: "ssh", fingerprint: "SHA256:alice" },
     },
   ],
 ]);

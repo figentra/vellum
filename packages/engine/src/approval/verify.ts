@@ -7,10 +7,12 @@
 
 import type {
   ApprovalPolicy,
-  GitCommit,
   ArtifactKind,
-  RiskClass,
   Checksum,
+  CommitSigner,
+  GitCommit,
+  RiskClass,
+  SigningKey,
 } from "@vellum/protocol";
 
 /** Approval verification result */
@@ -25,6 +27,7 @@ export type ApprovalRejectionReason =
   | "FROM_ASSISTANT"
   | "CHECKSUM_MISMATCH"
   | "UNSIGNED_COMMIT"
+  | "SIGNER_NOT_AUTHORIZED"
   | "POLICY_MISSING"
   | "ARTIFACT_MISMATCH";
 
@@ -60,8 +63,8 @@ export function verifyApproval(
     return { valid: false, reason: "INVALID_SIGNAL" };
   }
 
-  // Check commit has signature
-  if (!commit.signature) {
+  // Check commit has a signature at all
+  if (!commit.signature && !commit.signer) {
     return { valid: false, reason: "UNSIGNED_COMMIT" };
   }
 
@@ -78,8 +81,14 @@ export function verifyApproval(
     return { valid: false, reason: "NOT_AUTHORIZED" };
   }
 
-  // NOTE: the engine does not verify the signature against a key the policy
-  // lists for the approver (criterion 7.3) — ApprovalPolicy carries no keys yet.
+  // Check the signature verified against a key the policy lists for this
+  // approver (criterion 7.3). `signer` is set by the storage layer only when
+  // the signature verified against the policy's keys; a signature by any
+  // other key — however trusted on the verifying host — is not the
+  // approver's.
+  if (!commit.signer || !signerIsApprovers(policy, approval.approver, commit.signer)) {
+    return { valid: false, reason: "SIGNER_NOT_AUTHORIZED" };
+  }
 
   // Check the approval binds the artifact's current checksum (criterion 8.2)
   if (approval.artifactChecksum !== currentChecksum) {
@@ -207,6 +216,41 @@ function normaliseApprover(identity: string): string {
   return identity.trim().toLowerCase();
 }
 
+/** The signing keys the policy lists for `identity` (compared as matchesApprover does). */
+export function approverKeys(policy: ApprovalPolicy | null, identity: string): readonly SigningKey[] {
+  if (!policy) return [];
+  return policy.identities
+    .filter((entry) => matchesApprover(identity, entry.identity))
+    .flatMap((entry) => entry.keys);
+}
+
+/**
+ * Whether `signer` is one of the keys the policy lists for `identity`.
+ * GPG fingerprints compare case-insensitively with spaces removed, and match
+ * either the signing (sub)key or its primary key; SSH fingerprints compare
+ * exactly.
+ */
+export function signerIsApprovers(
+  policy: ApprovalPolicy | null,
+  identity: string,
+  signer: CommitSigner,
+): boolean {
+  return approverKeys(policy, identity).some((key) => {
+    if (key.type !== signer.type) return false;
+    if (key.type === "ssh") return key.fingerprint === signer.fingerprint;
+    const listed = normaliseGpgFingerprint(key.fingerprint);
+    return (
+      listed === normaliseGpgFingerprint(signer.fingerprint) ||
+      (signer.primaryFingerprint !== undefined &&
+        listed === normaliseGpgFingerprint(signer.primaryFingerprint))
+    );
+  });
+}
+
+function normaliseGpgFingerprint(fingerprint: string): string {
+  return fingerprint.replace(/\s+/g, "").toUpperCase();
+}
+
 /**
  * Get authorized approvers for an artifact.
  */
@@ -265,6 +309,9 @@ export function diagnoseInvalidApproval(
 
     case "UNSIGNED_COMMIT":
       return `Approval commit must be signed`;
+
+    case "SIGNER_NOT_AUTHORIZED":
+      return `Approval commit is not signed by a key the policy lists for '${approval.approver}'`;
 
     case "POLICY_MISSING":
       return `Approval policy file missing or invalid`;

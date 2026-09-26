@@ -384,10 +384,61 @@ export type LedgerEntry = LedgerEntryHeader & LedgerPayload;
 /** Risk class for approval policy */
 export type RiskClass = "low" | "standard" | "high" | "critical";
 
+/** How an Approval Signal commit is signed. */
+export type SigningKeyType = "gpg" | "ssh";
+
+/**
+ * A signing key an Authorised Approver may sign Approval Signals with
+ * (criterion 7.3).
+ */
+export interface SigningKey {
+  readonly type: SigningKeyType;
+  /**
+   * The key's fingerprint. GPG: the 40-hex-digit fingerprint of the primary
+   * key or of the signing subkey (compared case-insensitively, spaces
+   * ignored). SSH: `SHA256:<base64>` as `ssh-keygen -l` prints it (compared
+   * exactly).
+   */
+  readonly fingerprint: string;
+  /**
+   * The public key: an OpenSSH public key line for `ssh`, an ASCII-armored
+   * key block for `gpg`. Verification checks a signature against these keys
+   * only — never against whatever the verifying host happens to trust.
+   */
+  readonly publicKey: string;
+}
+
+/** An Authorised Approver's identity and the keys whose signatures count as theirs. */
+export interface ApproverIdentity {
+  /** The approving identity (an email address, compared case-insensitively). */
+  readonly identity: string;
+  /** Keys this identity signs Approval Signals with. Empty: nothing they sign counts. */
+  readonly keys: readonly SigningKey[];
+}
+
 /** Approval policy structure */
 export interface ApprovalPolicy {
   readonly approvers: ReadonlyMap<RiskClass, ReadonlyMap<ArtifactKind, readonly string[]>>;
   readonly requiredCount: ReadonlyMap<RiskClass, ReadonlyMap<ArtifactKind, number>>;
+  /**
+   * The signing keys of each identity `approvers` names. An approval counts
+   * only when its Approval Signal commit carries a signature that verifies
+   * against one of the approving identity's keys here (criterion 7.3); an
+   * identity with no entry has no key.
+   */
+  readonly identities: readonly ApproverIdentity[];
+}
+
+/**
+ * The key that produced a signature on a commit, as established by
+ * verifying the signature against the Approval Policy's keys.
+ */
+export interface CommitSigner {
+  readonly type: SigningKeyType;
+  /** Fingerprint of the key that made the signature (GPG: possibly a subkey). */
+  readonly fingerprint: string;
+  /** GPG only: the primary key's fingerprint when the signing key is a subkey. */
+  readonly primaryFingerprint?: string;
 }
 
 /** Git commit with metadata */
@@ -398,6 +449,12 @@ export interface GitCommit {
   readonly message: string;
   readonly timestamp: string;
   readonly signature?: string;
+  /**
+   * Present only when the commit's signature verified against a key the
+   * Approval Policy lists. A `signature` without a `signer` is a signature
+   * nobody in the policy made, or one that did not verify.
+   */
+  readonly signer?: CommitSigner;
   readonly sessionMetadata?: {
     readonly isAssistant: boolean;
     readonly assistantName?: string;

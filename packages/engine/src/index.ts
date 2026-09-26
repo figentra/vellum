@@ -55,6 +55,8 @@ export {
   getRequiredApprovalCount,
   hasRequiredApprovals,
   matchesApprover,
+  approverKeys,
+  signerIsApprovers,
   getApprovers,
   isApprovalInvalidated,
   diagnoseInvalidApproval,

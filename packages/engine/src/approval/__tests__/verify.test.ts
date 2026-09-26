@@ -17,8 +17,16 @@ import type {
   ApprovalPayload,
   GitCommit,
   RiskClass,
+  SigningKey,
 } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
+
+const ALICE_KEY = "A".repeat(40);
+const BOB_KEY = "B".repeat(40);
+
+function gpgKey(fingerprint: string): SigningKey {
+  return { type: "gpg", fingerprint, publicKey: "-----BEGIN PGP PUBLIC KEY BLOCK-----" };
+}
 
 describe("Approval Verification", () => {
   const CURRENT = brand<string, "Checksum">("a".repeat(64));
@@ -45,6 +53,11 @@ describe("Approval Verification", () => {
         ]),
       ],
     ]),
+    identities: [
+      { identity: "alice@example.com", keys: [gpgKey(ALICE_KEY)] },
+      { identity: "bob@example.com", keys: [gpgKey(BOB_KEY)] },
+      { identity: "carol@example.com", keys: [gpgKey("C".repeat(40))] },
+    ],
   };
 
   // Mock Git commits
@@ -57,6 +70,7 @@ describe("Approval Verification", () => {
     message: "Approve requirements",
     timestamp: "2026-09-26T10:00:00Z",
     signature: "-----BEGIN PGP SIGNATURE-----\n...\n-----END PGP SIGNATURE-----",
+    signer: { type: "gpg", fingerprint: ALICE_KEY },
   });
 
   mockCommits.set("b".repeat(40), {
@@ -66,6 +80,7 @@ describe("Approval Verification", () => {
     message: "Approve requirements",
     timestamp: "2026-09-26T11:00:00Z",
     signature: "-----BEGIN PGP SIGNATURE-----\n...\n-----END PGP SIGNATURE-----",
+    signer: { type: "gpg", fingerprint: BOB_KEY },
   });
 
   mockCommits.set("c".repeat(40), {
@@ -97,6 +112,92 @@ describe("Approval Verification", () => {
 
       const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(true);
+    });
+
+    describe("signer binding (criterion 7.3)", () => {
+      const aliceApproval: ApprovalPayload = {
+        approver: "alice@example.com",
+        artifact: "requirements",
+        artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
+        signalCommit: brand<string, "CommitSha">("e".repeat(40)),
+      };
+      const signedBy = (signer: GitCommit["signer"]): Map<string, GitCommit> =>
+        new Map([
+          [
+            "e".repeat(40),
+            {
+              sha: brand<string, "CommitSha">("e".repeat(40)),
+              author: { name: "Alice", email: "alice@example.com" },
+              committer: { name: "Alice", email: "alice@example.com" },
+              message: "approve: requirements",
+              timestamp: "2026-09-26T10:00:00Z",
+              signature: "-----BEGIN PGP SIGNATURE-----",
+              ...(signer ? { signer } : {}),
+            },
+          ],
+        ]);
+
+      it("rejects a signature that verified against no policy key", () => {
+        const result = verifyApproval(aliceApproval, mockPolicy, "standard", signedBy(undefined), CURRENT);
+        expect(result).toEqual({ valid: false, reason: "SIGNER_NOT_AUTHORIZED" });
+      });
+
+      it("rejects a signature by another approver's key, even with alice's email on the commit", () => {
+        const result = verifyApproval(
+          aliceApproval,
+          mockPolicy,
+          "standard",
+          signedBy({ type: "gpg", fingerprint: BOB_KEY }),
+          CURRENT,
+        );
+        expect(result).toEqual({ valid: false, reason: "SIGNER_NOT_AUTHORIZED" });
+      });
+
+      it("rejects a key of the wrong type with the same fingerprint text", () => {
+        const result = verifyApproval(
+          aliceApproval,
+          mockPolicy,
+          "standard",
+          signedBy({ type: "ssh", fingerprint: ALICE_KEY }),
+          CURRENT,
+        );
+        expect(result).toEqual({ valid: false, reason: "SIGNER_NOT_AUTHORIZED" });
+      });
+
+      it("accepts a GPG subkey signature whose primary key the policy lists", () => {
+        const result = verifyApproval(
+          aliceApproval,
+          mockPolicy,
+          "standard",
+          signedBy({ type: "gpg", fingerprint: "F".repeat(40), primaryFingerprint: ALICE_KEY }),
+          CURRENT,
+        );
+        expect(result).toEqual({ valid: true });
+      });
+
+      it("compares GPG fingerprints case-insensitively, ignoring spaces", () => {
+        const spaced = `${"a".repeat(20)} ${"a".repeat(20)}`;
+        const result = verifyApproval(
+          aliceApproval,
+          mockPolicy,
+          "standard",
+          signedBy({ type: "gpg", fingerprint: spaced }),
+          CURRENT,
+        );
+        expect(result).toEqual({ valid: true });
+      });
+
+      it("rejects an approver the policy authorises but lists no key for", () => {
+        const keyless: ApprovalPolicy = { ...mockPolicy, identities: [] };
+        const result = verifyApproval(
+          aliceApproval,
+          keyless,
+          "standard",
+          signedBy({ type: "gpg", fingerprint: ALICE_KEY }),
+          CURRENT,
+        );
+        expect(result).toEqual({ valid: false, reason: "SIGNER_NOT_AUTHORIZED" });
+      });
     });
 
     it("should reject unsigned commit", () => {
