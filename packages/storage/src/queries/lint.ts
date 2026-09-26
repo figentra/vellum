@@ -13,10 +13,12 @@ import {
   checkLedgerIntegrity,
   detectLegacyStage,
   extractCriteria,
+  findClarificationMarkers,
   sortFindings,
   validateMachineFolder,
   validateProtocol,
   validateSpecFolder,
+  validateWaveGraph,
 } from "@vellum/engine";
 import { loadSpec, type LoadedSpec, type SpecRef } from "../workspace.js";
 import { isLegacy, relativeFinding, type Repository } from "./repository.js";
@@ -57,10 +59,13 @@ export interface LintQuery {
 /**
  * Checks, for each spec under Vellum management: the spec folder contract
  * (criteria 23.1-23.5), each artifact's Lifecycle Frontmatter and checksum
- * (11.1, 11.8), task-line markers (10.5), task criterion references (11.4)
- * and, without `only`, the ledger's schema and integrity. Legacy specs are
- * listed and not validated. The Markdown Protocol checks of 11.2, 11.5 and
- * 11.6 are not implemented in this version.
+ * (11.1, 11.8), task-line markers (10.5), task criterion references (11.4),
+ * the tasks.md wave graph when the plan has one (11.6: every incomplete leaf
+ * in exactly one wave, no parent or checkpoint in a wave, wave ids contiguous
+ * from 0), unresolved `[NEEDS CLARIFICATION: …]` markers in requirements.md
+ * and design.md, and, without `only`, the ledger's schema and integrity.
+ * Legacy specs are listed and not validated. The Markdown Protocol checks of
+ * 11.2 and 11.5 are not implemented in this version.
  *
  * FAIL when there is a finding; INCONCLUSIVE when no artifact was examined.
  */
@@ -165,9 +170,18 @@ function lintSpec(
     findings.push(...validateProtocol([artifact]).findings.map(rel));
   }
 
+  for (const kind of ["requirements", "design"] as const) {
+    const text = spec.texts.get(kind);
+    if (text === undefined || (only !== undefined && only !== kind)) continue;
+    findings.push(
+      ...findClarificationMarkers(text, relative(root, `${spec.ref.path}/${kind}.md`)),
+    );
+  }
+
   const tasksText = spec.texts.get("tasks");
   if (tasksText !== undefined && (only === undefined || only === "tasks")) {
     const tasksFile = relative(root, `${spec.ref.path}/tasks.md`);
+    findings.push(...validateWaveGraph(tasksText, tasksFile));
     const requirements = spec.artifacts.find((a) => a.kind === "requirements");
     const criteria = requirements
       ? new Set(extractCriteria(canonicalArtifactBody(requirements.body)))

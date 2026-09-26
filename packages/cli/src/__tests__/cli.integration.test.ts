@@ -149,6 +149,42 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       expect((await fx.cli(["lint", SLUG, "--type=design"])).status).toBe(1);
     });
 
+    it("fails an unresolved clarification marker in requirements.md or design.md, naming the line", async () => {
+      fx.writeArtifact(
+        "requirements",
+        REQUIREMENTS.replace("do one thing", "do one thing within [NEEDS CLARIFICATION: how fast?]"),
+      );
+      const result = await fx.cli(["lint", SLUG, "--json"]);
+      expect(result.status).toBe(1);
+      const findings = JSON.parse(result.stdout).findings as { file: string; line: number; rule: string; message: string }[];
+      expect(findings).toHaveLength(1);
+      expect(findings[0]).toMatchObject({
+        file: `.agents/specs/${SLUG}/requirements.md`,
+        rule: "NEEDS_CLARIFICATION",
+      });
+      expect(findings[0]!.message).toContain("how fast?");
+      expect(fx.read(`.agents/specs/${SLUG}/requirements.md`).split("\n")[findings[0]!.line - 1]).toContain(
+        "NEEDS CLARIFICATION",
+      );
+      expect((await fx.cli(["lint", SLUG, "--type=tasks"])).status).toBe(0);
+    });
+
+    it("checks the tasks.md wave graph: an undefined task and an omitted leaf fail", async () => {
+      const plan = (waves: string) =>
+        `# Tasks\n\n- [ ] 1 Build the first thing <!-- criteria: 1.1 --> <!-- properties: P1 -->\n- [ ] 2 Build the second thing <!-- criteria: 1.2 --> <!-- properties: P2 -->\n\n## Task Dependency Graph\n\n\`\`\`json\n${waves}\n\`\`\`\n`;
+      fx.writeArtifact("tasks", plan(`{ "waves": [ { "id": 0, "tasks": ["1", "2"] } ] }`));
+      expect((await fx.cli(["lint", SLUG])).status).toBe(0);
+
+      fx.writeArtifact("tasks", plan(`{ "waves": [ { "id": 0, "tasks": ["1", "7"] } ] }`));
+      const result = await fx.cli(["lint", SLUG, "--json"]);
+      expect(result.status).toBe(1);
+      const messages = JSON.parse(result.stdout).findings.map((f: { rule: string; message: string }) => `${f.rule}: ${f.message}`);
+      expect(messages).toEqual([
+        "WAVE_GRAPH_INVALID: Incomplete leaf task 2 appears in no wave of the Task Dependency Graph",
+        "WAVE_TASK_UNDEFINED: Wave 0 names task 7, which tasks.md does not define",
+      ]);
+    });
+
     it("is INCONCLUSIVE (exit 2) when there is nothing under management to examine", async () => {
       fx.write(".agents/specs/002-legacy/requirements.md", "# Legacy\n");
       const result = await fx.cli(["lint", "002"]);

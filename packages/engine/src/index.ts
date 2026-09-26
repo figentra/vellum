@@ -44,6 +44,10 @@ export { validateProtocol, validateRequiredArtifacts } from "./validate/protocol
 
 export { validateTaskGraph, buildTaskGraph, validateWaveOrdering } from "./validate/task-graph.js";
 
+export { validateWaveGraph } from "./validate/wave-graph.js";
+
+export { findClarificationMarkers, NEEDS_CLARIFICATION } from "./validate/clarification.js";
+
 export {
   validateSpecFolder,
   validateMachineFolder,
