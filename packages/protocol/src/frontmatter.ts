@@ -8,6 +8,7 @@
 import { createHash } from "node:crypto";
 import type { LifecycleFrontmatter, LifecycleState, Checksum } from "./types";
 import { parseChecksum } from "./types";
+import { canonicalArtifactBody } from "./canonical-body.js";
 
 // ============================================================================
 // Frontmatter Constants
@@ -24,11 +25,14 @@ export const INITIAL_PREDECESSOR_HASH =
 // ============================================================================
 
 /**
- * Compute SHA-256 checksum of the body (excluding frontmatter)
+ * Compute the Artifact Checksum: SHA-256 of the canonical form of the body.
+ *
+ * The frontmatter is excluded and formatting-only differences are normalised
+ * (see canonicalArtifactBody), so an approval survives a reformat and a
+ * frontmatter update but not a content change.
  */
 export function computeChecksum(body: string): Checksum {
-  // Strip frontmatter if present
-  const content = body.replace(/^---\n[\s\S]*?\n---\n/, "");
+  const content = canonicalArtifactBody(body);
   const hash = createHash("sha256").update(content, "utf8").digest("hex");
   return hash as Checksum;
 }
