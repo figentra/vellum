@@ -37,7 +37,11 @@
 export type AssistantType = "claude" | "kiro" | "opencode";
 
 /** Every assistant with an agent dialect, in a stable order. */
-export const ASSISTANT_TYPES: readonly AssistantType[] = ["claude", "kiro", "opencode"];
+export const ASSISTANT_TYPES: readonly AssistantType[] = [
+  "claude",
+  "kiro",
+  "opencode",
+];
 
 export type PermissionEffect = "allow" | "ask" | "deny";
 
@@ -140,7 +144,9 @@ const CLAUDE_MODELS: Readonly<Record<string, string>> = {
   haiku: "haiku",
   inherit: "inherit",
 };
-const KIRO_MODELS: Readonly<Record<string, string>> = { sonnet: "claude-sonnet-4" };
+const KIRO_MODELS: Readonly<Record<string, string>> = {
+  sonnet: "claude-sonnet-4",
+};
 
 const AGENT_KEYS = new Set([
   "name",
@@ -159,7 +165,8 @@ const EFFECTS: readonly PermissionEffect[] = ["allow", "ask", "deny"];
 // Frontmatter parsing — the small YAML subset method sources use. Not a general YAML parser.
 // ---------------------------------------------------------------------------
 
-export type FrontmatterValue = string | boolean | string[] | Record<string, string>[];
+export type FrontmatterValue =
+  string | boolean | string[] | Record<string, string>[];
 
 export interface ParsedDocument {
   data: Record<string, FrontmatterValue>;
@@ -170,7 +177,8 @@ function unquote(s: string): string {
   if (s.length >= 2 && s.startsWith('"') && s.endsWith('"')) {
     return s.slice(1, -1).replace(/\\"/g, '"').replace(/\\\\/g, "\\");
   }
-  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'")) return s.slice(1, -1);
+  if (s.length >= 2 && s.startsWith("'") && s.endsWith("'"))
+    return s.slice(1, -1);
   return s;
 }
 
@@ -197,11 +205,15 @@ const KEY_LINE = /^([A-Za-z_][\w-]*):(?:\s+(.*))?$/; // a YAML key needs ": " or
  */
 export function parseFrontmatter(raw: string, label: string): ParsedDocument {
   if (!raw.startsWith("---\n")) {
-    throw new AssistantSourceError(label, ['missing frontmatter (must start with "---")']);
+    throw new AssistantSourceError(label, [
+      'missing frontmatter (must start with "---")',
+    ]);
   }
   const closeIdx = raw.indexOf("\n---\n", 3);
   if (closeIdx === -1) {
-    throw new AssistantSourceError(label, ['unterminated frontmatter (no closing "---")']);
+    throw new AssistantSourceError(label, [
+      'unterminated frontmatter (no closing "---")',
+    ]);
   }
   const lines = raw.slice(4, closeIdx).split("\n");
   const body = raw.slice(closeIdx + 5);
@@ -234,8 +246,13 @@ export function parseFrontmatter(raw: string, label: string): ParsedDocument {
         scalars.push(unquote(item));
         continue;
       }
-      const entry: Record<string, string> = { [kv[1] as string]: unquote((kv[2] ?? "").trim()) };
-      while (i + 1 < lines.length && /^\s+[A-Za-z_][\w-]*:(\s|$)/.test(lines[i + 1] ?? "")) {
+      const entry: Record<string, string> = {
+        [kv[1] as string]: unquote((kv[2] ?? "").trim()),
+      };
+      while (
+        i + 1 < lines.length &&
+        /^\s+[A-Za-z_][\w-]*:(\s|$)/.test(lines[i + 1] ?? "")
+      ) {
         i += 1;
         const inner = (lines[i] ?? "").trim().match(KEY_LINE);
         if (inner) entry[inner[1] as string] = unquote((inner[2] ?? "").trim());
@@ -272,7 +289,9 @@ export function parseNeutralAgent(
     if (!AGENT_KEYS.has(key)) errors.push(`unknown key '${key}'`);
   }
   if (data.name !== undefined && data.name !== stem) {
-    errors.push(`'name' is '${String(data.name)}' but the file is ${fileName}; they must match`);
+    errors.push(
+      `'name' is '${String(data.name)}' but the file is ${fileName}; they must match`,
+    );
   }
   const description = data.description;
   if (typeof description !== "string" || description === "") {
@@ -281,7 +300,10 @@ export function parseNeutralAgent(
   if (data.model !== undefined && typeof data.model !== "string") {
     errors.push("'model' must be a string");
   }
-  if (data.tier !== undefined && !context.models.tiers.includes(String(data.tier))) {
+  if (
+    data.tier !== undefined &&
+    !context.models.tiers.includes(String(data.tier))
+  ) {
     errors.push(
       `'tier' is '${String(data.tier)}'; the model map defines: ${context.models.tiers.join(", ")}`,
     );
@@ -297,7 +319,8 @@ export function parseNeutralAgent(
       : String(data.tools).split(",");
     tools = list.map((t) => t.trim()).filter(Boolean);
     const unmapped = tools.filter((t) => !(t in KIRO_TOOLS));
-    if (unmapped.length) errors.push(`tool(s) ${unmapped.join(", ")} have no entry in KIRO_TOOLS`);
+    if (unmapped.length)
+      errors.push(`tool(s) ${unmapped.join(", ")} have no entry in KIRO_TOOLS`);
   }
 
   let skills: string[] | undefined;
@@ -307,14 +330,20 @@ export function parseNeutralAgent(
     } else {
       skills = (data.skills as unknown[]).map(String);
       const missing = skills.filter((s) => !context.skills.includes(s));
-      if (missing.length) errors.push(`skill(s) ${missing.join(", ")} are not method skills`);
+      if (missing.length)
+        errors.push(`skill(s) ${missing.join(", ")} are not method skills`);
     }
   }
 
   let permissions: NeutralPermission[] | undefined;
   if (data.permissions !== undefined) {
-    if (!Array.isArray(data.permissions) || data.permissions.some((p) => typeof p !== "object")) {
-      errors.push("'permissions' must be a list of action/resource/effect rules");
+    if (
+      !Array.isArray(data.permissions) ||
+      data.permissions.some((p) => typeof p !== "object")
+    ) {
+      errors.push(
+        "'permissions' must be a list of action/resource/effect rules",
+      );
     } else {
       const rules = data.permissions as Record<string, string>[];
       permissions = rules.map((rule, i) => {
@@ -324,9 +353,12 @@ export function parseNeutralAgent(
             `'permissions[${i}].action' '${String(action)}' has no entry in KIRO_CAPABILITIES`,
           );
         }
-        if (resource === undefined) errors.push(`'permissions[${i}].resource' is missing`);
+        if (resource === undefined)
+          errors.push(`'permissions[${i}].resource' is missing`);
         if (!EFFECTS.includes(effect as PermissionEffect)) {
-          errors.push(`'permissions[${i}].effect' must be one of: ${EFFECTS.join(", ")}`);
+          errors.push(
+            `'permissions[${i}].effect' must be one of: ${EFFECTS.join(", ")}`,
+          );
         }
         return {
           action: String(action),
@@ -381,11 +413,14 @@ export function modelFor(
   models: ModelMap,
 ): string | undefined {
   if (agent.model !== undefined) {
-    if (assistant === "claude") return resolveModel(agent.model, CLAUDE_MODELS, "anthropic");
-    if (assistant === "kiro") return resolveModel(agent.model, KIRO_MODELS, null);
+    if (assistant === "claude")
+      return resolveModel(agent.model, CLAUDE_MODELS, "anthropic");
+    if (assistant === "kiro")
+      return resolveModel(agent.model, KIRO_MODELS, null);
     return resolveModel(agent.model, {}, "*");
   }
-  if (agent.tier !== undefined) return models.assistants[assistant][agent.tier] ?? undefined;
+  if (agent.tier !== undefined)
+    return models.assistants[assistant][agent.tier] ?? undefined;
   return undefined;
 }
 
@@ -404,35 +439,54 @@ export interface RenderAgentOptions {
   kiroSkillRoot?: string;
 }
 
-function claudeAgentFrontmatter(agent: NeutralAgent, options: RenderAgentOptions): string[] {
-  const lines = [`name: ${agent.name}`, `description: ${yamlScalar(agent.description)}`];
+function claudeAgentFrontmatter(
+  agent: NeutralAgent,
+  options: RenderAgentOptions,
+): string[] {
+  const lines = [
+    `name: ${agent.name}`,
+    `description: ${yamlScalar(agent.description)}`,
+  ];
   if (agent.tools) lines.push(`tools: ${agent.tools.join(", ")}`);
   const model = modelFor(agent, "claude", options.models);
   if (model) lines.push(`model: ${model}`);
   if (agent.skills?.length) {
-    const prefix = options.claudeSkillNamespace ? `${options.claudeSkillNamespace}:` : "";
+    const prefix = options.claudeSkillNamespace
+      ? `${options.claudeSkillNamespace}:`
+      : "";
     lines.push("skills:", ...agent.skills.map((s) => `  - ${prefix}${s}`));
   }
   return lines;
 }
 
-function kiroAgentFrontmatter(agent: NeutralAgent, options: RenderAgentOptions): string[] {
-  const lines = [`name: ${agent.name}`, `description: ${yamlScalar(agent.description)}`];
+function kiroAgentFrontmatter(
+  agent: NeutralAgent,
+  options: RenderAgentOptions,
+): string[] {
+  const lines = [
+    `name: ${agent.name}`,
+    `description: ${yamlScalar(agent.description)}`,
+  ];
   const model = modelFor(agent, "kiro", options.models);
   if (model) lines.push(`model: ${model}`);
   if (agent.tools) {
-    const mapped = agent.tools.map((t) => KIRO_TOOLS[t]).filter((t): t is string => Boolean(t));
+    const mapped = agent.tools
+      .map((t) => KIRO_TOOLS[t])
+      .filter((t): t is string => Boolean(t));
     lines.push(`tools: [${[...new Set(mapped)].map(yamlScalar).join(", ")}]`);
   }
   if (agent.skills?.length) {
     const root = options.kiroSkillRoot ?? ".kiro/skills";
     lines.push("resources:");
-    for (const s of agent.skills) lines.push(`  - ${yamlScalar(`skill://${root}/${s}/SKILL.md`)}`);
+    for (const s of agent.skills)
+      lines.push(`  - ${yamlScalar(`skill://${root}/${s}/SKILL.md`)}`);
   }
   if (agent.permissions?.length) {
     lines.push("permissions:", "  rules:");
     for (const p of agent.permissions) {
-      lines.push(`    - capability: ${KIRO_CAPABILITIES[p.action] ?? p.action}`);
+      lines.push(
+        `    - capability: ${KIRO_CAPABILITIES[p.action] ?? p.action}`,
+      );
       lines.push(`      match: [${yamlScalar(p.resource)}]`);
       lines.push(`      effect: ${p.effect}`);
     }
@@ -445,18 +499,33 @@ export function deriveOpenCodePermissions(
   tools: readonly string[] | undefined,
 ): NeutralPermission[] | undefined {
   if (!tools) return undefined;
-  const granted = new Set(tools.map((t) => OPENCODE_ACTIONS[t]).filter(Boolean));
+  const granted = new Set(
+    tools.map((t) => OPENCODE_ACTIONS[t]).filter(Boolean),
+  );
   const denied = [...new Set(Object.values(OPENCODE_ACTIONS))]
     .filter((action) => !granted.has(action))
-    .map((action): NeutralPermission => ({ action, resource: "*", effect: "deny" }));
-  return denied.length ? denied : [{ action: "*", resource: "*", effect: "allow" }];
+    .map((action): NeutralPermission => ({
+      action,
+      resource: "*",
+      effect: "deny",
+    }));
+  return denied.length
+    ? denied
+    : [{ action: "*", resource: "*", effect: "allow" }];
 }
 
-function openCodeAgentFrontmatter(agent: NeutralAgent, options: RenderAgentOptions): string[] {
-  const lines = [`description: ${yamlScalar(agent.description)}`, `mode: ${agent.mode}`];
+function openCodeAgentFrontmatter(
+  agent: NeutralAgent,
+  options: RenderAgentOptions,
+): string[] {
+  const lines = [
+    `description: ${yamlScalar(agent.description)}`,
+    `mode: ${agent.mode}`,
+  ];
   const model = modelFor(agent, "opencode", options.models);
   if (model) lines.push(`model: ${yamlScalar(model)}`);
-  const permissions = agent.permissions ?? deriveOpenCodePermissions(agent.tools);
+  const permissions =
+    agent.permissions ?? deriveOpenCodePermissions(agent.tools);
   if (permissions?.length) {
     lines.push("permissions:");
     for (const p of permissions) {
@@ -482,9 +551,15 @@ export function provenanceLine(source: string, generator: string): string {
   return `<!-- generated from ${source} by ${generator}; edit the source, not this file -->`;
 }
 
-function assemble(frontmatter: string[], provenance: string, body: string): string {
+function assemble(
+  frontmatter: string[],
+  provenance: string,
+  body: string,
+): string {
   const trimmedBody = body.replace(/^\n+/, "").replace(/\s+$/, "\n");
-  return [`---\n${frontmatter.join("\n")}\n---`, provenance, trimmedBody].join("\n\n");
+  return [`---\n${frontmatter.join("\n")}\n---`, provenance, trimmedBody].join(
+    "\n\n",
+  );
 }
 
 /** Render one agent file in an assistant's dialect. */
@@ -509,21 +584,35 @@ export function renderOpenCodeCommand(
 ): string {
   const lines = [`description: ${yamlScalar(command.description)}`];
   if (command.agent) lines.push(`agent: ${command.agent}`);
-  return assemble(lines, provenanceLine(provenance.source, provenance.generator), template);
+  return assemble(
+    lines,
+    provenanceLine(provenance.source, provenance.generator),
+    template,
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Frontmatter checks on rendered output
 // ---------------------------------------------------------------------------
 
-const RENDERED_AGENT_KEYS: Record<AssistantType, { required: string[]; allowed: string[] }> = {
+const RENDERED_AGENT_KEYS: Record<
+  AssistantType,
+  { required: string[]; allowed: string[] }
+> = {
   claude: {
     required: ["name", "description"],
     allowed: ["name", "description", "tools", "model", "skills"],
   },
   kiro: {
     required: ["name", "description"],
-    allowed: ["name", "description", "model", "tools", "resources", "permissions"],
+    allowed: [
+      "name",
+      "description",
+      "model",
+      "tools",
+      "resources",
+      "permissions",
+    ],
   },
   opencode: {
     required: ["description", "mode"],
@@ -532,7 +621,9 @@ const RENDERED_AGENT_KEYS: Record<AssistantType, { required: string[]; allowed: 
 };
 
 const CLAUDE_TOOL_NAMES = new Set(Object.keys(KIRO_TOOLS));
-const KIRO_TOOL_NAMES = new Set(Object.values(KIRO_TOOLS).filter((t): t is string => Boolean(t)));
+const KIRO_TOOL_NAMES = new Set(
+  Object.values(KIRO_TOOLS).filter((t): t is string => Boolean(t)),
+);
 /** OpenCode V2 permission actions (opencode.ai/v2/docs/agents), plus the `*` wildcard. */
 const OPENCODE_PERMISSION_ACTIONS = new Set([
   "*",
@@ -556,12 +647,18 @@ function frontmatterOf(
     return { data: parseFrontmatter(rendered, label).data };
   } catch (error) {
     return {
-      problems: error instanceof AssistantSourceError ? [...error.problems] : [String(error)],
+      problems:
+        error instanceof AssistantSourceError
+          ? [...error.problems]
+          : [String(error)],
     };
   }
 }
 
-function checkClaude(data: Record<string, FrontmatterValue>, problems: string[]): void {
+function checkClaude(
+  data: Record<string, FrontmatterValue>,
+  problems: string[],
+): void {
   if (typeof data.name === "string" && !KEBAB.test(data.name)) {
     problems.push(`name '${data.name}' is not kebab-case`);
   }
@@ -569,7 +666,8 @@ function checkClaude(data: Record<string, FrontmatterValue>, problems: string[])
     for (const t of String(data.tools)
       .split(",")
       .map((s) => s.trim())) {
-      if (!CLAUDE_TOOL_NAMES.has(t)) problems.push(`unknown Claude Code tool '${t}'`);
+      if (!CLAUDE_TOOL_NAMES.has(t))
+        problems.push(`unknown Claude Code tool '${t}'`);
     }
   }
   if (data.model !== undefined) {
@@ -580,7 +678,10 @@ function checkClaude(data: Record<string, FrontmatterValue>, problems: string[])
   }
 }
 
-function checkKiro(data: Record<string, FrontmatterValue>, problems: string[]): void {
+function checkKiro(
+  data: Record<string, FrontmatterValue>,
+  problems: string[],
+): void {
   if (typeof data.name === "string" && !KEBAB.test(data.name)) {
     problems.push(`name '${data.name}' is not kebab-case`);
   }
@@ -593,34 +694,49 @@ function checkKiro(data: Record<string, FrontmatterValue>, problems: string[]): 
     }
   }
   if (data.resources !== undefined) {
-    if (!Array.isArray(data.resources)) problems.push("'resources' must be a list");
+    if (!Array.isArray(data.resources))
+      problems.push("'resources' must be a list");
     else {
       for (const r of data.resources.map(String)) {
-        if (!r.startsWith("skill://")) problems.push(`resource '${r}' is not a skill:// URI`);
+        if (!r.startsWith("skill://"))
+          problems.push(`resource '${r}' is not a skill:// URI`);
       }
     }
   }
 }
 
-function checkOpenCode(data: Record<string, FrontmatterValue>, problems: string[]): void {
+function checkOpenCode(
+  data: Record<string, FrontmatterValue>,
+  problems: string[],
+): void {
   if (!MODES.includes(data.mode as AgentMode)) {
-    problems.push(`mode '${String(data.mode)}' is not one of ${MODES.join(", ")}`);
+    problems.push(
+      `mode '${String(data.mode)}' is not one of ${MODES.join(", ")}`,
+    );
   }
   if (data.model !== undefined && !String(data.model).includes("/")) {
     problems.push(`model '${String(data.model)}' is not provider/model`);
   }
   if (data.permissions === undefined) return;
-  if (!Array.isArray(data.permissions) || data.permissions.some((p) => typeof p !== "object")) {
+  if (
+    !Array.isArray(data.permissions) ||
+    data.permissions.some((p) => typeof p !== "object")
+  ) {
     problems.push("'permissions' must be a list of rules");
     return;
   }
   (data.permissions as Record<string, string>[]).forEach((p, i) => {
     if (!OPENCODE_PERMISSION_ACTIONS.has(p.action ?? "")) {
-      problems.push(`permissions[${i}].action '${String(p.action)}' is not an OpenCode action`);
+      problems.push(
+        `permissions[${i}].action '${String(p.action)}' is not an OpenCode action`,
+      );
     }
-    if (p.resource === undefined) problems.push(`permissions[${i}].resource is missing`);
+    if (p.resource === undefined)
+      problems.push(`permissions[${i}].resource is missing`);
     if (!EFFECTS.includes(p.effect as PermissionEffect)) {
-      problems.push(`permissions[${i}].effect '${String(p.effect)}' is not allow, ask or deny`);
+      problems.push(
+        `permissions[${i}].effect '${String(p.effect)}' is not allow, ask or deny`,
+      );
     }
   });
 }
@@ -640,12 +756,15 @@ export function checkAgentFrontmatter(
   const problems: string[] = [];
   const { required, allowed } = RENDERED_AGENT_KEYS[assistant];
   for (const key of required) {
-    if (data[key] === undefined || data[key] === "") problems.push(`missing '${key}'`);
+    if (data[key] === undefined || data[key] === "")
+      problems.push(`missing '${key}'`);
   }
   for (const key of Object.keys(data)) {
-    if (!allowed.includes(key)) problems.push(`'${key}' is not a ${assistant} agent key`);
+    if (!allowed.includes(key))
+      problems.push(`'${key}' is not a ${assistant} agent key`);
   }
-  if (!rendered.includes("<!-- generated from ")) problems.push("missing provenance comment");
+  if (!rendered.includes("<!-- generated from "))
+    problems.push("missing provenance comment");
   if (assistant === "claude") checkClaude(data, problems);
   if (assistant === "kiro") checkKiro(data, problems);
   if (assistant === "opencode") checkOpenCode(data, problems);
@@ -656,13 +775,18 @@ export function checkAgentFrontmatter(
  * Check a skill's `SKILL.md`: the Agent Skills frontmatter every assistant reads — `name`
  * equal to its directory, kebab-case, and a `description`.
  */
-export function checkSkillFrontmatter(raw: string, directoryName: string): string[] {
+export function checkSkillFrontmatter(
+  raw: string,
+  directoryName: string,
+): string[] {
   const parsed = frontmatterOf(raw, `${directoryName}/SKILL.md`);
   if ("problems" in parsed) return parsed.problems;
   const { data } = parsed;
   const problems: string[] = [];
   if (data.name !== directoryName) {
-    problems.push(`name '${String(data.name)}' must equal its directory '${directoryName}'`);
+    problems.push(
+      `name '${String(data.name)}' must equal its directory '${directoryName}'`,
+    );
   }
   if (typeof data.name === "string" && !KEBAB.test(data.name)) {
     problems.push(`name '${data.name}' is not kebab-case`);
@@ -674,14 +798,18 @@ export function checkSkillFrontmatter(raw: string, directoryName: string): strin
 }
 
 /** Check a rendered OpenCode command file (opencode.ai/v2/docs/commands). */
-export function checkOpenCodeCommand(rendered: string, label: string): string[] {
+export function checkOpenCodeCommand(
+  rendered: string,
+  label: string,
+): string[] {
   const parsed = frontmatterOf(rendered, label);
   if ("problems" in parsed) return parsed.problems;
   const { data } = parsed;
   const problems: string[] = [];
   const allowed = ["description", "agent", "model", "subagent"];
   for (const key of Object.keys(data)) {
-    if (!allowed.includes(key)) problems.push(`'${key}' is not an OpenCode command key`);
+    if (!allowed.includes(key))
+      problems.push(`'${key}' is not an OpenCode command key`);
   }
   if (typeof data.description !== "string" || data.description === "") {
     problems.push("missing 'description'");
