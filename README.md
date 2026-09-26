@@ -26,6 +26,10 @@ works today; any other command exits 2 with `not implemented`.
   unsigned, signed by a key the policy does not list for the approver, or bound to changed
   text; an uncovered criterion; an uncited property; or a required task without passing
   evidence.
+- **A read-only MCP server.** `vellum-mcp` serves `vellum_status`, `vellum_lint` and
+  `vellum_verify` (the documents the CLI's `--json` output holds), `vellum_trace` and
+  `vellum_get_artifact` over stdio. It refuses approvals and task completion by name; those
+  stay with the CLI.
 
 Not implemented: `vellum check` (Check Mode), `vellum adopt`, `vellum sync`, the Effective
 Lifecycle State and next-transition computation, and the doctor categories reported as
@@ -34,7 +38,7 @@ Lifecycle State and next-transition computation, and the doctor categories repor
 ## Architecture
 
 ```
-@figentra/vellum        # The bundle to be published (one version)
+@figentra/vellum        # The bundle to be published: bins vellum and vellum-mcp, no runtime deps
 ├── @vellum/cli         # Command-line interface
 ├── @vellum/mcp         # MCP server for AI assistants
 ├── @vellum/engine      # Pure logic engine (no I/O)

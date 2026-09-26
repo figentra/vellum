@@ -14,8 +14,8 @@ import type { Method } from "./method.ts";
 export const GENERATOR = "@vellum/plugin-claude";
 
 /**
- * How the plugin starts the Vellum MCP server. `vellum-mcp` must be a bin of the published
- * package; see this package's README for the open item.
+ * How the plugin starts the Vellum MCP server: the `vellum-mcp` bin of @figentra/vellum
+ * (packages/vellum). It resolves only once that package is published; see the README.
  */
 export const MCP_SERVER = {
   command: "npx",

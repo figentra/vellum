@@ -19,6 +19,6 @@ Validate the output with `claude plugin validate --strict dist`.
 
 ## Open items
 
-- `.mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`. The
-  published package exports the server as `@figentra/vellum/mcp` but does not yet declare a
-  `vellum-mcp` bin, so this command fails until that bin is added to `packages/vellum`.
+- `.mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`.
+  `packages/vellum` declares that bin, but the package is `private` and unpublished, so the
+  command fails until `@figentra/vellum` is published.

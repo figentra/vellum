@@ -24,5 +24,6 @@ through `vellum task complete <spec> <id> --command=…`, which runs the command
 - The `dev.kiro/` layout (steering and agents under a `.kiro/`-shaped directory) and the agents'
   `skill://.kiro/skills/<name>/SKILL.md` resource URIs assume the Power's skills end up in the
   workspace's `.kiro/skills/`. Unverified.
-- `mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`, which needs
-  a `vellum-mcp` bin in the published package; it does not declare one yet.
+- `mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`.
+  `packages/vellum` declares that bin, but the package is `private` and unpublished, so the
+  command fails until `@figentra/vellum` is published.

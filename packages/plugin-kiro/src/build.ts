@@ -18,7 +18,7 @@ import type { Method } from "./method.ts";
 
 export const GENERATOR = "@vellum/plugin-kiro";
 
-/** How the power starts the Vellum MCP server; `vellum-mcp` must be a bin of the published package. */
+/** How the power starts the Vellum MCP server: the `vellum-mcp` bin of @figentra/vellum (packages/vellum). */
 export const MCP_SERVER = {
   command: "npx",
   args: ["-y", "--package=@figentra/vellum", "vellum-mcp"],

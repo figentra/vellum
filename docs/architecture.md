@@ -23,6 +23,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Purpose**: Core types, schemas, and constants.
 
 **Contains**:
+
 - Branded types (SpecId, ArtifactPath, Checksum, etc.)
 - Lifecycle state definitions
 - Artifact schemas (frontmatter validation)
@@ -33,6 +34,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Dependencies**: None (except tooling)
 
 **Rules**:
+
 - Zero runtime I/O
 - Pure TypeScript types and Zod schemas
 - All schemas exported for JSON Schema generation
@@ -42,6 +44,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Purpose**: Pure business logic engine.
 
 **Contains**:
+
 - State machine implementation
 - Protocol validator
 - Approval verifier
@@ -52,6 +55,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Dependencies**: @vellum/protocol
 
 **Rules**:
+
 - **Zero I/O** - no file system, network, or process operations
 - Pure functions: `(input) => Result<output, Error>`
 - All logic is testable without mocking
@@ -62,6 +66,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Purpose**: I/O adapters for filesystem and git.
 
 **Contains**:
+
 - File system operations (atomic writes)
 - Git operations (log, show, verify)
 - Spec directory scanner
@@ -72,6 +77,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Dependencies**: @vellum/protocol, @vellum/engine
 
 **Rules**:
+
 - All I/O is isolated to this package
 - Implements interfaces from engine
 - Handles errors gracefully
@@ -82,6 +88,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Purpose**: Output formatters.
 
 **Contains**:
+
 - JSON renderer
 - Markdown renderer
 - Human-readable console output
@@ -90,6 +97,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Dependencies**: @vellum/protocol, @vellum/engine
 
 **Rules**:
+
 - Pure functions
 - Deterministic output (same input → same bytes)
 - Multiple output formats from same data
@@ -99,6 +107,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Purpose**: Command-line interface.
 
 **Contains**:
+
 - Command router
 - Individual command implementations
 - Argument parsing
@@ -107,6 +116,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 **Dependencies**: @vellum/protocol, @vellum/engine, @vellum/storage, @vellum/renderers
 
 **Commands** (see [CLI reference](cli/README.md)):
+
 - `vellum lint` - Validate spec artifacts
 - `vellum status` - Show spec state (the Effective state is not computed yet)
 - `vellum verify` - Strict verification
@@ -118,36 +128,42 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 
 ### @vellum/mcp
 
-**Purpose**: MCP server for AI assistants.
+**Purpose**: read-only MCP server for AI assistants, on stdio (bin `vellum-mcp`).
 
 **Contains**:
-- MCP protocol implementation
-- Tool definitions
-- Resource handlers
 
-**Dependencies**: Same as CLI
+- A JSON-RPC 2.0 / MCP stdio layer written with Node builtins (no MCP SDK)
+- Tool definitions; each runs the same `@vellum/storage` query as the CLI
 
-**Tools**:
-- `status` - Get spec status
-- `lint` - Validate spec
-- `check` - Verify spec
-- `next_transition` - Get next permitted transition
+**Dependencies**: `@vellum/storage` (queries), `@vellum/protocol`
+
+**Tools** (all read-only; each returns what the CLI's `--json` output holds for equal inputs):
+
+- `vellum_status` - `vellum status --json`
+- `vellum_lint` - `vellum lint --json`
+- `vellum_verify` - `vellum verify --json`
+- `vellum_trace` - a spec's most recent ledger entries
+- `vellum_get_artifact` - one spec artifact by repository-relative path (paths leaving the root are refused)
+
+Approve, task start/complete and evidence recording are refused by name: they are CLI-only.
 
 ### @figentra/vellum
 
 **Purpose**: The ONE published package.
 
 **Contains**:
+
 - Re-exports from CLI and MCP packages
-- CLI binary entry point
-- MCP server entry point
+- `vellum` bin (the CLI) and `vellum-mcp` bin (the MCP server)
+- Every `@vellum/*` package bundled into `dist/` by tsup, with source maps
 
-**Dependencies**: @vellum/cli, @vellum/mcp
+**Dependencies**: none at runtime. `@vellum/cli` and `@vellum/mcp` are devDependencies, bundled at build.
 
-**Intended** (not yet verified by any check in this repository):
-- Single version number
-- Bundle all internal dependencies
-- Zero external runtime dependencies
+**Checked** by `packages/vellum/tests/`: no `dependencies`, no `@vellum/` import left in the
+bundle, only Node builtins imported, and a packed tarball that installs with `npm install
+--offline` and runs both bins. Still `private: true`: publishing is a human decision.
+
+**Not yet**: a single version number (the package is 0.0.0; the CLI and MCP server report 0.1.0).
 
 Its `vellum` bin does not invoke the CLI yet.
 
@@ -171,6 +187,7 @@ Terminal states:
 ```
 
 Each transition has preconditions:
+
 - Required approvals
 - Artifact checksums match
 - References resolve
@@ -208,6 +225,7 @@ and the record names an approver the policy authorises for the artifact at the s
 class, bound to the artifact's current checksum.
 
 Invalidations cascade:
+
 - Requirements invalidation → design + plan invalidations
 - Design invalidation → plan invalidation
 - Plan invalidation → standalone

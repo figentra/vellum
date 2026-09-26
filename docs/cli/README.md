@@ -153,8 +153,9 @@ pnpm build
 node packages/cli/dist/cli.js status
 ```
 
-The `@figentra/vellum` bundle's `vellum` bin does not invoke the CLI yet (its entry imports
-`@vellum/cli`'s library index, which runs nothing).
+Or run the bundle's bin, which is the same CLI: `node packages/vellum/dist/cli.js status`.
+`packages/vellum/tests/pack.test.ts` packs that package, installs the tarball offline into a
+temp directory and runs `vellum` and `vellum-mcp` from it.
 
 In CI, run `lint` and `verify`. `verify` needs the full history (`fetch-depth: 0`) to resolve
 approval commits and evidence ancestry, and the signing tools the policy's keys use.
