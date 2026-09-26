@@ -44,8 +44,10 @@ const IN_PROGRESS_OR_LATER: readonly LifecycleState[] = [
  * evidence at HEAD or an ancestor.
  *
  * Without a spec argument, verifies each managed spec whose Recorded
- * Lifecycle State is IN_PROGRESS or later (the Effective state is not
- * computed by this version).
+ * Lifecycle State is IN_PROGRESS or later. (Criterion 12.9 selects by the
+ * Effective state, which `vellum status` and `vellum check` compute; verify
+ * does not use it for selection yet, and `check` fails a spec whose recorded
+ * state is ahead of its effective state.)
  *
  * Exit: 0 PASS, 1 FAIL, 2 INCONCLUSIVE (nothing to verify, or an input that
  * could not be read or parsed).
