@@ -6,11 +6,24 @@ read these files at build time and render them into each assistant's layout.
 
 | Path          | What it holds                                                                     |
 | ------------- | --------------------------------------------------------------------------------- |
-| `skills/`     | Nine skills, one `SKILL.md` each: `spec`, `spec-new`, `spec-design`, `spec-tasks`, `spec-implement`, `spec-run`, `spec-verify`, `failure-loop`, `durable-findings` |
+| `skills/`     | Eleven skills, one `SKILL.md` each: `spec`, `spec-new`, `spec-clarify`, `spec-design`, `spec-tasks`, `spec-implement`, `spec-run`, `spec-verify`, `spec-converge`, `failure-loop`, `durable-findings` |
 | `agents/`     | Twelve agents with neutral frontmatter (`name`, `description`, `tools`, `tier`, optional `skills`) |
 | `templates/`  | `requirements.md`, `design.md`, `tasks.md`: the three documents of a spec          |
 | `models.json` | Tier to model, per assistant                                                      |
 | `ROSTER.md`   | What each agent owns and whether it blocks                                        |
+
+## The lifecycle
+
+```
+spec-new → [spec-clarify] → spec-design → spec-tasks → spec-run → spec-verify → [spec-converge]
+```
+
+`spec` is the entry point that reads a spec's stage and offers the next step. `spec-clarify`
+(after the requirements draft, before design) asks at most five questions and writes the
+answers into `requirements.md`; `spec-converge` (after implementation) compares the code with
+the three documents, counts a `[x]` task as done only where the engine recorded evidence for
+it, and appends a new task for every gap. Neither adds a file to the spec folder, and both
+change a document a human may already have approved, so the human re-approves it.
 
 ## Conventions
 

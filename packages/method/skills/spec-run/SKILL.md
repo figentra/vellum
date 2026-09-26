@@ -255,16 +255,16 @@ and produces findings that the remaining tasks would have resolved anyway.
 1. **Determine which reviewers apply**, from what the run actually changed — not from
    a fixed list. Read the changed paths and dispatch accordingly:
 
-   | Changed                                                          | Dispatch                 | Blocks                            |
-   | ---------------------------------------------------------------- | ------------------------ | --------------------------------- |
-   | a new member, a tier crossing, anything an ADR governs           | `architecture-guardian`  | yes                               |
+   | Changed                                                          | Dispatch                 | Blocks                                        |
+   | ---------------------------------------------------------------- | ------------------------ | --------------------------------------------- |
+   | a new member, a tier crossing, anything an ADR governs           | `architecture-guardian`  | yes                                           |
    | `package.json` exports, barrels, package layout                  | `package-steward`        | only on a new package or a new export subpath |
-   | `pnpm-workspace.yaml` catalogs, a new dependency, toolchain pins | `dependency-steward`     | only on an open critical advisory |
-   | CI, release flow, pipeline pins                                  | `release-operations`     | yes                               |
-   | any test added or changed                                        | `test-engineer`          | on a red suite, or an untested failure path |
-   | any non-trivial implementation                                   | `code-reviewer`          | no                                |
-   | user-facing UI in an app member                                  | `accessibility-reviewer` | on a critical or serious finding  |
-   | documentation, ADRs, rules, or code that contradicts them        | `docs-governance`        | no                                |
+   | `pnpm-workspace.yaml` catalogs, a new dependency, toolchain pins | `dependency-steward`     | only on an open critical advisory             |
+   | CI, release flow, pipeline pins                                  | `release-operations`     | yes                                           |
+   | any test added or changed                                        | `test-engineer`          | on a red suite, or an untested failure path   |
+   | any non-trivial implementation                                   | `code-reviewer`          | no                                            |
+   | user-facing UI in an app member                                  | `accessibility-reviewer` | on a critical or serious finding              |
+   | documentation, ADRs, rules, or code that contradicts them        | `docs-governance`        | no                                            |
 
    When the routing is genuinely unclear, or more than three of these apply at once,
    dispatch `delivery-orchestrator` and let it route.
@@ -311,6 +311,11 @@ failure per Step 3.5), report:
    a failure, say so explicitly: an unreviewed spec must never read as a reviewed one.
 7. The exact resume command: re-invoking `spec-run` on the same spec picks up
    from the current checkbox state with no extra arguments needed.
+8. **The next step, when every wave finished and review did not block:**
+   `spec-verify` for traceability, then `spec-converge`, which compares the code
+   with the three documents, counts a task as done only where `vellum verify`
+   shows recorded evidence for it, and appends a task for every gap it can prove.
+   Name both; run neither — this skill's job ends with the report.
 
 ## Never
 

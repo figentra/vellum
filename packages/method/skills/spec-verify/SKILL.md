@@ -13,6 +13,10 @@ plan), `spec-design` (an uncovered Property or requirement), or
 `spec-implement` (a task that exists but was never actually done) — name which
 one, and stop there.
 
+This audit reads documents, not code. Whether the code does what the documents
+say, and whether each `[x]` has evidence the engine recorded, is `spec-converge`'s
+question — the step after this one.
+
 ## Step 0 — locate the spec and refuse if incomplete
 
 Resolve the spec directory the same way `spec-implement` does — `.agents/specs/`
@@ -86,7 +90,7 @@ AND whose task text indicates it is a test (mentions "test", "property",
 The checkbox is part of the check, not a footnote to it. `spec-tasks` marks
 every test sub-task optional, and `spec-run` skips optional tasks by default —
 so a default run of a spec executes no test task at all. A Property counted as
-covered because a covering test task merely *exists* lets this skill report
+covered because a covering test task merely _exists_ lets this skill report
 zero uncovered Properties for a spec on which not one test has ever run. Task
 existence is a claim; `[x]` is the only evidence in these three documents that
 the claim was acted on.

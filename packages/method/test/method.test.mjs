@@ -260,3 +260,22 @@ test("the flag each new skill passes to the CLI is one the CLI accepts", () => {
   assert.match(verify[1], /"strict"/);
   assert.match(verify[1], /"json"/);
 });
+
+test("the lifecycle names both new skills where it hands off", () => {
+  assert.match(skill("spec"), /spec-clarify/);
+  assert.match(skill("spec"), /spec-converge/);
+  assert.match(skill("spec-new"), /spec-clarify/);
+  assert.match(skill("spec-run"), /spec-converge/);
+  assert.match(skill("spec-implement"), /spec-converge/);
+  const roster = read(join(METHOD, "ROSTER.md"));
+  assert.match(roster, /`spec-author`\s*\|[^\n]*`spec-clarify`/);
+  assert.match(roster, /`spec-planner`\s*\|[^\n]*`spec-converge`/);
+});
+
+test("each new skill names the persona agent that lists it", () => {
+  for (const [name, agent] of [["spec-clarify", "spec-author"], ["spec-converge", "spec-planner"]]) {
+    assert.match(skill(name), new RegExp(`\\*\\*Persona:\\*\\* this contract is run by the \`${agent}\` agent`));
+    const fm = frontmatter(read(join(METHOD, "agents", `${agent}.md`)));
+    assert.match(fm.skills, new RegExp(`\\b${name}\\b`), `${agent} does not list ${name}`);
+  }
+});

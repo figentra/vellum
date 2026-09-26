@@ -276,6 +276,9 @@ Report:
 3. The exact verification command(s) run and that they passed.
 4. Which acceptance criteria (by number) were verified and how.
 5. Any deviation from `design.md`, named explicitly.
+6. When this was the last incomplete required task in `tasks.md`, say so, and name
+   `spec-verify` and then `spec-converge` as the next steps — the second is what checks
+   the code against the documents and every `[x]` against its recorded evidence.
 
 **Then stop.** Do not start the next task, even if it looks trivial and even
 if you can see exactly what it needs. `spec-run` decides sequencing; a

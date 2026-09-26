@@ -6,15 +6,18 @@ model per assistant.
 
 ## Spec agents: `spec-*`
 
-Personas that run a spec skill contract. `spec-author` writes requirements and design,
-`spec-planner` writes the task plan, `spec-executor` implements exactly one task. Each is a tool
+Personas that run a spec skill contract. `spec-author` writes requirements and design, and
+clarifies requirements with the user before design; `spec-planner` writes the task plan, and
+after implementation appends a task for every gap between the code and the spec;
+`spec-executor` implements exactly one task. None of them approves a document: approval is a
+human's `vellum approve`. Each is a tool
 grant and a persona, not a procedure; the procedure is the skill.
 
-| Agent           | Runs the skill(s)          | Tier     |
-| --------------- | -------------------------- | -------- |
-| `spec-author`   | `spec-new`, `spec-design`  | frontier |
-| `spec-planner`  | `spec-tasks`               | frontier |
-| `spec-executor` | `spec-implement`           | standard |
+| Agent           | Runs the skill(s)                         | Tier     |
+| --------------- | ----------------------------------------- | -------- |
+| `spec-author`   | `spec-new`, `spec-clarify`, `spec-design` | frontier |
+| `spec-planner`  | `spec-tasks`, `spec-converge`             | frontier |
+| `spec-executor` | `spec-implement`                          | standard |
 
 ## Role agents: everything else
 

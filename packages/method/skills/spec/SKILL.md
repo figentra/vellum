@@ -1,18 +1,25 @@
 ---
 name: spec
-description: Enter the spec lifecycle. Detects which stage a spec is at and asks which step to run next, instead of you having to remember whether it needs spec-new, spec-design, spec-tasks, spec-run or spec-verify.
+description: Enter the spec lifecycle. Detects which stage a spec is at and asks which step to run next, instead of you having to remember whether it needs spec-new, spec-clarify, spec-design, spec-tasks, spec-run, spec-verify or spec-converge.
 argument-hint: [spec number, slug fragment, or a description of something new]
 allowed-tools: Bash(node:*), Bash(ls:*), Bash(rmdir:*), Read, AskUserQuestion, Skill
 ---
 
 # /spec — the one entry point
 
-The lifecycle has five skills and a strict order:
+The lifecycle has five skills in a strict order, and two that sit between them:
 
 ```
 spec-new → spec-design → spec-tasks → spec-run → spec-verify
 requirements.md   design.md   tasks.md   implementation   audit
+
+spec-clarify    after spec-new, before design: at most five questions, answers written into requirements.md
+spec-converge   after spec-run: code against the documents; every gap appended to tasks.md as a new task
 ```
+
+Neither adds a document: clarify edits `requirements.md`, converge appends to
+`tasks.md`. Both change a checksum, so an approval given before them no longer
+counts and a human re-approves.
 
 Nobody should have to remember which one is next. **You work that out from the
 files on disk and ask.** This command never guesses and never skips a stage.
@@ -58,14 +65,14 @@ starts writing a design document has hidden exactly the thing it was for.
 Offer the options for the detected stage, **in this order**, recommending the
 first:
 
-| Stage          | Offer                                                                                                                                                               |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| no such spec   | **Start a new spec** (`spec-new`) · **Start a quick spec** (`spec-new --quick`, for toggle-sized work) · **Continue an existing spec**, naming the closest match    |
-| `empty`        | **Write the requirements** (`spec-new`, into the existing directory) · **Delete the empty spec**                                                                    |
-| `requirements` | **Design it** (`spec-design`) · **Revise the requirements** (`spec-new`)                                                                                            |
-| `design`       | **Plan the tasks** (`spec-tasks`) · **Revise the design** (`spec-design`) · **Revise the requirements** (`spec-new` — warn that the design cites criterion numbers) |
-| `tasks`        | **Run the spec** (`spec-run`) · **Run one task** (`spec-implement`) · **Audit traceability** (`spec-verify`) · **Revise an earlier document**, naming which         |
-| `invalid`      | Nothing. Report which document is missing beneath an existing later one and let the user decide. Never auto-repair a broken chain.                                  |
+| Stage          | Offer                                                                                                                                                                                                      |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| no such spec   | **Start a new spec** (`spec-new`) · **Start a quick spec** (`spec-new --quick`, for toggle-sized work) · **Continue an existing spec**, naming the closest match                                           |
+| `empty`        | **Write the requirements** (`spec-new`, into the existing directory) · **Delete the empty spec**                                                                                                           |
+| `requirements` | **Design it** (`spec-design`) · **Clarify the requirements** (`spec-clarify`) · **Revise the requirements** (`spec-new`)                                                                                   |
+| `design`       | **Plan the tasks** (`spec-tasks`) · **Revise the design** (`spec-design`) · **Revise the requirements** (`spec-new` — warn that the design cites criterion numbers)                                        |
+| `tasks`        | **Run the spec** (`spec-run`) · **Run one task** (`spec-implement`) · **Audit traceability** (`spec-verify`) · **Converge code and spec** (`spec-converge`) · **Revise an earlier document**, naming which |
+| `invalid`      | Nothing. Report which document is missing beneath an existing later one and let the user decide. Never auto-repair a broken chain.                                                                         |
 
 When the stage is `tasks`, read `tasks.md` and say in the question's context how
 many leaf tasks are `[x]` against the total, so "run the spec" and "run one task"
@@ -78,7 +85,13 @@ as a finish line: `spec-verify` reports whether the three documents trace to
 each other, and reports separately how many design Properties have a covering
 test task that was never run. A full board plus a clean audit is not a
 statement that the spec is done, and the question's context must not word it as
-one.
+one. After the audit, `spec-converge` is the next question: it checks the code
+against the documents and reads task evidence through `vellum verify`, where a
+`[x]` with no recorded evidence is a gap rather than a completion.
+
+For a spec at `requirements` whose `requirements.md` still contains a
+`[NEEDS CLARIFICATION: …]` marker, recommend **Clarify the requirements** first
+instead of **Design it**, and say how many markers remain.
 
 ## Step 4 — hand off
 
