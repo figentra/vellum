@@ -15,7 +15,12 @@
  * - outside fenced code blocks, Markdown table padding: each row whose first
  *   non-blank character is `|` is re-emitted as `| cell | cell |` with every
  *   cell trimmed, and each delimiter cell collapses to `---`, keeping its
- *   alignment colons.
+ *   alignment colons;
+ * - outside fenced code blocks, the Task Marker of each task line (`- [x] 1 …`
+ *   and the other three markers) reads as `[ ]`. A marker is execution state
+ *   the Platform writes (criteria 9.7, 10.2), not plan content: without this,
+ *   recording one task's completion would void the plan's approval and every
+ *   other task's Task Binding.
  *
  * Everything else — words, punctuation, blank lines between paragraphs,
  * indentation outside tables, and every character inside a fenced code block
@@ -25,6 +30,8 @@
 const FRONTMATTER = /^---\n[\s\S]*?\n---(?:\n|$)/;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const DELIMITER_CELL = /^(:?)-+(:?)$/;
+/** A task line's marker, as the Kiro Task Line Grammar (markers.ts) reads it. */
+const TASK_MARKER = /^(\s*-\s*\[)[ x~-](\]\s*\d+(?:\.\d+)*)/;
 
 /** Return the canonical form of an artifact's text (frontmatter excluded). */
 export function canonicalArtifactBody(text: string): string {
@@ -50,7 +57,11 @@ export function canonicalArtifactBody(text: string): string {
       continue;
     }
 
-    out.push(line.trimStart().startsWith("|") ? canonicalTableRow(line) : line);
+    out.push(
+      line.trimStart().startsWith("|")
+        ? canonicalTableRow(line)
+        : line.replace(TASK_MARKER, "$1 $2"),
+    );
   }
 
   const joined = out.join("\n").replace(/\n+$/, "");
