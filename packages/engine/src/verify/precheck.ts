@@ -7,7 +7,19 @@
  * @see design.md Criterion 18
  */
 
-import type { Artifact, LedgerEntry, Checksum } from "@vellum/protocol";
+import type {
+  ApprovalPolicy,
+  Artifact,
+  ArtifactKind,
+  Checksum,
+  GitCommit,
+  LedgerEntry,
+  RiskClass,
+} from "@vellum/protocol";
+import { canonicalArtifactBody, computeChecksum, parseTaskLine } from "@vellum/protocol";
+import { hasRequiredApprovals } from "../approval/verify.js";
+import { approvalRecords } from "../approval/records.js";
+import { extractCriteria, extractProperties } from "../coverage/validate.js";
 
 /**
  * Pre-execution check result.
@@ -34,139 +46,151 @@ export interface TaskBinding {
   readonly planChecksum: Checksum;
 }
 
+/** What approvals are verified against: the policy, the spec's risk class, the signal commits. */
+export interface PreCheckApprovalContext {
+  readonly policy: ApprovalPolicy | null;
+  readonly riskClass: RiskClass;
+  readonly gitCommits: ReadonlyMap<string, GitCommit>;
+}
+
+const ARTIFACT_LABEL: Record<ArtifactKind, string> = {
+  requirements: "Requirements",
+  design: "Design",
+  tasks: "Tasks",
+};
+
 /**
- * Check if a task can be started.
- * Validates: artifacts exist, approvals valid, checksums match.
+ * Check if a task can be started (criterion 18).
+ *
+ * - 18.1: requirements.md, design.md and tasks.md exist.
+ * - 18.2/18.3: each holds the approvals the policy requires, verified by
+ *   verifyApproval against the artifact's current Artifact Checksum (computed
+ *   from its body, never taken from its frontmatter). An approval of earlier
+ *   content is reported as invalidated, naming both checksums.
+ * - 18.4: the task exists in tasks.md, and every criterion and property its
+ *   trailers cite is defined in requirements.md / design.md.
  *
  * @param artifacts - The spec's artifacts
  * @param ledger - The spec's ledger
  * @param taskIdentifier - Task to start
- * @returns Pre-check result
+ * @param approval - Policy, risk class and signal commits to verify approvals with
+ * @returns Pre-check result; the binding records the computed checksums
  */
 export function preExecutionCheck(
   artifacts: readonly Artifact[],
   ledger: readonly LedgerEntry[],
   taskIdentifier: string,
+  approval: PreCheckApprovalContext,
 ): PreCheckResult {
   const errors: string[] = [];
 
   // Criterion 18.1: Three artifacts exist
   const requirements = artifacts.find((a) => a.kind === "requirements");
-  if (!requirements) {
-    errors.push("Missing requirements.md");
-  }
-
   const design = artifacts.find((a) => a.kind === "design");
-  if (!design) {
-    errors.push("Missing design.md");
-  }
-
   const tasks = artifacts.find((a) => a.kind === "tasks");
-  if (!tasks) {
-    errors.push("Missing tasks.md");
+  if (!requirements) errors.push("Missing requirements.md");
+  if (!design) errors.push("Missing design.md");
+  if (!tasks) errors.push("Missing tasks.md");
+  if (!requirements || !design || !tasks) {
+    return { passed: false, errors: Object.freeze(errors), taskBinding: null };
   }
 
-  // Early exit if artifacts missing
-  if (errors.length > 0) {
-    return {
-      passed: false,
-      errors: Object.freeze(errors),
-      taskBinding: null,
-    };
+  // Criteria 18.2 and 18.3: valid approvals bound to the current checksums
+  const records = approvalRecords(ledger);
+  const checksums = {
+    requirements: computeChecksum(requirements.body),
+    design: computeChecksum(design.body),
+    tasks: computeChecksum(tasks.body),
+  } as const;
+  for (const kind of ["requirements", "design", "tasks"] as const) {
+    const ofKind = records.filter((r) => r.artifact === kind);
+    const status = hasRequiredApprovals(
+      ofKind,
+      approval.policy,
+      approval.riskClass,
+      kind,
+      checksums[kind],
+      approval.gitCommits,
+    );
+    if (status.met) continue;
+
+    const stale = ofKind.find((r) => r.artifactChecksum !== checksums[kind]);
+    if (status.required === 0) {
+      errors.push(
+        `${ARTIFACT_LABEL[kind]} approval requirement missing from the policy for risk class ${approval.riskClass}`,
+      );
+    } else if (status.count === 0 && stale) {
+      errors.push(
+        `${ARTIFACT_LABEL[kind]} approval invalidated: approved checksum ${stale.artifactChecksum}, current checksum ${checksums[kind]}`,
+      );
+    } else {
+      errors.push(
+        `${ARTIFACT_LABEL[kind]} not approved: ${status.count} of ${status.required} required valid approvals`,
+      );
+    }
   }
 
-  // Criterion 18.2: Valid approvals present
-  const requirementsApprovals = countApprovalsForArtifact(ledger, "requirements");
-  if (requirementsApprovals === 0) {
-    errors.push("Requirements not approved");
-  }
-
-  const designApprovals = countApprovalsForArtifact(ledger, "design");
-  if (designApprovals === 0) {
-    errors.push("Design not approved");
-  }
-
-  const tasksApprovals = countApprovalsForArtifact(ledger, "tasks");
-  if (tasksApprovals === 0) {
-    errors.push("Tasks not approved");
-  }
-
-  // Criterion 18.3: Checksums match approvals
-  // (In production, would compare with approval records)
-  // For now, assumes checksums match
-
-  // Criterion 18.4: References resolve
-  // (In production, would parse task and check criteria/properties exist)
-  // For now, assumes references resolve
-
-  // If all checks pass, create task binding
-  if (errors.length === 0) {
-    const taskBinding: TaskBinding = {
-      taskIdentifier,
-      requirementsVersion: requirements!.frontmatter.version,
-      requirementsChecksum: requirements!.frontmatter.checksum,
-      designVersion: design!.frontmatter.version,
-      designChecksum: design!.frontmatter.checksum,
-      planVersion: tasks!.frontmatter.version,
-      planChecksum: tasks!.frontmatter.checksum,
-    };
-
-    return {
-      passed: true,
-      errors: [],
-      taskBinding,
-    };
-  }
-
-  return {
-    passed: false,
-    errors: Object.freeze(errors),
-    taskBinding: null,
-  };
-}
-
-/**
- * Count approvals for an artifact in the ledger.
- */
-function countApprovalsForArtifact(ledger: readonly LedgerEntry[], artifact: string): number {
-  let count = 0;
-
-  for (const entry of ledger) {
-    if (entry.kind === "approval") {
-      const payload = entry as any;
-      if (payload.artifact?.includes(artifact)) {
-        count++;
+  // Criterion 18.4: the task exists and its references resolve
+  const task = canonicalArtifactBody(tasks.body)
+    .split("\n")
+    .map((line) => parseTaskLine(line))
+    .find((line) => line !== null && line.identifier === taskIdentifier);
+  if (!task) {
+    errors.push(`Task ${taskIdentifier} not found in tasks.md`);
+  } else {
+    const criteria = new Set(extractCriteria(canonicalArtifactBody(requirements.body)));
+    const properties = new Set(extractProperties(canonicalArtifactBody(design.body)));
+    for (const ref of task.requirementsTrailer ?? []) {
+      if (!criteria.has(ref)) {
+        errors.push(`Task ${taskIdentifier} cites criterion ${ref}, which requirements.md does not define`);
+      }
+    }
+    for (const ref of task.propertiesTrailer ?? []) {
+      if (!properties.has(ref)) {
+        errors.push(`Task ${taskIdentifier} cites property ${ref}, which design.md does not define`);
       }
     }
   }
 
-  return count;
+  if (errors.length > 0) {
+    return { passed: false, errors: Object.freeze(errors), taskBinding: null };
+  }
+
+  return {
+    passed: true,
+    errors: [],
+    taskBinding: {
+      taskIdentifier,
+      requirementsVersion: requirements.frontmatter.version,
+      requirementsChecksum: checksums.requirements,
+      designVersion: design.frontmatter.version,
+      designChecksum: checksums.design,
+      planVersion: tasks.frontmatter.version,
+      planChecksum: checksums.tasks,
+    },
+  };
 }
 
 /**
- * Check if artifact checksums match a task binding.
- * Criterion 18.10: Checksum mismatch at completion
+ * Check if artifact checksums match a task binding (criterion 18.10).
+ * Checksums are computed from the artifacts' bodies; a missing artifact is a
+ * mismatch.
  */
 export function checkTaskBinding(
   binding: TaskBinding,
   currentArtifacts: readonly Artifact[],
 ): { matches: true } | { matches: false; mismatchedArtifact: string } {
-  const requirements = currentArtifacts.find((a) => a.kind === "requirements");
-  const design = currentArtifacts.find((a) => a.kind === "design");
-  const tasks = currentArtifacts.find((a) => a.kind === "tasks");
-
-  if (requirements && requirements.frontmatter.checksum !== binding.requirementsChecksum) {
-    return { matches: false, mismatchedArtifact: "requirements" };
+  const bound: ReadonlyArray<readonly [ArtifactKind, Checksum]> = [
+    ["requirements", binding.requirementsChecksum],
+    ["design", binding.designChecksum],
+    ["tasks", binding.planChecksum],
+  ];
+  for (const [kind, checksum] of bound) {
+    const artifact = currentArtifacts.find((a) => a.kind === kind);
+    if (!artifact || computeChecksum(artifact.body) !== checksum) {
+      return { matches: false, mismatchedArtifact: kind };
+    }
   }
-
-  if (design && design.frontmatter.checksum !== binding.designChecksum) {
-    return { matches: false, mismatchedArtifact: "design" };
-  }
-
-  if (tasks && tasks.frontmatter.checksum !== binding.planChecksum) {
-    return { matches: false, mismatchedArtifact: "tasks" };
-  }
-
   return { matches: true };
 }
 
