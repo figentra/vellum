@@ -26,8 +26,8 @@ works today; any other command exits 2 with `not implemented`.
   unsigned, signed by a key the policy does not list for the approver, or bound to changed
   text; an uncovered criterion; an uncited property; or a required task without passing
   evidence.
-- **A read-only MCP server.** `vellum-mcp` serves `vellum_status`, `vellum_lint` and
-  `vellum_verify` (the documents the CLI's `--json` output holds), `vellum_trace` and
+- **A read-only MCP server.** `vellum-mcp` serves `vellum_status`, `vellum_lint`,
+  `vellum_verify` and `vellum_check` (the documents the CLI's `--json` output holds), `vellum_trace` and
   `vellum_get_artifact` over stdio. It refuses approvals and task completion by name; those
   stay with the CLI.
 

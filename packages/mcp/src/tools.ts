@@ -8,11 +8,13 @@
 
 import {
   ARTIFACT_KINDS,
+  checkDocument,
   isArtifactKind,
   lintDocument,
   notARepositoryMessage,
   openRepository,
   queryArtifact,
+  queryCheck,
   queryLint,
   queryStatus,
   queryTrace,
@@ -97,6 +99,17 @@ export const TOOLS: readonly ToolDefinition[] = [
     name: "vellum_verify",
     description:
       "What `vellum verify --json` returns: the Strict Verifier's PASS/FAIL/INCONCLUSIVE per spec (ledger integrity, signed approvals, coverage, task evidence). Omit spec for every managed spec IN_PROGRESS or later.",
+    inputSchema: {
+      type: "object",
+      properties: { spec: SPEC },
+      additionalProperties: false,
+    },
+    annotations: READ_ONLY,
+  },
+  {
+    name: "vellum_check",
+    description:
+      "What `vellum check --json` returns: Check Mode, the CI status check — per spec, the Effective Lifecycle State against the recorded one, ledger integrity and forks, with findings and the exit status the CLI would give. Omit spec for every spec.",
     inputSchema: {
       type: "object",
       properties: { spec: SPEC },
@@ -253,6 +266,14 @@ async function run(
       if (query.kind === "inconclusive")
         return error(`INCONCLUSIVE — ${query.message}`);
       return text(verifyDocument(query.value));
+    }
+    case "vellum_check": {
+      const specs = select(repo, args.spec);
+      if (!Array.isArray(specs)) return specs;
+      const query = queryCheck(repo, specs);
+      if (query.kind === "inconclusive")
+        return error(`INCONCLUSIVE — ${query.message}`);
+      return text(checkDocument(query.value));
     }
     case "vellum_trace": {
       const specs = select(repo, args.spec);

@@ -127,6 +127,7 @@ describe("vellum-mcp over stdio", () => {
       "vellum_status",
       "vellum_lint",
       "vellum_verify",
+      "vellum_check",
       "vellum_trace",
       "vellum_get_artifact",
     ]);

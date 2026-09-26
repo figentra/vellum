@@ -43,6 +43,12 @@ export {
   type VerifyQuery,
 } from "./verify.js";
 export {
+  queryCheck,
+  checkDocument,
+  type CheckQuery,
+  type UnreadableSpec,
+} from "./check.js";
+export {
   queryTrace,
   queryArtifact,
   type TraceQuery,

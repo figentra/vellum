@@ -142,6 +142,7 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 - `vellum_status` - `vellum status --json`
 - `vellum_lint` - `vellum lint --json`
 - `vellum_verify` - `vellum verify --json`
+- `vellum_check` - `vellum check --json`
 - `vellum_trace` - a spec's most recent ledger entries
 - `vellum_get_artifact` - one spec artifact by repository-relative path (paths leaving the root are refused)
 

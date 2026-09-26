@@ -9,8 +9,10 @@ import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
+  checkDocument,
   lintDocument,
   openRepository,
+  queryCheck,
   queryLint,
   queryStatus,
   queryVerify,
@@ -56,6 +58,7 @@ describe("MCP tools against a temp repository", () => {
       "vellum_status",
       "vellum_lint",
       "vellum_verify",
+      "vellum_check",
       "vellum_trace",
       "vellum_get_artifact",
     ]);
@@ -174,6 +177,28 @@ describe("MCP tools against a temp repository", () => {
         result: "INCONCLUSIVE",
         specs: [],
       });
+    });
+  });
+
+  describe("vellum_check", () => {
+    it("returns Check Mode's document, equal to the shared query, for every spec and for one", async () => {
+      const all = payload(await callTool(fx.repo, "vellum_check", {}));
+      expect(all.command).toBe("check");
+      // The fixture records IN_PROGRESS with no approval: a state mismatch.
+      expect(all.exitStatus).toBe(1);
+      const query = queryCheck(repo, specs);
+      if (query.kind !== "ok") throw new Error(query.message);
+      expect(all).toEqual(JSON.parse(JSON.stringify(checkDocument(query.value))));
+      const one = payload(await callTool(fx.repo, "vellum_check", { spec: SLUG }));
+      expect(one).toEqual(all);
+    });
+
+    it("is an error naming the fragment when no spec matches, and INCONCLUSIVE on an invalid policy", async () => {
+      expect(errorMessage(await callTool(fx.repo, "vellum_check", { spec: "999" }))).toContain(
+        "no spec matches '999'",
+      );
+      fx.write(".sdlc/policy.json", "{ not json");
+      expect(errorMessage(await callTool(fx.repo, "vellum_check", {}))).toMatch(/^INCONCLUSIVE — Approval Policy .* is invalid/);
     });
   });
 

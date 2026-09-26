@@ -3,23 +3,10 @@
  */
 
 import { EXIT_STATUS } from "@vellum/protocol";
-import {
-  detectLegacyStage,
-  formatCheckResult,
-  runCheckMode,
-  type CheckModeSpec,
-} from "@vellum/engine";
-import { loadSpec, specRiskClass } from "@vellum/storage";
+import { formatCheckResult } from "@vellum/engine";
+import { checkDocument, queryCheck } from "@vellum/storage";
 import type { CliContext } from "../context.js";
-import {
-  enginePolicy,
-  gitContext,
-  isLegacy,
-  openRepo,
-  recordedState,
-  selectSpecs,
-  writeJson,
-} from "../repo.js";
+import { openRepo, selectSpecs, writeJson } from "../repo.js";
 
 interface CheckArgs {
   spec?: string | undefined;
@@ -27,7 +14,8 @@ interface CheckArgs {
 }
 
 /**
- * Run Check Mode over one or all specs, writing nothing.
+ * Run Check Mode over one or all specs, writing nothing (see `queryCheck` in
+ * @vellum/storage, which the MCP `vellum_check` tool runs too).
  *
  * Fails a spec whose Effective Lifecycle State is INVALID, whose ledger has
  * an integrity failure or fork, or whose Recorded Lifecycle State differs
@@ -44,79 +32,24 @@ export async function check(args: CheckArgs, ctx: CliContext): Promise<number> {
   const specs = selectSpecs(ctx, repo.root, args.spec);
   if (typeof specs === "number") return specs;
 
-  if (repo.policy.kind === "invalid") {
-    ctx.stderr.write(
-      `vellum: Approval Policy ${repo.policy.path} is invalid: ${repo.policy.message}\n`,
-    );
+  const query = queryCheck(repo, specs);
+  if (query.kind === "inconclusive") {
+    ctx.stderr.write(`vellum: ${query.message}\n`);
     return EXIT_STATUS.INCONCLUSIVE;
   }
-  const policy = enginePolicy(repo.policy);
-
-  const unreadable: { spec: string; problems: string[] }[] = [];
-  const checked: CheckModeSpec[] = [];
-  for (const ref of specs) {
-    const spec = loadSpec(ref);
-    const riskClass = specRiskClass(repo.policy, ref.slug);
-    if (isLegacy(spec)) {
-      checked.push({
-        id: ref.slug,
-        legacyStage: detectLegacyStage(spec.entries),
-        artifacts: [],
-        ledger: [],
-        ledgerHead: null,
-        recordedState: "DRAFT",
-        policy,
-        riskClass,
-        gitCommits: new Map(),
-      });
-      continue;
-    }
-    const problems = [
-      ...spec.artifactProblems.map((p) => p.message),
-      ...(spec.ledgerProblem ? [spec.ledgerProblem] : []),
-    ];
-    if (problems.length > 0) {
-      unreadable.push({ spec: ref.slug, problems });
-      continue;
-    }
-    const git = gitContext(repo.root, spec, policy);
-    checked.push({
-      id: ref.slug,
-      artifacts: spec.artifacts,
-      ledger: spec.ledger,
-      ledgerHead: spec.ledgerHead,
-      recordedState: recordedState(spec),
-      policy,
-      riskClass,
-      gitCommits: git.gitCommits,
-      approvalCommits: git.approvalCommits,
-      verifiedHistory: git.verifiedHistory,
-    });
-  }
-
-  const result = runCheckMode(checked);
-  const exit =
-    result.exitStatus === EXIT_STATUS.SUCCESS && unreadable.length > 0
-      ? EXIT_STATUS.INCONCLUSIVE
-      : result.exitStatus;
+  const { result, unreadable, exitStatus } = query.value;
 
   if (args.json) {
-    writeJson(ctx, {
-      command: "check",
-      exitStatus: exit,
-      policy: repo.policy.kind,
-      summary: result.summary,
-      specs: result.specs,
-      unreadable,
-      findings: result.findings,
-    });
+    writeJson(ctx, checkDocument(query.value));
   } else {
-    ctx.stdout.write(`${formatCheckResult({ ...result, exitStatus: exit, passed: exit === 0 })}\n`);
+    ctx.stdout.write(
+      `${formatCheckResult({ ...result, exitStatus, passed: exitStatus === EXIT_STATUS.SUCCESS })}\n`,
+    );
     for (const { spec, problems } of unreadable) {
       ctx.stdout.write(
         `INCONCLUSIVE ${spec} — could not read:\n${problems.map((p) => `  ${p}`).join("\n")}\n`,
       );
     }
   }
-  return exit;
+  return exitStatus;
 }

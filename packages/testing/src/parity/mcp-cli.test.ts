@@ -100,6 +100,8 @@ describe("MCP tools return the CLI's --json documents", () => {
       "vellum_verify",
       { spec: "002" },
     ],
+    ["check, every spec", ["check", "--json"], "vellum_check", {}],
+    ["check, one spec", ["check", "001", "--json"], "vellum_check", { spec: "001" }],
   ];
 
   it.each(cases)("%s", async (_name, argv, name, args) => {
