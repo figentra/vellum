@@ -1,12 +1,12 @@
 /**
- * @vellum/storage — The ONLY package that touches disk/network
+ * @vellum/storage — I/O layer for Vellum
  *
- * This package encapsulates all I/O operations:
- * - File system operations (atomic writes, section writes)
- * - Git CLI adapter (log, show, signatures, status)
- * - Ledger read/append (append-only, fork detection)
- * - Forge API (merge-request approval lookup)
+ * The ONLY package with I/O operations.
+ * Reads and writes files, git repository state, and the Ledger.
  */
 
-// Placeholder — will be populated during Slice 1 implementation
-export const VERSION = "0.0.0" as const;
+export * from './git.js';
+export * from './ledger.js';
+export * from './ledger-writer.js';
+export * from './state.js';
+export * from './policy.js';

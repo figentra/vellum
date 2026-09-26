@@ -1,14 +1,24 @@
 /**
- * @vellum/engine — Pure logic implementation
+ * @vellum/engine — Pure computation layer
  *
- * This package implements the Vellum specification lifecycle enforcement.
- * It is pure logic with NO I/O dependencies (no fs, no child_process, no network).
- *
- * All dependencies are injected as data, making it:
- * - Deterministic
- * - Fast to test
- * - Safe to property-test
+ * No filesystem, no git, no network, no clock.
+ * Stateless functions that compute lifecycle state, approvals, evidence, and verification.
  */
 
-// Placeholder — will be populated during Slice 1 implementation
-export const VERSION = "0.0.0" as const;
+// Core engine components
+export * from './artifact.js';
+
+// Quality checker (Slice 3)
+export * from './quality/index.js';
+
+// Protocol validator (Slice 1)
+export * from './validate/index.js';
+
+// Policy engine (Slice 2)
+export * from './policy/index.js';
+
+// Gate runner (Slice 3)
+export * from './gate/index.js';
+
+// Metrics (Slice 4)
+export * from './metrics/index.js';

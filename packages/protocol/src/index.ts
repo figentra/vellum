@@ -1,9 +1,10 @@
-/**
- * @vellum/protocol — The Vellum protocol contract
- *
- * This package defines the types and schemas for the Vellum specification lifecycle.
- * It is the single source of truth for all data structures used across Vellum.
- */
+// Protocol package - zero dependencies
+// Types, schemas, frontmatter definitions
 
-// Placeholder — will be populated during Slice 1 implementation
-export const VERSION = "0.0.0" as const;
+export * from './types.js';
+export * from './branded.js';
+export * from './interfaces.js';
+export * from './diagnostics.js';
+export * from './ledger/types.js';
+export * from './ledger/canonical-json.js';
+export * from './ledger/schema.js';
