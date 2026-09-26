@@ -47,7 +47,7 @@ export function checkRequiredSections(designText: string, designPath: string): Q
     if (!line) continue;
     // Match markdown headings (## Section or ### Section)
     const match = line.match(/^#{2,3}\s+(.+?)(?:\s*$|(?=\s+#))/);
-    if (match) {
+    if (match?.[1] !== undefined) {
       presentSections.add(match[1].trim());
     }
   }
@@ -109,7 +109,8 @@ export function extractAdrCitations(designText: string): AdrCitation[] {
     // Match ADR references like ADR-0042 or apps/docs/src/adr/0042-*
     const matches = line.matchAll(/ADR[-\s]?(\d{4})|adr\/(\d{4})/gi);
     for (const match of matches) {
-      const num = match[1] || match[2];
+      const num = match[1] ?? match[2];
+      if (num === undefined) continue;
       citations.push({
         number: num,
         path: `apps/docs/src/adr/${num}`,
@@ -122,21 +123,44 @@ export function extractAdrCitations(designText: string): AdrCitation[] {
 }
 
 /**
- * Check ADR citations are valid.
+ * Status of an ADR in the repository's ADR index.
+ */
+export type AdrStatus = "active" | "superseded";
+
+/**
+ * Check ADR citations (criterion 004:2.6): each cited ADR must exist and not
+ * be Superseded.
+ *
+ * The engine does no I/O, so the caller supplies the ADR index — ADR number
+ * (e.g. "0042") to status — read from the repository.
  *
  * @param designText - Full design.md text
  * @param designPath - Path to design.md
- * @returns Array of quality findings
+ * @param adrs - ADR number to status, for every ADR file in the repository
+ * @returns One finding per citation of a missing or Superseded ADR
  */
-export function checkAdrCitations(designText: string, designPath: string): QualityFinding[] {
+export function checkAdrCitations(
+  designText: string,
+  designPath: string,
+  adrs: ReadonlyMap<string, AdrStatus>,
+): QualityFinding[] {
   const findings: QualityFinding[] = [];
-  const citations = extractAdrCitations(designText);
 
-  // For now, just check they exist
-  // In a full implementation, we'd check if the ADR file exists and is not superseded
-  for (const _citation of citations) {
-    // Note: In real implementation, check if file exists and status
-    // For now, assume all citations are valid
+  for (const citation of extractAdrCitations(designText)) {
+    const status = adrs.get(citation.number);
+    if (status === "active") continue;
+    const reason = status === undefined ? "does not exist" : "is Superseded";
+    findings.push(
+      createQualityFinding(
+        RULE_IDS.ADR_CITATION_INVALID,
+        `Cited ADR-${citation.number} ${reason}`,
+        designPath,
+        citation.line_number,
+        "error",
+        undefined,
+        `ADR-${citation.number}`,
+      ),
+    );
   }
 
   return findings;

@@ -12,6 +12,7 @@ import { checkVagueTerms } from "./vague-terms";
 import { checkGlossaryCoverage } from "./glossary-checker";
 import { checkCoverage } from "./coverage-checker";
 import { checkRequiredSections, checkAdrCitations } from "./section-checker";
+import type { AdrStatus } from "./section-checker";
 import { checkPlanCoverage } from "./planning-checker";
 
 /**
@@ -45,6 +46,8 @@ export interface QualityCheckOptions {
   /** Additional artifacts needed for cross-reference */
   requirementsContent?: string;
   designContent?: string;
+  /** ADR number to status; when given, design.md's ADR citations are checked */
+  adrs?: ReadonlyMap<string, AdrStatus>;
 }
 
 // Re-export components
@@ -125,6 +128,7 @@ export function checkDesign(
   filePath: string,
   version: number,
   requirementsContent?: string,
+  adrs?: ReadonlyMap<string, AdrStatus>,
 ): QualityCheckResult {
   const findings: QualityFinding[] = [];
 
@@ -133,7 +137,9 @@ export function checkDesign(
     findings.push(...checkCoverage(requirementsContent, content, filePath));
   }
   findings.push(...checkRequiredSections(content, filePath));
-  findings.push(...checkAdrCitations(content, filePath));
+  if (adrs) {
+    findings.push(...checkAdrCitations(content, filePath, adrs));
+  }
 
   const status = findings.some((f) => f.severity === "error")
     ? "fail"
@@ -189,13 +195,13 @@ export function checkPlan(
  * @returns Quality check result
  */
 export function runQualityChecks(options: QualityCheckOptions): QualityCheckResult {
-  const { filePath, content, kind, version, requirementsContent, designContent } = options;
+  const { filePath, content, kind, version, requirementsContent, designContent, adrs } = options;
 
   switch (kind) {
     case "requirements":
       return checkRequirements(content, filePath, version);
     case "design":
-      return checkDesign(content, filePath, version, requirementsContent);
+      return checkDesign(content, filePath, version, requirementsContent, adrs);
     case "plan":
       return checkPlan(content, filePath, version, requirementsContent, designContent);
   }

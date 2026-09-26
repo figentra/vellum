@@ -117,34 +117,33 @@ N/A - Internal only.
 });
 
 describe("checkAdrCitations", () => {
-  it("validates ADR citations", () => {
-    const design = `
+  const design = `
 See ADR-0001 for details.
 
-Also see ADR-0002.
+Also see ADR-0002 and adr/0003.
 `;
 
-    const findings = checkAdrCitations(design, "design.md");
-
-    // Current implementation assumes all citations are valid
-    expect(findings).toHaveLength(0);
+  it("reports nothing when every cited ADR exists and is active", () => {
+    const adrs = new Map([
+      ["0001", "active" as const],
+      ["0002", "active" as const],
+      ["0003", "active" as const],
+    ]);
+    expect(checkAdrCitations(design, "design.md", adrs)).toHaveLength(0);
   });
 
-  it("extracts ADR citations", () => {
-    const design = `
-See ADR-0001 for details.
-Also ADR-0002 and ADR-0003.
-`;
+  it("names a missing ADR and a Superseded ADR with their lines", () => {
+    const adrs = new Map([
+      ["0001", "active" as const],
+      ["0002", "superseded" as const],
+    ]);
+    const findings = checkAdrCitations(design, "design.md", adrs);
 
-    const citations = [];
-    const lines = design.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const matches = lines[i].matchAll(/ADR[-\s]?(\d{4})/gi);
-      for (const match of matches) {
-        citations.push(match[1]);
-      }
-    }
-
-    expect(citations).toHaveLength(3);
+    expect(findings.map((f) => [f.message, f.line_number])).toEqual([
+      ["Cited ADR-0002 is Superseded", 4],
+      ["Cited ADR-0003 does not exist", 4],
+    ]);
+    expect(findings.every((f) => f.rule_id === "ADR_CITATION_INVALID")).toBe(true);
+    expect(findings.every((f) => f.file_path === "design.md")).toBe(true);
   });
 });
