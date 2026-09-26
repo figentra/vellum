@@ -29,6 +29,6 @@
   },
   "devDependencies": {
     "@vellum/tsconfig": "workspace:*",
-    "fast-check": "^3.22.0"
+    "fast-check": "catalog:"
   }
 }
