@@ -45,6 +45,7 @@ const VALID_KINDS: LedgerEntryKind[] = [
   "claim",
   "failure",
   "attempt",
+  "task_binding",
 ];
 
 /**
@@ -80,6 +81,15 @@ const KIND_REQUIRED_FIELDS: Record<LedgerEntryKind, string[]> = {
   claim: ["claim", "provenance", "verified"],
   failure: ["component", "error", "context"],
   attempt: ["task_id", "outcome"],
+  task_binding: [
+    "task_id",
+    "requirements_version",
+    "requirements_checksum",
+    "design_version",
+    "design_checksum",
+    "plan_version",
+    "plan_checksum",
+  ],
 };
 
 /**

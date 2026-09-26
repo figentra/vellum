@@ -63,6 +63,8 @@ export type {
   ApprovalPayload as ApprovalPayloadFull,
   RejectionPayload as RejectionPayloadFull,
   EvidencePayload as EvidencePayloadFull,
+  TaskBindingEntryPayload,
+  ApprovalSignal,
   DecisionPayload as DecisionPayloadFull,
   AmendmentPayload,
   GateResultPayload as GateResultPayloadFull,

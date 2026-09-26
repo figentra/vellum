@@ -296,6 +296,31 @@ describe("Ledger Schema (Task 4.3)", () => {
     });
   });
 
+  describe("task_binding entries", () => {
+    const binding = {
+      kind: "task_binding",
+      id: 2,
+      predecessor_digest: "a".repeat(64),
+      timestamp: "2026-09-26T10:00:00Z",
+      task_id: "1",
+      requirements_version: 1,
+      requirements_checksum: "b".repeat(64),
+      design_version: 1,
+      design_checksum: "c".repeat(64),
+      plan_version: 1,
+      plan_checksum: "d".repeat(64),
+    };
+
+    it("accepts a complete binding", () => {
+      expect(validateLedgerEntry(binding)).toEqual([]);
+    });
+
+    it("names a missing checksum field", () => {
+      const { plan_checksum: _drop, ...partial } = binding;
+      expect(validateLedgerEntry(partial).map((f) => f.field)).toEqual(["plan_checksum"]);
+    });
+  });
+
   describe("EVIDENCE_FORBIDDEN_FIELDS", () => {
     it("should list stdout and stderr", () => {
       expect(EVIDENCE_FORBIDDEN_FIELDS).toContain("stdout");

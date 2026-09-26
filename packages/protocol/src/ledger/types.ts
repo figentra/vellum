@@ -24,7 +24,8 @@ export type LedgerEntryKind =
   | "release"
   | "claim"
   | "failure"
-  | "attempt";
+  | "attempt"
+  | "task_binding";
 
 /**
  * Header fields present in every Ledger Entry.
@@ -136,6 +137,35 @@ export interface EvidencePayload {
   environment_versions: EnvironmentVersions;
   /** Whether working tree differed from HEAD in an affected path */
   uncommitted: boolean;
+  /**
+   * SHA-256 of the command's combined standard output and standard error.
+   * Proves which output the run produced without storing it (criterion 9.3).
+   */
+  output_sha256?: string;
+  /** Wall-clock duration of the run in milliseconds */
+  duration_ms?: number;
+  /** True when the Evidence Recorder stopped the command at its timeout */
+  timed_out?: boolean;
+}
+
+// ============================================================================
+// Task Binding Entry
+// ============================================================================
+
+/**
+ * Task Binding - the artifact versions and checksums a task attempt started
+ * against (criterion 18.5), which its completion is checked against
+ * (criterion 18.10).
+ */
+export interface TaskBindingEntryPayload {
+  /** Task identifier */
+  task_id: string;
+  requirements_version: number;
+  requirements_checksum: string;
+  design_version: number;
+  design_checksum: string;
+  plan_version: number;
+  plan_checksum: string;
 }
 
 // ============================================================================
@@ -401,7 +431,8 @@ export type LedgerEntry =
   | (LedgerEntryHeader & ReleasePayload)
   | (LedgerEntryHeader & ClaimPayload)
   | (LedgerEntryHeader & FailurePayload)
-  | (LedgerEntryHeader & AttemptPayload);
+  | (LedgerEntryHeader & AttemptPayload)
+  | (LedgerEntryHeader & TaskBindingEntryPayload);
 
 // ============================================================================
 // Ledger Integrity Types
