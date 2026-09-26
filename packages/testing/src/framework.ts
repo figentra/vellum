@@ -10,7 +10,6 @@ import * as path from "node:path";
 import * as crypto from "node:crypto";
 import * as os from "node:os";
 import type {
-
   SpecId,
   Checksum,
   CommitSha,
@@ -21,6 +20,7 @@ import type {
   DiagnosticCode,
 } from "@vellum/protocol";
 import {
+  computeChecksum,
   computeLedgerEntryDigest,
   parseChecksum,
   parseCommitSha,
@@ -161,7 +161,10 @@ export class FixtureBuilder {
   private async git(cwd: string, ...args: string[]): Promise<string> {
     const { spawn } = await import("node:child_process");
     return new Promise((resolve, reject) => {
-      const child = spawn("git", args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn("git", args, {
+        cwd,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       let stdout = "";
       let stderr = "";
       child.stdout?.on("data", (chunk) => (stdout += chunk));
@@ -190,26 +193,31 @@ export async function createMinimalSpec(
   const basePath = `.agents/specs/${slug}`;
 
   // Create spec directory
-  await builder.writeFile(`${basePath}/requirements.md`, createArtifact("requirements", state, 1));
-  await builder.writeFile(`${basePath}/design.md`, createArtifact("design", state, 1));
-  await builder.writeFile(`${basePath}/tasks.md`, createArtifact("tasks", state, 1));
+  await builder.writeFile(
+    `${basePath}/requirements.md`,
+    createArtifact("requirements", state, 1),
+  );
+  await builder.writeFile(
+    `${basePath}/design.md`,
+    createArtifact("design", state, 1),
+  );
+  await builder.writeFile(
+    `${basePath}/tasks.md`,
+    createArtifact("tasks", state, 1),
+  );
   await builder.writeFile(`${basePath}/.sdlc/ledger.jsonl`, "");
 }
 
 /**
- * Generate a test checksum.
+ * The protocol's Artifact Checksum of `content` (canonical body, SHA-256).
  */
 export function testChecksum(content: string): Checksum {
-  const hash = crypto.createHash("sha256").update(content).digest("hex");
-  const parsed = parseChecksum(hash);
-  if (!parsed) {
-    throw new Error(`Invalid checksum: ${hash}`);
-  }
-  return parsed;
+  return computeChecksum(content);
 }
 
 /**
- * Create an artifact file with frontmatter.
+ * Create an artifact file with frontmatter. The checksum covers the body as
+ * the protocol parses it: everything after the closing `---` line.
  */
 export function createArtifact(
   _kind: ArtifactKind,
@@ -217,15 +225,15 @@ export function createArtifact(
   version: number,
   body: string = "# Test Artifact\n\nThis is a test artifact.",
 ): string {
+  const parsedBody = `\n${body}`;
   return `---
 version: ${version}
-checksum: "${testChecksum(body)}"
+checksum: "${testChecksum(parsedBody)}"
 state: ${state}
 createdAt: "2024-01-01T00:00:00Z"
 updatedAt: "2024-01-01T00:00:00Z"
 ---
-
-${body}`;
+${parsedBody}`;
 }
 
 // ============================================================================
@@ -259,10 +267,15 @@ export function computePredecessorDigest(entry: LedgerEntry): string {
 /**
  * Assert that a finding has a specific diagnostic code.
  */
-export function assertFindingCode(finding: Finding, code: DiagnosticCode): void {
+export function assertFindingCode(
+  finding: Finding,
+  code: DiagnosticCode,
+): void {
   const normalizedRule = finding.rule.endsWith(code) || finding.rule === code;
   if (!normalizedRule) {
-    throw new Error(`Expected finding to have rule ${code}, but got ${finding.rule}`);
+    throw new Error(
+      `Expected finding to have rule ${code}, but got ${finding.rule}`,
+    );
   }
 }
 
@@ -292,7 +305,8 @@ export function assertFindingsSorted(findings: Finding[]): void {
 export function assertEqual<T>(actual: T, expected: T, message?: string): void {
   if (JSON.stringify(actual) !== JSON.stringify(expected)) {
     throw new Error(
-      message || `Expected ${JSON.stringify(expected)}, but got ${JSON.stringify(actual)}`,
+      message ||
+        `Expected ${JSON.stringify(expected)}, but got ${JSON.stringify(actual)}`,
     );
   }
 }
