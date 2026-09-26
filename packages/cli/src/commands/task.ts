@@ -51,7 +51,7 @@ export const task = {
     args: { spec: string; taskId: string; command: string; exit: number },
     ctx: CliContext,
   ): Promise<number> => {
-    const { spec, taskId, command, exit } = args;
+    const { spec, taskId, exit } = args;
 
     try {
       // Check exit status

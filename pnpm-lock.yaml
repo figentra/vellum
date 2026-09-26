@@ -47,9 +47,6 @@ importers:
       '@vellum/storage':
         specifier: workspace:*
         version: link:../storage
-      cley:
-        specifier: ^0.0.0-rc-2
-        version: 0.0.0-rc-2
     devDependencies:
       '@vellum/tsconfig':
         specifier: workspace:*
@@ -1044,10 +1041,6 @@ packages:
   chokidar@4.0.3:
     resolution: {integrity: sha512-Qgzu8kfBvo+cA4962jnP1KkS6Dop5NS6g7R5LFYJr4b8Ub94PPQXUksCw9PvXoeXPRRddRNC5C1JQUR2SMGtnA==}
     engines: {node: '>= 14.16.0'}
-
-  cley@0.0.0-rc-2:
-    resolution: {integrity: sha512-XarLUqwtLRoyuPAlmv+NglVtlxgpCJ5ssyKgRYvjiFJaMlLyjOJtZsdOOMgG8y/W/65+gYe8kpLAvUNQGgOV8A==}
-    hasBin: true
 
   commander@4.1.1:
     resolution: {integrity: sha512-NOKm8xhkzAjzFx8B2v5OAHT+u5pRQc2UCa2Vq9jYL/31o2wi9mxBA7LIFs3sV5VSC49z6pEhfbMULvShKj26WA==}
@@ -2599,8 +2592,6 @@ snapshots:
   chokidar@4.0.3:
     dependencies:
       readdirp: 4.1.2
-
-  cley@0.0.0-rc-2: {}
 
   commander@4.1.1: {}
 

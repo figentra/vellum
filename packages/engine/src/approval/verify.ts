@@ -84,10 +84,10 @@ export function verifyApproval(
  */
 export function countValidApprovals(
   approvals: readonly Array<{
-    readonly approver: string;
-    readonly artifact: ArtifactKind;
-    readonly artifactChecksum: Checksum;
-    readonly signalCommit: string;
+    approver: string;
+    artifact: ArtifactKind;
+    artifactChecksum: Checksum;
+    signalCommit: string;
   }>,
   policy: ApprovalPolicy | null,
   riskClass: RiskClass,

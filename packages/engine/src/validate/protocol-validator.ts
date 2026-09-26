@@ -7,7 +7,7 @@
  * @see design.md Criterion 11
  */
 
-import type { Artifact, Finding, LifecycleFrontmatter, Checksum } from "@vellum/protocol";
+import type { Artifact, Finding } from "@vellum/protocol";
 import { validateFrontmatterChecksum } from "@vellum/protocol";
 import { createFinding } from "./finding.js";
 
@@ -173,7 +173,7 @@ function validateChecksum(artifact: Artifact): Finding[] {
   const findings: Finding[] = [];
 
   // Use protocol's checksum validation
-  const isValid = validateFrontmatterChecksum(artifact);
+  const isValid = validateFrontmatterChecksum(artifact.frontmatter, artifact.body);
 
   if (!isValid) {
     findings.push(

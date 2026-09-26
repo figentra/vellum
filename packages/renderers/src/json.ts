@@ -5,17 +5,30 @@
  * All output conforms to published schemas.
  */
 
-import type { SpecMetadata, Finding, ExaminationSummary } from "@vellum/protocol";
+import type { Finding, ExaminationSummary } from "@vellum/protocol";
+
+/** Spec metadata for rendering */
+export interface SpecInfo {
+  specId: string;
+  specNumber: number;
+  state: string;
+  isLegacy: boolean;
+  legacyStage?: string;
+  artifacts: {
+    requirements: boolean;
+    design: boolean;
+    tasks: boolean;
+  };
+}
 
 /**
  * Render spec status as JSON.
  */
-export function renderStatusJson(spec: SpecMetadata): string {
+export function renderStatusJson(spec: SpecInfo): string {
   return JSON.stringify(
     {
       specId: spec.specId,
       specNumber: spec.specNumber,
-      path: spec.path,
       state: spec.state,
       isLegacy: spec.isLegacy,
       legacyStage: spec.legacyStage,
@@ -33,13 +46,12 @@ export function renderStatusJson(spec: SpecMetadata): string {
 /**
  * Render multiple spec statuses as JSON.
  */
-export function renderStatusListJson(specs: SpecMetadata[]): string {
+export function renderStatusListJson(specs: SpecInfo[]): string {
   return JSON.stringify(
     {
       specs: specs.map((spec) => ({
         specId: spec.specId,
         specNumber: spec.specNumber,
-        path: spec.path,
         state: spec.state,
         isLegacy: spec.isLegacy,
         legacyStage: spec.legacyStage,
@@ -115,9 +127,6 @@ export function renderExaminationSummaryJson(summary: ExaminationSummary): strin
     {
       kind: summary.kind,
       count: summary.count,
-      passed: summary.passed,
-      failed: summary.failed,
-      inconclusive: summary.inconclusive,
     },
     null,
     2,
@@ -132,17 +141,18 @@ export function renderErrorJson(error: {
   message: string;
   details?: unknown;
 }): string {
-  return JSON.stringify(
-    {
-      error: {
-        code: error.code,
-        message: error.message,
-        ...(error.details && { details: error.details }),
-      },
+  const result: Record<string, unknown> = {
+    error: {
+      code: error.code,
+      message: error.message,
     },
-    null,
-    2,
-  );
+  };
+
+  if (error.details !== undefined) {
+    result.error = { ...result.error, details: error.details };
+  }
+
+  return JSON.stringify(result, null, 2);
 }
 
 /**

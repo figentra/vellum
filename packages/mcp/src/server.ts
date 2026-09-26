@@ -30,7 +30,7 @@ const server = new Server(
 );
 
 // Register tool list handler
-server.setRequestHandler(ListToolsRequestSchema, async (request: ListToolsRequest) => {
+server.setRequestHandler(ListToolsRequestSchema, async (_request: ListToolsRequest) => {
   return {
     tools: [
       {

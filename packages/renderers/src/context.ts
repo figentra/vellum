@@ -4,7 +4,11 @@
  * Builds context bundles for AI assistants with size budget enforcement.
  */
 
-import type { SpecMetadata, Artifact } from "@vellum/protocol";
+/** Spec metadata for rendering */
+export interface SpecInfo {
+  specId: string;
+  specNumber: number;
+}
 
 /** Default max bundle size in characters (approximately 100KB) */
 const DEFAULT_MAX_BUDGET = 100_000;
@@ -35,7 +39,7 @@ export interface ContextBundle {
  * Build context bundle for a spec.
  */
 export function buildContextBundle(
-  spec: SpecMetadata,
+  spec: SpecInfo,
   artifacts: Map<string, { kind: string; content: string }>,
   options?: {
     budget?: number;

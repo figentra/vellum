@@ -63,3 +63,15 @@ export function compareFindings(a: Finding, b: Finding): number {
 export function sortFindings(findings: Finding[]): void {
   findings.sort(compareFindings);
 }
+
+/**
+ * Create a finding with minimal boilerplate.
+ */
+export function createFinding(file: string, line: number, rule: string, message: string): Finding {
+  return {
+    file,
+    line,
+    rule: rule as RuleIdentifier,
+    message,
+  };
+}

@@ -16,4 +16,4 @@
 export const VERSION = "0.1.0" as const;
 
 // Re-export types for programmatic use
-export type { McpServer } from "@modelcontextprotocol/sdk/server/index.js";
+export type { Server as McpServer } from "@modelcontextprotocol/sdk/server/index.js";

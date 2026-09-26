@@ -207,7 +207,7 @@ export function buildTaskGraph(tasks: readonly TaskLine[]): TaskGraph {
 
     // Check for dependencies in task text
     const depMatch = task.text.match(/Depends? on:?\s*([T\d,\s]+)/i);
-    if (depMatch) {
+    if (depMatch && depMatch[1]) {
       const depIds = depMatch[1].split(",").map((s) => s.trim() as TaskId);
       deps.push(...depIds);
     }

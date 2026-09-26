@@ -9,7 +9,7 @@ interface ApproveArgs {
   spec: string;
   artifact: string;
   reject: boolean;
-  rationale?: string;
+  rationale?: string | undefined;
 }
 
 /**

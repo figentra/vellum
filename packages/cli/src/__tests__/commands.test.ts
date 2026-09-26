@@ -3,17 +3,17 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { lint } from "../src/commands/lint.js";
-import { status } from "../src/commands/status.js";
-import { approve } from "../src/commands/approve.js";
-import { verify } from "../src/commands/verify.js";
-import { check } from "../src/commands/check.js";
-import { adopt } from "../src/commands/adopt.js";
-import { doctor } from "../src/commands/doctor.js";
-import { sync } from "../src/commands/sync.js";
-import { task } from "../src/commands/task.js";
+import { lint } from "../commands/lint.js";
+import { status } from "../commands/status.js";
+import { approve } from "../commands/approve.js";
+import { verify } from "../commands/verify.js";
+import { check } from "../commands/check.js";
+import { adopt } from "../commands/adopt.js";
+import { doctor } from "../commands/doctor.js";
+import { sync } from "../commands/sync.js";
+import { task } from "../commands/task.js";
 import { EXIT_STATUS } from "@vellum/protocol";
-import type { CliContext } from "../src/context.js";
+import type { CliContext } from "../context.js";
 
 // Mock context for testing
 const mockContext: CliContext = {
@@ -183,7 +183,7 @@ describe("task.complete", () => {
 
   it("should complete with exit 0", async () => {
     const result = await task.complete(
-      { spec: "016", tokenId: "1", command: "test", exit: 0 },
+      { spec: "016", taskId: "1", command: "test", exit: 0 },
       mockContext,
     );
     expect(result).toBe(EXIT_STATUS.SUCCESS);

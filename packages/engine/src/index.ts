@@ -1,5 +1,5 @@
 /**
- * @vellum/engine — Pure logic implementation (no I/O)
+ * @stellum/engine — Pure logic implementation (no I/O)
  *
  * This package contains the stateless engine functions that compute
  * lifecycle state, approvals, evidence, and verification.
@@ -16,5 +16,128 @@
  * All decisions are computed from repository content and the pinned version alone.
  */
 
-// Placeholder — will be populated during Slice 1 Wave 2 implementation
-export const VERSION = "0.0.0" as const;
+// ============================================================================
+// Lifecycle
+// ============================================================================
+
+export {
+  isTerminalState,
+  isValidTransition,
+  getValidNextStates,
+  getTransitionPreconditions,
+  checkPreconditions,
+  computeEffectiveState,
+  InvalidTransitionError,
+} from "./lifecycle/state-machine.js";
+
+// ============================================================================
+// Validation
+// ============================================================================
+
+export { validateProtocol, validateRequiredArtifacts } from "./validate/protocol-validator.js";
+
+export { validateTaskGraph, buildTaskGraph, validateWaveOrdering } from "./validate/task-graph.js";
+
+export {
+  validateSpecFolder,
+  validateMachineFolder,
+  isLegacySpec,
+  detectLegacyStage,
+} from "./validate/spec-folder.js";
+
+// ============================================================================
+// Approval
+// ============================================================================
+
+export {
+  verifyApproval,
+  countValidApprovals,
+  getRequiredApprovalCount,
+  getApprovers,
+  isApprovalInvalidated,
+  diagnoseInvalidApproval,
+} from "./approval/verify.js";
+
+export {
+  cascadeInvalidation,
+  wouldCascadeToDesign,
+  wouldCascadeToPlan,
+  countInvalidatedApprovals,
+} from "./approval/cascade.js";
+
+// ============================================================================
+// Ledger
+// ============================================================================
+
+export {
+  checkLedgerIntegrity,
+  detectForks,
+  checkMissingEntries,
+  verifyLedgerChain,
+} from "./ledger/integrity.js";
+
+// ============================================================================
+// Status
+// ============================================================================
+
+export { computeStatusReport, formatStatusJson, formatStatusHuman } from "./status/reporter.js";
+
+// ============================================================================
+// Verification
+// ============================================================================
+
+export {
+  strictVerify,
+  getVerificationExitStatus,
+  formatVerificationJson,
+  formatVerificationHuman,
+} from "./verify/strict.js";
+
+export { preExecutionCheck, checkTaskBinding, validateTaskBinding } from "./verify/precheck.js";
+
+export {
+  verifyDeterminism,
+  sortFindings,
+  verifyFindingsSorted,
+  computeOutputHash,
+} from "./verify/determinism.js";
+
+// ============================================================================
+// Evidence
+// ============================================================================
+
+export {
+  validateEvidence,
+  containsSecretPattern,
+  hasVerifiedEvidence,
+  findUnverifiedTasks,
+  countEvidence,
+  checkEvidenceCompleteness,
+} from "./evidence/validate.js";
+
+// ============================================================================
+// Coverage
+// ============================================================================
+
+export {
+  computeCoverage,
+  hasCompleteCoverage,
+  getCoveragePercentage,
+  extractCriteria,
+  extractProperties,
+  validateCriteriaCoverage,
+  validatePropertiesCitation,
+} from "./coverage/validate.js";
+
+// ============================================================================
+// Check Mode
+// ============================================================================
+
+export { runCheckMode, isCheckMode, checkSingleSpec, formatCheckResult } from "./mode/check.js";
+
+// ============================================================================
+// Artifacts
+// ============================================================================
+
+// Export artifact utilities if needed
+export {} from "./artifact.js";

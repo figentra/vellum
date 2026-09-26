@@ -6,7 +6,7 @@ import type { CliContext } from "../context.js";
 import { EXIT_STATUS } from "@vellum/protocol";
 
 interface SyncArgs {
-  target?: string;
+  target?: string | undefined;
   check: boolean;
   json: boolean;
 }

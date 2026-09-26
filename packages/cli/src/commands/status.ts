@@ -6,7 +6,7 @@ import type { CliContext } from "../context.js";
 import { EXIT_STATUS } from "@vellum/protocol";
 
 interface StatusArgs {
-  spec?: string;
+  spec?: string | undefined;
   json: boolean;
 }
 

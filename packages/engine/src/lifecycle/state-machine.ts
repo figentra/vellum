@@ -178,7 +178,7 @@ export async function checkPreconditions(
     results.push({
       kind,
       met: result.met,
-      message: result.message,
+      ...(result.message && { message: result.message }),
     });
   }
 

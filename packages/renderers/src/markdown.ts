@@ -5,12 +5,26 @@
  * All output is deterministic and pure.
  */
 
-import type { SpecMetadata, Finding, LifecycleState, TaskMarker } from "@vellum/protocol";
+import type { Finding, LifecycleState, TaskMarker } from "@vellum/protocol";
+
+/** Spec metadata for rendering */
+export interface SpecInfo {
+  specId: string;
+  specNumber: number;
+  state: LifecycleState;
+  isLegacy: boolean;
+  legacyStage?: string;
+  artifacts: {
+    requirements: boolean;
+    design: boolean;
+    tasks: boolean;
+  };
+}
 
 /**
  * Render spec status as Markdown.
  */
-export function renderStatusMarkdown(spec: SpecMetadata): string {
+export function renderStatusMarkdown(spec: SpecInfo): string {
   const lines: string[] = [];
 
   lines.push(`# Spec ${spec.specId}`, "");

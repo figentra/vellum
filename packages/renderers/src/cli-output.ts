@@ -27,7 +27,7 @@ function useColors(): boolean {
 /**
  * Render spec status for CLI.
  */
-export function renderStatusCli(spec: SpecMetadata, colors = useColors()): string {
+export function renderStatusCli(spec: SpecInfo, colors = useColors()): string {
   const c = colors ? COLORS : noColors();
   const lines: string[] = [];
 

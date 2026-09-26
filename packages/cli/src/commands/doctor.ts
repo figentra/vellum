@@ -91,7 +91,7 @@ export async function doctor(args: DoctorArgs, ctx: CliContext): Promise<number>
 /**
  * Check: Git repository detected
  */
-async function checkGitRepository(ctx: CliContext): Promise<DiagnosticResult> {
+async function checkGitRepository(_ctx: CliContext): Promise<DiagnosticResult> {
   // Placeholder - would check for .git directory
   return {
     category: "git",
@@ -105,7 +105,7 @@ async function checkGitRepository(ctx: CliContext): Promise<DiagnosticResult> {
 /**
  * Check: Git version >= 2.0
  */
-async function checkGitVersion(ctx: CliContext): Promise<DiagnosticResult> {
+async function checkGitVersion(_ctx: CliContext): Promise<DiagnosticResult> {
   // Placeholder - would run 'git --version'
   return {
     category: "git",
@@ -119,7 +119,7 @@ async function checkGitVersion(ctx: CliContext): Promise<DiagnosticResult> {
 /**
  * Check: Node.js version >= 22.0
  */
-async function checkNodeVersion(ctx: CliContext): Promise<DiagnosticResult> {
+async function checkNodeVersion(_ctx: CliContext): Promise<DiagnosticResult> {
   const version = process.version.replace(/^v/, "");
   const major = parseInt(version.split(".")[0] ?? "0", 10);
   const passed = major >= 22;
@@ -138,7 +138,7 @@ async function checkNodeVersion(ctx: CliContext): Promise<DiagnosticResult> {
 /**
  * Check: .agents/specs/ directory exists
  */
-async function checkSpecsDirectory(ctx: CliContext): Promise<DiagnosticResult> {
+async function checkSpecsDirectory(_ctx: CliContext): Promise<DiagnosticResult> {
   // Placeholder - would check for directory existence
   return {
     category: "spec",
@@ -152,7 +152,7 @@ async function checkSpecsDirectory(ctx: CliContext): Promise<DiagnosticResult> {
 /**
  * Check: Approval policy file present
  */
-async function checkApprovalPolicy(ctx: CliContext): Promise<DiagnosticResult> {
+async function checkApprovalPolicy(_ctx: CliContext): Promise<DiagnosticResult> {
   // Placeholder - would check for policy file
   return {
     category: "policy",
@@ -166,7 +166,7 @@ async function checkApprovalPolicy(ctx: CliContext): Promise<DiagnosticResult> {
 /**
  * Check: Ledger integrity
  */
-async function checkLedgerIntegrity(ctx: CliContext): Promise<DiagnosticResult> {
+async function checkLedgerIntegrity(_ctx: CliContext): Promise<DiagnosticResult> {
   // Placeholder - would run ledger integrity checks
   return {
     category: "ledger",
