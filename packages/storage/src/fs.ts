@@ -17,7 +17,7 @@ import {
 } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { FileSystem } from "@vellum/protocol";
 
 /**
@@ -201,8 +201,6 @@ function formatYamlValue(value: unknown): string {
  * Compute SHA-256 checksum of content.
  */
 export function computeChecksum(content: string): string {
-  // Import crypto synchronously
-  const { createHash } = require("node:crypto");
   return createHash("sha256").update(content, "utf8").digest("hex");
 }
 

@@ -4,9 +4,11 @@
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { mkdir, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   createFilesystem,
   parseFrontmatter,
@@ -170,6 +172,29 @@ describe("Checksum", () => {
 
   it("should differ for different content", () => {
     expect(computeChecksum("a")).not.toBe(computeChecksum("b"));
+  });
+});
+
+describe("computeChecksum outside vitest", () => {
+  it("runs as a plain ES module, where require is not defined", () => {
+    // vitest supplies a CommonJS `require` to modules it loads, so a stray
+    // require() passes here and fails in the published ESM build. Load the
+    // source in a bare Node ES-module context instead.
+    const source = pathToFileURL(join(dirname(fileURLToPath(import.meta.url)), "..", "fs.ts")).href;
+    const run = spawnSync(
+      process.execPath,
+      [
+        "--experimental-transform-types",
+        "--no-warnings",
+        "--input-type=module",
+        "-e",
+        `import { computeChecksum } from ${JSON.stringify(source)}; process.stdout.write(computeChecksum("a"));`,
+      ],
+      { encoding: "utf8" },
+    );
+
+    expect(run.stderr).toBe("");
+    expect(run.stdout).toBe(createHash("sha256").update("a", "utf8").digest("hex"));
   });
 });
 
