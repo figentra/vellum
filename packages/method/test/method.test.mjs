@@ -13,6 +13,8 @@ const EXPECTED_SKILLS = [
   "durable-findings",
   "failure-loop",
   "spec",
+  "spec-clarify",
+  "spec-converge",
   "spec-design",
   "spec-implement",
   "spec-new",
@@ -80,7 +82,7 @@ function cliCommands() {
   return { commands, taskSubcommands };
 }
 
-test("the method ships the nine skills, three templates and twelve agents", () => {
+test("the method ships the eleven skills, three templates and twelve agents", () => {
   const skills = readdirSync(join(METHOD, "skills")).filter((n) => !n.startsWith(".")).sort();
   assert.deepEqual(skills, EXPECTED_SKILLS);
   for (const s of skills) assert.ok(existsSync(join(METHOD, "skills", s, "SKILL.md")), `${s}/SKILL.md`);
@@ -207,4 +209,51 @@ test("every agent carries neutral frontmatter only", () => {
       for (const s of skills) assert.ok(EXPECTED_SKILLS.includes(s), `${file}: skill '${s}'`);
     }
   }
+});
+
+const skill = (name) => read(join(METHOD, "skills", name, "SKILL.md"));
+
+test("spec-clarify and spec-converge exist with frontmatter naming them", () => {
+  for (const name of ["spec-clarify", "spec-converge"]) {
+    assert.ok(existsSync(join(METHOD, "skills", name, "SKILL.md")), `${name}/SKILL.md`);
+    const fm = frontmatter(skill(name));
+    assert.ok(fm, `${name}: no frontmatter`);
+    assert.equal(fm.name, name);
+    assert.ok(fm.description && fm.description.length > 20, `${name}: description`);
+  }
+});
+
+test("spec-clarify caps a session at five questions and resolves clarification markers", () => {
+  const clarify = skill("spec-clarify");
+  assert.match(clarify, /\*\*Ask at most 5 questions per invocation\.\*\*/);
+  assert.match(clarify, /Never ask more than five questions in one invocation/);
+  assert.match(clarify, /\[NEEDS CLARIFICATION: /);
+  assert.match(clarify, /## Clarifications/);
+  // The approval is bound to the checksum; a clarified document needs a human to re-approve it.
+  assert.match(clarify, /`vellum approve <NNN> requirements`/);
+  assert.match(clarify, /Never run `vellum approve`/);
+});
+
+test("spec-converge treats [x] without evidence as a gap and never marks a task done", () => {
+  const converge = skill("spec-converge");
+  assert.match(converge, /a completion claim is not evidence/);
+  assert.match(converge, /A `\[x\]` with no such entry is an \*\*unverified completion\*\*, and it is a gap/);
+  assert.match(converge, /Never mark a task done, and never write `\[x\]`/);
+  assert.match(converge, /Never treat `\[x\]` as evidence/);
+  assert.match(converge, /Never edit `requirements\.md` or `design\.md`/);
+  assert.match(converge, /Never delete, reorder, renumber or reword an existing task/);
+  // Evidence is read through the CLI, with flags the CLI accepts.
+  assert.match(converge, /vellum verify <NNN> --strict --json/);
+  assert.match(converge, /vellum status <NNN> --json/);
+  assert.match(converge, /`vellum approve <NNN> tasks`/);
+  for (const cls of ["missing", "partial", "contradicts", "unrequested", "unverified completion"])
+    assert.match(converge, new RegExp(`\\*\\*${cls}\\*\\*`), cls);
+});
+
+test("the flag each new skill passes to the CLI is one the CLI accepts", () => {
+  const source = read(join(METHOD, "..", "cli", "src", "run.ts"));
+  const verify = /case "verify": \{[\s\S]*?checkOptions\(ctx, args, command, \[([^\]]*)\]\)/.exec(source);
+  assert.ok(verify, "run.ts no longer declares verify's options where this test reads them");
+  assert.match(verify[1], /"strict"/);
+  assert.match(verify[1], /"json"/);
 });

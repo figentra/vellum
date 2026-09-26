@@ -43,6 +43,13 @@ export const COMMANDS: readonly StageCommand[] = [
     description: "Start a new spec: requirements.md with EARS criteria",
   },
   {
+    name: "spec-clarify",
+    skill: "spec-clarify",
+    agent: "spec-author",
+    description:
+      "Ask up to five questions that resolve a drafted spec's ambiguities",
+  },
+  {
     name: "spec-design",
     skill: "spec-design",
     agent: "spec-author",
@@ -70,6 +77,13 @@ export const COMMANDS: readonly StageCommand[] = [
     name: "spec-verify",
     skill: "spec-verify",
     description: "Audit a spec's traceability: requirements, design and tasks",
+  },
+  {
+    name: "spec-converge",
+    skill: "spec-converge",
+    agent: "spec-planner",
+    description:
+      "Compare the code with the spec and append a task for every gap",
   },
 ];
 

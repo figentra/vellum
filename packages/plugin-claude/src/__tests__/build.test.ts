@@ -75,7 +75,11 @@ describe("plugin-claude build", () => {
   });
 
   it("ships every method skill verbatim with valid skill frontmatter", () => {
-    expect(method.skills).toHaveLength(9);
+    expect(method.skills).toHaveLength(11);
+    for (const added of ["spec-clarify", "spec-converge"]) {
+      expect(method.skills).toContain(added);
+      expect(files.has(`skills/${added}/SKILL.md`), added).toBe(true);
+    }
     for (const skill of method.skills) {
       const path = `skills/${skill}/SKILL.md`;
       const content = files.get(path);
