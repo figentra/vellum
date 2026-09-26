@@ -3,12 +3,18 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Vellum method — skills, agents, templates, and prompts (data only, no code dependencies)",
-  "files": ["skills", "agents", "templates", "prompts"],
+  "description": "Vellum method \u2014 skills, agents, templates, and prompts (data only, no code dependencies)",
+  "files": [
+    "skills",
+    "agents",
+    "templates",
+    "models.json",
+    "ROSTER.md"
+  ],
   "scripts": {
-    "lint": "true",
-    "typecheck": "echo 'No TypeScript in method package — data only'",
-    "test": "echo 'Method package is data only — tests run in plugin packages'",
+    "lint": "oxlint test/",
+    "typecheck": "echo 'No TypeScript in method package \u2014 data only'",
+    "test": "node --test test/*.test.mjs",
     "clean": "echo 'Nothing to clean'"
   }
 }

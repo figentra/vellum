@@ -1,0 +1,206 @@
+// Content checks for @vellum/method. Data-only package: these tests read the Markdown and JSON as
+// data with Node builtins and import nothing from the workspace.
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
+import { dirname, join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const METHOD = join(dirname(fileURLToPath(import.meta.url)), "..");
+const CLI_SOURCE = join(METHOD, "..", "cli", "src", "cli.ts");
+
+const EXPECTED_SKILLS = [
+  "durable-findings",
+  "failure-loop",
+  "spec",
+  "spec-design",
+  "spec-implement",
+  "spec-new",
+  "spec-run",
+  "spec-tasks",
+  "spec-verify",
+];
+const EXPECTED_TEMPLATES = ["design.md", "requirements.md", "tasks.md"];
+const AGENT_KEYS = new Set(["name", "description", "tools", "tier", "mode", "permissions", "skills"]);
+// Claude Code tool names the renderers know how to map to every assistant.
+const KNOWN_TOOLS = new Set([
+  "Read", "Grep", "Glob", "LS", "Write", "Edit", "MultiEdit", "NotebookEdit", "Bash",
+  "WebFetch", "WebSearch", "TodoWrite", "Task", "Agent", "Skill",
+]);
+
+/** Every method data file (Markdown and JSON), excluding the tests and the manifest. */
+function dataFiles(dir = METHOD) {
+  const out = [];
+  for (const name of readdirSync(dir).sort()) {
+    if (name === "node_modules" || name === "test" || name.startsWith(".")) continue;
+    const path = join(dir, name);
+    if (statSync(path).isDirectory()) out.push(...dataFiles(path));
+    else if (/\.(md|json)$/.test(name) && name !== "package.json" && name !== "turbo.json")
+      out.push(path);
+  }
+  return out;
+}
+
+const read = (path) => readFileSync(path, "utf8");
+const rel = (path) => relative(METHOD, path);
+
+function frontmatter(text) {
+  const match = text.match(/^---\n([\s\S]*?)\n---\n/);
+  if (!match) return null;
+  const data = {};
+  for (const line of match[1].split("\n")) {
+    const kv = line.match(/^([A-Za-z_][\w-]*):\s*(.*)$/);
+    if (kv) data[kv[1]] = kv[2].trim();
+  }
+  return data;
+}
+
+/** Inline code spans and fenced blocks: the only places a command is an instruction. */
+function codeText(markdown) {
+  const fenced = [...markdown.matchAll(/```[^\n]*\n([\s\S]*?)```/g)].map((m) => m[1]);
+  const withoutFences = markdown.replace(/```[^\n]*\n[\s\S]*?```/g, "");
+  const inline = [...withoutFences.matchAll(/`([^`\n]+)`/g)].map((m) => m[1]);
+  return [...fenced, ...inline];
+}
+
+/** The CLI's command list, read from its dispatch switch as data. */
+function cliCommands() {
+  const source = read(CLI_SOURCE);
+  const top = source.indexOf("switch (args.command)");
+  const sub = source.indexOf("switch (args.subcommand)");
+  assert.ok(top !== -1 && sub > top, "cli.ts no longer has the command/subcommand switches this test reads");
+  const subEnd = source.indexOf("default:", sub);
+  const cases = (text) => [...text.matchAll(/case "([a-z][\w-]*)":/g)].map((m) => m[1]);
+  const taskSubcommands = new Set(cases(source.slice(sub, subEnd)));
+  const commands = new Set(cases(source.slice(top)).filter((c) => !taskSubcommands.has(c)));
+  return { commands, taskSubcommands };
+}
+
+test("the method ships the nine skills, three templates and twelve agents", () => {
+  const skills = readdirSync(join(METHOD, "skills")).filter((n) => !n.startsWith(".")).sort();
+  assert.deepEqual(skills, EXPECTED_SKILLS);
+  for (const s of skills) assert.ok(existsSync(join(METHOD, "skills", s, "SKILL.md")), `${s}/SKILL.md`);
+  assert.deepEqual(readdirSync(join(METHOD, "templates")).sort(), EXPECTED_TEMPLATES);
+  const agents = readdirSync(join(METHOD, "agents")).filter((n) => n.endsWith(".md"));
+  assert.equal(agents.length, 12);
+});
+
+test("no method file contains CLAUDE_PLUGIN_ROOT", () => {
+  const offenders = dataFiles().filter((f) => read(f).includes("CLAUDE_PLUGIN_ROOT")).map(rel);
+  assert.deepEqual(offenders, []);
+});
+
+test("the CLI command list read from packages/cli is the one the method was written against", () => {
+  const { commands, taskSubcommands } = cliCommands();
+  // Guards against a parse that silently finds nothing and makes the next test vacuous.
+  for (const c of ["status", "lint", "check", "verify", "approve", "task", "adopt", "sync", "doctor"])
+    assert.ok(commands.has(c), `cli.ts has no '${c}' command`);
+  assert.deepEqual([...taskSubcommands].sort(), ["complete", "start"]);
+});
+
+test("every vellum subcommand a method file names exists in the CLI", () => {
+  const { commands, taskSubcommands } = cliCommands();
+  const unknown = [];
+  let seen = 0;
+  for (const file of dataFiles().filter((f) => f.endsWith(".md"))) {
+    for (const code of codeText(read(file))) {
+      for (const m of code.matchAll(/(?:^|[\s(;&|])vellum\s+([a-z][\w-]*)(?:\s+([a-z][\w-]*))?/g)) {
+        seen++;
+        const [, command, next] = m;
+        if (!commands.has(command)) unknown.push(`${rel(file)}: vellum ${command}`);
+        else if (command === "task" && !taskSubcommands.has(next ?? ""))
+          unknown.push(`${rel(file)}: vellum task ${next ?? "(none)"}`);
+      }
+    }
+  }
+  assert.deepEqual(unknown, []);
+  assert.ok(seen > 0, "no vellum command found in any method file; the scan is broken");
+});
+
+test("the skills call the stage detector and validator through the CLI", () => {
+  const all = EXPECTED_SKILLS.map((s) => read(join(METHOD, "skills", s, "SKILL.md"))).join("\n");
+  assert.match(all, /vellum status/);
+  assert.match(all, /vellum lint/);
+  assert.match(all, /vellum task complete/);
+  assert.doesNotMatch(all, /spec-(status|lint)\.mjs/);
+});
+
+test("no method file carries a product, repository or plugin specific", () => {
+  const forbidden = [
+    [/basalt/i, "basalt"],
+    [/figentra/i, "figentra"],
+    [/academorix/i, "academorix"],
+    [/stackra/i, "stackra"],
+    [/\bsdlc\b/i, "the sdlc plugin name"],
+    [/\bADR-?\d{3,4}\b/i, "an ADR number"],
+    [/adr\/\d{4}-/i, "an ADR file"],
+    [/packages\/os\b/, "packages/os"],
+    [/apps\/docs\b/, "apps/docs"],
+  ];
+  const hits = [];
+  // The package README records where the method came from; everything shipped must be neutral.
+  for (const file of dataFiles().filter((f) => rel(f) !== "README.md")) {
+    read(file).split("\n").forEach((line, i) => {
+      for (const [re, label] of forbidden) if (re.test(line)) hits.push(`${rel(file)}:${i + 1} ${label}`);
+    });
+  }
+  assert.deepEqual(hits, []);
+});
+
+test("agents and skills name tiers, never models", () => {
+  const hits = dataFiles()
+    .filter((f) => f.endsWith(".md"))
+    .filter((f) => /\b(opus|sonnet|haiku)\b/i.test(read(f)))
+    .map(rel);
+  assert.deepEqual(hits, []);
+});
+
+test("every skill has frontmatter whose name is its directory and a description", () => {
+  for (const s of EXPECTED_SKILLS) {
+    const fm = frontmatter(read(join(METHOD, "skills", s, "SKILL.md")));
+    assert.ok(fm, `${s}: no frontmatter`);
+    assert.equal(fm.name, s);
+    assert.ok(fm.description && fm.description.length > 20, `${s}: description`);
+  }
+});
+
+test("every template a skill names exists in templates/", () => {
+  const named = new Set();
+  for (const s of EXPECTED_SKILLS)
+    for (const m of read(join(METHOD, "skills", s, "SKILL.md")).matchAll(/templates\/([a-z-]+\.md)/g))
+      named.add(m[1]);
+  assert.ok(named.size > 0);
+  for (const t of named) assert.ok(EXPECTED_TEMPLATES.includes(t), `skills name templates/${t}`);
+});
+
+test("models.json maps every tier for every assistant", () => {
+  const models = JSON.parse(read(join(METHOD, "models.json")));
+  assert.deepEqual(models.tiers, ["economy", "standard", "frontier"]);
+  for (const assistant of ["claude", "kiro", "opencode"]) {
+    const row = models.assistants[assistant];
+    assert.ok(row, assistant);
+    for (const tier of models.tiers) {
+      assert.ok(tier in row, `${assistant}.${tier}`);
+      assert.ok(row[tier] === null || typeof row[tier] === "string", `${assistant}.${tier}`);
+    }
+  }
+});
+
+test("every agent carries neutral frontmatter only", () => {
+  const models = JSON.parse(read(join(METHOD, "models.json")));
+  const dir = join(METHOD, "agents");
+  for (const file of readdirSync(dir).filter((n) => n.endsWith(".md"))) {
+    const fm = frontmatter(read(join(dir, file)));
+    assert.ok(fm, `${file}: no frontmatter`);
+    for (const key of Object.keys(fm)) assert.ok(AGENT_KEYS.has(key), `${file}: unknown key '${key}'`);
+    assert.equal(fm.name, file.replace(/\.md$/, ""), `${file}: name must equal the file stem`);
+    assert.ok(fm.description, `${file}: description`);
+    assert.ok(models.tiers.includes(fm.tier), `${file}: tier '${fm.tier}'`);
+    for (const tool of (fm.tools ?? "").split(",").map((t) => t.trim()).filter(Boolean))
+      assert.ok(KNOWN_TOOLS.has(tool), `${file}: tool '${tool}'`);
+    if (fm.skills) {
+      const skills = fm.skills.replace(/^\[|\]$/g, "").split(",").map((s) => s.trim()).filter(Boolean);
+      for (const s of skills) assert.ok(EXPECTED_SKILLS.includes(s), `${file}: skill '${s}'`);
+    }
+  }
+});
