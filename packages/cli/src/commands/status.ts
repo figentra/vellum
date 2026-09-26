@@ -24,11 +24,11 @@ interface StatusArgs {
 /**
  * Run status command.
  *
- * Reports, per spec: the Recorded Lifecycle State, each artifact's version
- * and whether its frontmatter checksum is current, valid approvals against
- * the policy, required tasks with passing evidence, and ledger integrity.
- * The Effective Lifecycle State and next transition (criteria 5.10, 6.5) are
- * not computed by this version, and the output says so.
+ * Reports, per spec: the Recorded and Effective Lifecycle States (with the
+ * failed precondition, or INCONCLUSIVE and why), each artifact's version and
+ * whether its frontmatter checksum is current, valid approvals against the
+ * policy, required tasks with passing evidence, and ledger integrity. The
+ * next permitted transition (criterion 6.5) is not computed by this version.
  *
  * Exit: 0 when every spec was reported; 2 when a spec or the policy could not
  * be read, or a spec fragment matched none or several specs.
@@ -77,6 +77,7 @@ export async function status(args: StatusArgs, ctx: CliContext): Promise<number>
       gitCommits: git.gitCommits,
       ledgerHead: spec.ledgerHead,
       approvalCommits: git.approvalCommits,
+      verifiedHistory: git.verifiedHistory,
     });
     reports.push(report);
     human.push(formatStatusHuman(report));

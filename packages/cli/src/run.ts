@@ -22,9 +22,9 @@ USAGE
 
 COMMANDS
   status [spec] [--json]
-      Recorded state, artifact versions, valid approvals, verified tasks and
-      ledger integrity per spec. The Effective Lifecycle State is not
-      computed by this version.
+      Recorded and Effective Lifecycle State (with the failed precondition),
+      artifact versions, valid approvals, verified tasks and ledger
+      integrity per spec.
   lint [spec] [--type=requirements|design|tasks] [--json]
       Protocol Validator: spec folder contract, frontmatter and checksums,
       task markers and criterion references, ledger schema and integrity.

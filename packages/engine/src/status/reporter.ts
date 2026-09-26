@@ -26,21 +26,30 @@ import {
 } from "../approval/records.js";
 import { countValidApprovals, getRequiredApprovalCount } from "../approval/verify.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
+import {
+  computeEffectiveLifecycleState,
+  type EffectiveState,
+} from "../lifecycle/effective-state.js";
 
 /**
  * Status report for a spec.
  *
- * The Effective Lifecycle State (criteria 5.10, 6.1) and the next permitted
- * transition (criterion 6.5) are not computed by this engine version; the
- * report says so with `null` rather than repeating the recorded state.
+ * The Effective Lifecycle State (criteria 5.10, 6.1) is computed from the
+ * artifacts, approvals, evidence and ledger (computeEffectiveLifecycleState).
+ * When a precondition cannot be decided it is `null`, and `effective` says
+ * which state was shown to hold and why the next could not be decided. The
+ * next permitted transition (criterion 6.5) is not computed by this engine
+ * version.
  */
 export interface StatusReport {
   /** Spec ID */
   readonly specId: string;
   /** Recorded lifecycle state (requirements.md frontmatter) */
   readonly recordedState: LifecycleState;
-  /** Effective lifecycle state: null — not computed by this engine version */
-  readonly effectiveState: null;
+  /** Effective Lifecycle State; null when a precondition could not be decided */
+  readonly effectiveState: LifecycleState | null;
+  /** How the effective state was reached: the failed precondition, or why it is inconclusive */
+  readonly effective: EffectiveState;
   /** Artifact versions */
   readonly artifacts: {
     readonly requirements?: ArtifactStatus;
@@ -118,6 +127,8 @@ export interface StatusInput {
   readonly gitCommits: ReadonlyMap<string, GitCommit>;
   readonly ledgerHead?: LedgerHead | null;
   readonly approvalCommits?: ReadonlyMap<number, ApprovalCommitResolution>;
+  /** The verified commit and its ancestors; without it VERIFIED cannot be decided */
+  readonly verifiedHistory?: ReadonlySet<string>;
 }
 
 /**
@@ -127,8 +138,11 @@ export interface StatusInput {
 export function computeStatusReport(input: StatusInput): StatusReport {
   const byKind = new Map(input.artifacts.map((a) => [a.kind, a] as const));
 
-  const artifacts: { requirements?: ArtifactStatus; design?: ArtifactStatus; tasks?: ArtifactStatus } =
-    {};
+  const artifacts: {
+    requirements?: ArtifactStatus;
+    design?: ArtifactStatus;
+    tasks?: ArtifactStatus;
+  } = {};
   for (const kind of KINDS) {
     const artifact = byKind.get(kind);
     if (artifact) artifacts[kind] = getArtifactStatus(artifact);
@@ -154,11 +168,23 @@ export function computeStatusReport(input: StatusInput): StatusReport {
   };
 
   const integrity = checkLedgerIntegrity(input.ledger, input.ledgerHead);
+  const effective = computeEffectiveLifecycleState({
+    artifacts: input.artifacts,
+    ledger: input.ledger,
+    recordedState: input.recordedState,
+    policy: input.policy,
+    riskClass: input.riskClass,
+    gitCommits: input.gitCommits,
+    ...(input.ledgerHead !== undefined ? { ledgerHead: input.ledgerHead } : {}),
+    ...(input.approvalCommits ? { approvalCommits: input.approvalCommits } : {}),
+    ...(input.verifiedHistory ? { verifiedHistory: input.verifiedHistory } : {}),
+  });
 
   return {
     specId: input.specId,
     recordedState: input.recordedState,
-    effectiveState: null,
+    effectiveState: effective.kind === "computed" ? effective.state : null,
+    effective,
     artifacts,
     approvals: {
       requirements: approvalFor("requirements"),
@@ -201,7 +227,10 @@ function computeVerificationStatus(
   let failed = 0;
   for (const entry of ledger) {
     if (entry.kind !== "evidence") continue;
-    const evidence = entry as unknown as { readonly task_id?: unknown; readonly exit_status?: unknown };
+    const evidence = entry as unknown as {
+      readonly task_id?: unknown;
+      readonly exit_status?: unknown;
+    };
     if (evidence.exit_status === 0 && typeof evidence.task_id === "string") {
       passed.add(evidence.task_id);
     } else if (evidence.exit_status !== 0) {
@@ -241,7 +270,16 @@ export function formatStatusHuman(report: StatusReport): string {
 
   lines.push(`Spec: ${report.specId}`);
   lines.push(`Recorded state: ${report.recordedState}`);
-  lines.push(`Effective state: not computed (not implemented in this version)`);
+  const effective = report.effective;
+  if (effective.kind === "computed") {
+    lines.push(`Effective state: ${effective.state}`);
+    if (effective.failedPrecondition !== null) {
+      lines.push(`  failed precondition: ${effective.failedPrecondition}`);
+    }
+  } else {
+    lines.push(`Effective state: INCONCLUSIVE — holds through ${effective.holdsThrough}`);
+    lines.push(`  undecided: ${effective.reason}`);
+  }
 
   lines.push(``);
   lines.push(`Artifacts:`);

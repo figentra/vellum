@@ -26,9 +26,15 @@ export {
   getValidNextStates,
   getTransitionPreconditions,
   checkPreconditions,
-  computeEffectiveState,
   InvalidTransitionError,
 } from "./lifecycle/state-machine.js";
+
+export {
+  computeEffectiveLifecycleState,
+  isLifecycleState,
+  type EffectiveState,
+  type EffectiveStateInput,
+} from "./lifecycle/effective-state.js";
 
 // ============================================================================
 // Validation

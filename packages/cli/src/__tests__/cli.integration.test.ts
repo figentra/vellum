@@ -46,7 +46,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       expect(before.status).toBe(0);
       const report = JSON.parse(before.stdout).specs[0];
       expect(report.recordedState).toBe("IN_PROGRESS");
-      expect(report.effectiveState).toBeNull();
+      // No approval yet: the requirements approval is the first precondition to fail
+      expect(report.effectiveState).toBe("IN_REVIEW");
+      expect(report.effective.failedPrecondition).toContain("IN_REVIEW → REQUIREMENTS_APPROVED");
       expect(report.approvals.requirements).toEqual({ current: 0, required: 1, complete: false });
       expect(report.verification).toEqual({ required: 2, completed: 0, failed: 0, complete: false });
       expect(report.ledger).toEqual({ entries: 0, valid: true, failures: [] });
@@ -55,12 +57,16 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       const after = JSON.parse((await fx.cli(["status", "001", "--json"])).stdout).specs[0];
       expect(after.approvals.requirements).toEqual({ current: 1, required: 1, complete: true });
       expect(after.approvals.tasks).toEqual({ current: 1, required: 1, complete: true });
+      // Approved, but no task started yet
+      expect(after.effectiveState).toBe("PLAN_APPROVED");
     });
 
-    it("says in human output that the effective state is not computed", async () => {
+    it("names the effective state and its failed precondition in human output", async () => {
       const result = await fx.cli(["status"]);
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("Effective state: not computed");
+      expect(result.stdout).toContain("Recorded state: IN_PROGRESS");
+      expect(result.stdout).toContain("Effective state: IN_REVIEW");
+      expect(result.stdout).toContain("failed precondition: IN_REVIEW → REQUIREMENTS_APPROVED");
     });
 
     it("exits 2 naming the fragment when no spec matches", async () => {
