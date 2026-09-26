@@ -59,20 +59,21 @@ export function verifyApproval(
     return { valid: false, reason: "UNSIGNED_COMMIT" };
   }
 
-  // Check approver is authorized
-  const authorizedApprovers = getApprovers(policy, riskClass, approval.artifact);
-  if (!authorizedApprovers.includes(approval.approver)) {
-    return { valid: false, reason: "NOT_AUTHORIZED" };
-  }
-
-  // Check signature matches approver
-  // (In production, this would verify GPG key identity)
-  // For now, we trust that the commit signature is valid
-
-  // Check not from assistant
+  // Check not from assistant (criterion 7.8). This precedes the authorisation
+  // check: an assistant-originated signal is rejected as such whatever identity
+  // it names, so the reason reported is the one that actually disqualifies it.
   if (commit.sessionMetadata?.isAssistant) {
     return { valid: false, reason: "FROM_ASSISTANT" };
   }
+
+  // Check approver is authorized (criterion 7.1)
+  const authorizedApprovers = getApprovers(policy, riskClass, approval.artifact);
+  if (!authorizedApprovers.some((listed) => matchesApprover(approval.approver, listed))) {
+    return { valid: false, reason: "NOT_AUTHORIZED" };
+  }
+
+  // NOTE: the engine does not verify the signature against a key the policy
+  // lists for the approver (criterion 7.3) — ApprovalPolicy carries no keys yet.
 
   // All checks passed
   return { valid: true };
@@ -115,12 +116,13 @@ export function countValidApprovals(
       continue;
     }
 
-    // Check distinct approvers (criterion 7.11)
-    if (seenApprovers.has(approval.approver)) {
+    // Check distinct approvers (criterion 7.11), compared as matchesApprover does
+    const approverKey = normaliseApprover(approval.approver);
+    if (seenApprovers.has(approverKey)) {
       continue; // Already approved by this person
     }
 
-    seenApprovers.add(approval.approver);
+    seenApprovers.add(approverKey);
     count++;
   }
 
@@ -145,6 +147,57 @@ export function getRequiredApprovalCount(
   }
 
   return riskMap.get(artifactKind) ?? 0;
+}
+
+/** Result of checking an artifact's approvals against the policy's requirement. */
+export interface RequiredApprovalsResult {
+  /** True when `count` reaches `required` and `required` is at least 1. */
+  readonly met: boolean;
+  /** Valid approvals from distinct authorised approvers. */
+  readonly count: number;
+  /** Approvals the policy requires for the artifact at the risk class. */
+  readonly required: number;
+}
+
+/**
+ * Decide whether an artifact holds the approvals the policy requires
+ * (criterion 7.11: N valid approvals from N distinct authorised approvers).
+ *
+ * A policy that requires zero approvals — or names no requirement for the
+ * artifact at this risk class — is never "met": criterion 7.5 makes a missing
+ * approver list a refusal, not a free pass.
+ */
+export function hasRequiredApprovals(
+  approvals: Parameters<typeof countValidApprovals>[0],
+  policy: ApprovalPolicy | null,
+  riskClass: RiskClass,
+  artifactKind: ArtifactKind,
+  currentChecksum: Checksum,
+  gitCommits: ReadonlyMap<string, GitCommit>,
+): RequiredApprovalsResult {
+  const required = getRequiredApprovalCount(policy, riskClass, artifactKind);
+  const count = countValidApprovals(
+    approvals,
+    policy,
+    riskClass,
+    artifactKind,
+    currentChecksum,
+    gitCommits,
+  );
+  return { met: required > 0 && count >= required, count, required };
+}
+
+/**
+ * Compare an approving identity with a policy entry. Identities are email
+ * addresses; they compare case-insensitively after trimming, so a policy
+ * listing `Alice@Example.com` authorises `alice@example.com`.
+ */
+export function matchesApprover(identity: string, listed: string): boolean {
+  return normaliseApprover(identity) === normaliseApprover(listed);
+}
+
+function normaliseApprover(identity: string): string {
+  return identity.trim().toLowerCase();
 }
 
 /**

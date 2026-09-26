@@ -11,7 +11,7 @@ import {
   getRequiredApprovalCount,
   matchesApprover,
   diagnoseInvalidApproval,
-} from "../src/approval/verify.js";
+} from "../verify.js";
 import type {
   ApprovalPolicy,
   ApprovalPayload,

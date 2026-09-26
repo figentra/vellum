@@ -53,6 +53,8 @@ export {
   verifyApproval,
   countValidApprovals,
   getRequiredApprovalCount,
+  hasRequiredApprovals,
+  matchesApprover,
   getApprovers,
   isApprovalInvalidated,
   diagnoseInvalidApproval,

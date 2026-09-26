@@ -8,7 +8,7 @@ import {
   isValidTransition,
   getValidNextStates,
   getTransitionPreconditions,
-} from "../src/lifecycle/state-machine.js";
+} from "../state-machine.js";
 import type { LifecycleState } from "@vellum/protocol";
 
 describe("Lifecycle State Machine", () => {
@@ -136,9 +136,9 @@ describe("Lifecycle State Machine", () => {
         "VERIFIED",
       ];
 
-      for (let i = 0; i < path.length - 1; i++) {
-        const from = path[i];
+      for (const [i, from] of path.slice(0, -1).entries()) {
         const to = path[i + 1];
+        if (to === undefined) throw new Error(`path has no state after ${from}`);
         expect(isValidTransition(from, to), `Transition ${from}->${to} should be valid`).toBe(true);
       }
     });
