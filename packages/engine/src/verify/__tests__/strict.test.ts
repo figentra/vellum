@@ -63,7 +63,10 @@ describe("strictVerify", () => {
 
     expect(result.result).toBe("FAIL");
     expect(result.approvals).toEqual({ satisfied: 2, total: 3 });
-    expect(result.findings.map((f) => f.message)).toEqual(["Approval invalid: CHECKSUM_MISMATCH"]);
+    expect(result.findings.map((f) => f.message)).toEqual([
+      "Approval invalid: CHECKSUM_MISMATCH",
+      "requirements.md has 0 of the 1 valid approvals the policy requires",
+    ]);
   });
 
   it("reports missing artifacts and approvals of them", () => {
@@ -219,5 +222,24 @@ describe("strictVerify — ledger tail", () => {
 
     expect(result.result).toBe("FAIL");
     expect(result.findings.map((f) => f.rule)).toEqual(["LEDGER_INTEGRITY"]);
+  });
+});
+
+describe("strictVerify — approvals the policy requires (criterion 12.5)", () => {
+  it("fails a spec that holds none of the approvals the policy requires", () => {
+    const ledger = chain([evidenceEntry("1"), evidenceEntry("2")]);
+    const result = strictVerify(allArtifacts(), ledger, policyFor("standard"), commits, "standard");
+
+    expect(result.result).toBe("FAIL");
+    expect(
+      result.findings.filter((f) => f.rule === "APPROVAL_REQUIRED").map((f) => f.file),
+    ).toEqual(["requirements.md", "design.md", "tasks.md"]);
+  });
+
+  it("fails every artifact when the policy is missing", () => {
+    const result = strictVerify(allArtifacts(), verifiedLedger(), null, commits, "standard");
+
+    expect(result.result).toBe("FAIL");
+    expect(result.findings.some((f) => f.rule === "APPROVAL_REQUIRED")).toBe(true);
   });
 });

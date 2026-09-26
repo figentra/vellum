@@ -8,6 +8,7 @@
  */
 
 import type { Finding } from "@vellum/protocol";
+import { sha256Hex } from "@vellum/protocol";
 
 /**
  * Verify that output is byte-identical for same input.
@@ -78,33 +79,13 @@ export function verifyFindingsSorted(findings: readonly Finding[]): boolean {
 }
 
 /**
- * Compute a deterministic hash of output.
+ * Compute a deterministic hash of output: its SHA-256, hex-encoded.
+ *
+ * The engine may not import `node:crypto`, so it uses the protocol's
+ * sha256Hex — the same function behind ledger digests.
  */
 export function computeOutputHash(output: string): string {
-  // Simple hash for determinism check
-  // In production, would use SHA-256
-  let hash = 0;
-  for (let i = 0; i < output.length; i++) {
-    const char = output.charCodeAt(i);
-    hash = (hash << 5) - hash + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash).toString(16).padStart(8, "0");
-}
-
-/**
- * Verify that a function is pure (no side effects).
- * This is a compile-time check, not runtime.
- */
-export function assertPureFunction<T extends (...args: any[]) => any>(
-  _fn: T,
-  _description: string,
-): void {
-  // In TypeScript strict mode, pure functions are enforced by:
-  // 1. No mutation of arguments
-  // 2. No access to global state
-  // 3. No I/O
-  // This function serves as documentation
+  return sha256Hex(output);
 }
 
 /**

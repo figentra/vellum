@@ -22,7 +22,10 @@ interface VerifyArgs {
  * Run verify (the Strict Verifier; `--strict` is accepted and changes
  * nothing — there is no lenient mode). See `queryVerify` in @vellum/storage
  * for what is verified. Without a spec argument, verifies each managed spec
- * whose Recorded Lifecycle State is IN_PROGRESS or later.
+ * whose Recorded Lifecycle State is IN_PROGRESS or later. (Criterion 12.9
+ * selects by the Effective state, which `vellum status` and `vellum check`
+ * compute; verify does not use it for selection yet, and `check` fails a spec
+ * whose recorded state is ahead of its effective state.)
  *
  * Exit: 0 PASS, 1 FAIL, 2 INCONCLUSIVE (nothing to verify, or an input that
  * could not be read or parsed).

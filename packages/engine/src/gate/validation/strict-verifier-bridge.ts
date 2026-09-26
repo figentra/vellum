@@ -1,8 +1,16 @@
 /**
- * Strict Verifier Bridge - invokes the Strict Verifier.
+ * Strict Verifier Bridge - runs the engine's Strict Verifier for a gate.
+ *
+ * The merge gate's "Strict Verifier PASS" (004 criterion 6.1) is the result
+ * of `strictVerify` on the spec's artifacts, ledger and what storage read from
+ * git — the same function `vellum verify` runs.
  *
  * @see requirements.md Requirement 6.1
  */
+
+import type { ApprovalPolicy, Artifact, GitCommit, LedgerEntry, RiskClass } from "@vellum/protocol";
+import { EXIT_STATUS } from "@vellum/protocol";
+import { strictVerify, type StrictVerifyOptions } from "../../verify/strict.js";
 
 /**
  * Strict verifier result.
@@ -10,27 +18,46 @@
 export interface StrictVerifierResult {
   /** Verification status */
   status: "PASS" | "FAIL" | "INCONCLUSIVE";
-  /** Verification findings */
+  /** Verification findings, as `file:line rule: message` */
   findings: string[];
-  /** Exit status */
+  /** Exit status: 0 PASS, 1 FAIL, 2 INCONCLUSIVE */
   exit_status: number;
+}
+
+/** Everything strict verification of one spec reads. */
+export interface StrictVerifierInput {
+  readonly artifacts: readonly Artifact[];
+  readonly ledger: readonly LedgerEntry[];
+  readonly policy: ApprovalPolicy | null;
+  readonly gitCommits: ReadonlyMap<string, GitCommit>;
+  readonly riskClass: RiskClass;
+  readonly options?: StrictVerifyOptions;
 }
 
 /**
  * Run the Strict Verifier for a spec.
  *
- * @param specSlug - Spec slug
+ * @param input - The spec's artifacts, ledger, policy and git context
  * @returns Strict verifier result
  */
-export async function runStrictVerifier(_specSlug: string): Promise<StrictVerifierResult> {
-  // In a real implementation, this would invoke the Strict Verifier component
-  // from spec 036, passing the spec directory and reading results
-
-  // Placeholder implementation
+export function runStrictVerifier(input: StrictVerifierInput): StrictVerifierResult {
+  const result = strictVerify(
+    input.artifacts,
+    input.ledger,
+    input.policy,
+    input.gitCommits,
+    input.riskClass,
+    input.options,
+  );
   return {
-    status: "PASS",
-    findings: [],
-    exit_status: 0,
+    status: result.result,
+    findings: result.findings.map((f) => `${f.file}:${f.line} ${f.rule}: ${f.message}`),
+    exit_status:
+      result.result === "PASS"
+        ? EXIT_STATUS.SUCCESS
+        : result.result === "FAIL"
+          ? EXIT_STATUS.FAILURE
+          : EXIT_STATUS.INCONCLUSIVE,
   };
 }
 

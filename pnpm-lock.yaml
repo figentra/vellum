@@ -4,6 +4,12 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+catalogs:
+  default:
+    fast-check:
+      specifier: ^3.22.0
+      version: 3.23.2
+
 importers:
 
   .:
@@ -74,7 +80,7 @@ importers:
         specifier: workspace:*
         version: link:../../tooling/tsconfig
       fast-check:
-        specifier: ^3.22.0
+        specifier: 'catalog:'
         version: 3.23.2
 
   packages/mcp:

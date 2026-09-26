@@ -64,6 +64,14 @@ export function aggregateMetricValues(
     return { kind: "ratio", numerator: 0, denominator: 0 };
   }
 
+  // An aggregate over values some of which could not be computed is not the aggregate
+  const unavailable = values.find(
+    (v): v is { kind: "unavailable"; reason: string } => v.kind === "unavailable",
+  );
+  if (unavailable) {
+    return { kind: "unavailable", reason: unavailable.reason };
+  }
+
   // Filter by kind
   const durations = values.filter(
     (v): v is { kind: "duration"; value: number } => v.kind === "duration",
@@ -99,8 +107,11 @@ export function aggregateMetricValues(
     }
   }
 
-  // Fallback
-  return values[0] ?? { kind: "count", value: 0 };
+  // No value of a kind this method aggregates
+  return {
+    kind: "unavailable",
+    reason: `${values.map((v) => v.kind).join(", ")} values cannot be aggregated by ${method}`,
+  };
 }
 
 /**

@@ -97,3 +97,28 @@ describe("spec-size-limiter", () => {
     });
   });
 });
+
+describe("split proposal (criteria 13.2-13.3)", () => {
+  const requirements = [
+    { id: "1", deliverySlice: 1 },
+    { id: "2", deliverySlice: 2 },
+    { id: "3", deliverySlice: 1 },
+  ];
+
+  it("assigns each Requirement to the Child Spec of its Delivery slice", () => {
+    const finding = checkSpecSizeLimit("007-big", 100, 80, "requirements.md", requirements);
+    expect(
+      finding!.splitProposal.proposedChildren.map((c) => [c.deliverySlice, c.requirements]),
+    ).toEqual([
+      [1, ["1", "3"]],
+      [2, ["2"]],
+    ]);
+    expect(finding!.splitProposal.notComputed).toBeUndefined();
+  });
+
+  it("proposes no invented children when the Requirements' slices were not supplied", () => {
+    const finding = checkSpecSizeLimit("007-big", 200, 80);
+    expect(finding!.splitProposal.proposedChildren).toEqual([]);
+    expect(finding!.splitProposal.notComputed).toMatch(/Delivery slice/);
+  });
+});

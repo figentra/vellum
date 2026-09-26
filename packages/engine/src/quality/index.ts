@@ -13,7 +13,7 @@ import { checkGlossaryCoverage } from "./glossary-checker";
 import { checkCoverage } from "./coverage-checker";
 import { checkRequiredSections, checkAdrCitations } from "./section-checker";
 import type { AdrStatus } from "./section-checker";
-import { checkPlanCoverage } from "./planning-checker";
+import { CHECK_NOT_RUN, checkPlanCoverage, type PlanCoverageOptions } from "./planning-checker";
 
 /**
  * Quality check result for a single artifact.
@@ -23,12 +23,17 @@ export interface QualityCheckResult {
   artifact_path: string;
   /** Artifact version */
   artifact_version: number;
-  /** Overall status */
-  status: "pass" | "fail" | "warn";
+  /**
+   * Overall status: fail on any error finding; otherwise inconclusive when a
+   * check could not run (see `not_checked`); otherwise warn or pass.
+   */
+  status: "pass" | "fail" | "warn" | "inconclusive";
   /** All findings */
   findings: QualityFinding[];
   /** Check results per rule */
   check_results: CheckResult[];
+  /** Checks that could not run, and why (each is also a CHECK_NOT_RUN info finding) */
+  not_checked: { check: string; reason: string }[];
 }
 
 /**
@@ -48,6 +53,8 @@ export interface QualityCheckOptions {
   designContent?: string;
   /** ADR number to status; when given, design.md's ADR citations are checked */
   adrs?: ReadonlyMap<string, AdrStatus>;
+  /** Change and Policy context for the plan checks that need it (criteria 3.7, 3.8) */
+  plan?: PlanCoverageOptions;
 }
 
 // Re-export components
@@ -105,19 +112,7 @@ export function checkRequirements(
     );
   }
 
-  const status = findings.some((f) => f.severity === "error")
-    ? "fail"
-    : findings.some((f) => f.severity === "warn")
-      ? "warn"
-      : "pass";
-
-  return {
-    artifact_path: filePath,
-    artifact_version: version,
-    status,
-    findings,
-    check_results: [],
-  };
+  return summarize(filePath, version, findings);
 }
 
 /**
@@ -135,25 +130,17 @@ export function checkDesign(
   // Run all design checks (Requirements 2.1-2.6)
   if (requirementsContent) {
     findings.push(...checkCoverage(requirementsContent, content, filePath));
+  } else {
+    findings.push(notRun("coverage of requirements", "requirements.md was not supplied", filePath));
   }
   findings.push(...checkRequiredSections(content, filePath));
   if (adrs) {
     findings.push(...checkAdrCitations(content, filePath, adrs));
+  } else {
+    findings.push(notRun("ADR citations", "the ADR statuses were not supplied", filePath));
   }
 
-  const status = findings.some((f) => f.severity === "error")
-    ? "fail"
-    : findings.some((f) => f.severity === "warn")
-      ? "warn"
-      : "pass";
-
-  return {
-    artifact_path: filePath,
-    artifact_version: version,
-    status,
-    findings,
-    check_results: [],
-  };
+  return summarize(filePath, version, findings);
 }
 
 /**
@@ -165,27 +152,26 @@ export function checkPlan(
   version: number,
   requirementsContent?: string,
   designContent?: string,
+  planOptions?: PlanCoverageOptions,
 ): QualityCheckResult {
   const findings: QualityFinding[] = [];
 
   // Run all plan checks (Requirements 3.1-3.8)
-  if (requirementsContent && designContent) {
-    findings.push(...checkPlanCoverage(requirementsContent, designContent, content, filePath));
+  if (requirementsContent !== undefined && designContent !== undefined) {
+    findings.push(
+      ...checkPlanCoverage(requirementsContent, designContent, content, filePath, planOptions),
+    );
+  } else {
+    findings.push(
+      notRun(
+        "plan coverage (criteria 3.1-3.8)",
+        "requirements.md and design.md were not both supplied",
+        filePath,
+      ),
+    );
   }
 
-  const status = findings.some((f) => f.severity === "error")
-    ? "fail"
-    : findings.some((f) => f.severity === "warn")
-      ? "warn"
-      : "pass";
-
-  return {
-    artifact_path: filePath,
-    artifact_version: version,
-    status,
-    findings,
-    check_results: [],
-  };
+  return summarize(filePath, version, findings);
 }
 
 /**
@@ -195,7 +181,8 @@ export function checkPlan(
  * @returns Quality check result
  */
 export function runQualityChecks(options: QualityCheckOptions): QualityCheckResult {
-  const { filePath, content, kind, version, requirementsContent, designContent, adrs } = options;
+  const { filePath, content, kind, version, requirementsContent, designContent, adrs, plan } =
+    options;
 
   switch (kind) {
     case "requirements":
@@ -203,6 +190,47 @@ export function runQualityChecks(options: QualityCheckOptions): QualityCheckResu
     case "design":
       return checkDesign(content, filePath, version, requirementsContent, adrs);
     case "plan":
-      return checkPlan(content, filePath, version, requirementsContent, designContent);
+      return checkPlan(content, filePath, version, requirementsContent, designContent, plan);
   }
+}
+
+/** A CHECK_NOT_RUN info finding: `check` could not run, for `reason`. */
+function notRun(check: string, reason: string, filePath: string): QualityFinding {
+  return createQualityFinding(
+    CHECK_NOT_RUN,
+    `${check} not checked: ${reason}`,
+    filePath,
+    1,
+    "info",
+  );
+}
+
+/** Status and not-checked list from a check's findings. */
+function summarize(
+  filePath: string,
+  version: number,
+  findings: QualityFinding[],
+): QualityCheckResult {
+  const not_checked = findings
+    .filter((f) => f.rule_id === CHECK_NOT_RUN)
+    .map((f) => {
+      const [check = f.message, reason = ""] = f.message.split(" not checked: ");
+      return { check, reason };
+    });
+  const status = findings.some((f) => f.severity === "error")
+    ? "fail"
+    : not_checked.length > 0
+      ? "inconclusive"
+      : findings.some((f) => f.severity === "warn")
+        ? "warn"
+        : "pass";
+
+  return {
+    artifact_path: filePath,
+    artifact_version: version,
+    status,
+    findings,
+    check_results: [],
+    not_checked,
+  };
 }

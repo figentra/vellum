@@ -40,7 +40,16 @@ export interface SpecSizeLimitFinding extends Finding {
  */
 export interface SplitProposal {
   readonly specId: string;
+  /** One Child Spec per Delivery slice, holding that slice's Requirements */
   readonly proposedChildren: readonly ProposedChildSpec[];
+  /** Why no children are proposed: the Requirements' Delivery slices were not supplied */
+  readonly notComputed?: string;
+}
+
+/** A Requirement and the Delivery slice it is first delivered in. */
+export interface SlicedRequirement {
+  readonly id: string;
+  readonly deliverySlice: number;
 }
 
 /**
@@ -83,6 +92,7 @@ export function validateSpecSizeLimit(declaredLimit: unknown): number {
  * @param criterionCount - number of acceptance criteria
  * @param limit - Spec Size Limit
  * @param requirementsPath - path of the Spec's requirements.md (the Finding's file)
+ * @param requirements - each Requirement's Delivery slice, for the Split Proposal
  * @returns Finding or null if within limit
  */
 export function checkSpecSizeLimit(
@@ -90,6 +100,7 @@ export function checkSpecSizeLimit(
   criterionCount: number,
   limit: number,
   requirementsPath = "requirements.md",
+  requirements?: readonly SlicedRequirement[],
 ): SpecSizeLimitFinding | null {
   if (criterionCount <= limit) {
     return null;
@@ -104,44 +115,45 @@ export function checkSpecSizeLimit(
     limit,
     level: "warn",
     message: `Spec ${specId} has ${criterionCount} acceptance criteria, exceeding the limit of ${limit}`,
-    splitProposal: generateSplitProposal(specId, criterionCount, limit),
+    splitProposal: generateSplitProposal(specId, requirements),
   };
 }
 
 /**
- * Generate a Split Proposal for a large Spec.
+ * Generate a Split Proposal for a large Spec (criteria 13.2-13.3).
  *
- * Assigns Requirements to proposed Child Specs by their first Delivery slice.
+ * Assigns Requirements to proposed Child Specs by their first Delivery slice:
+ * one Child Spec per slice, in slice order. Without the Requirements' slices
+ * no children are proposed and `notComputed` says why — the proposal never
+ * invents empty children.
  *
  * @param specId - Spec identifier
- * @param criterionCount - number of criteria
- * @param limit - Spec Size Limit
+ * @param requirements - each Requirement's Delivery slice
  * @returns Split Proposal
  */
 export function generateSplitProposal(
   specId: string,
-  criterionCount: number,
-  limit: number,
+  requirements?: readonly SlicedRequirement[],
 ): SplitProposal {
-  // Placeholder: in real implementation would analyze requirements
-  // and their Delivery slice annotations
-
-  const sliceCount = Math.ceil(criterionCount / limit);
-
-  const proposedChildren: ProposedChildSpec[] = [];
-  for (let i = 0; i < sliceCount; i++) {
-    proposedChildren.push({
-      identifier: `${specId}-${i + 1}`,
-      title: `Split ${i + 1} from ${specId}`,
-      deliverySlice: i + 1,
-      requirements: [], // Would be populated from actual requirements
-    });
+  if (requirements === undefined || requirements.length === 0) {
+    return {
+      specId,
+      proposedChildren: [],
+      notComputed: "the Requirements and their Delivery slice annotations were not supplied",
+    };
   }
 
-  return {
-    specId,
-    proposedChildren,
-  };
+  const bySlice = assignRequirementsByDeliverySlice(requirements);
+  const proposedChildren: ProposedChildSpec[] = [...bySlice.keys()]
+    .sort((a, b) => a - b)
+    .map((slice) => ({
+      identifier: `${specId}-slice-${slice}`,
+      title: `Delivery slice ${slice} of ${specId}`,
+      deliverySlice: slice,
+      requirements: bySlice.get(slice) ?? [],
+    }));
+
+  return { specId, proposedChildren };
 }
 
 /**
@@ -172,7 +184,7 @@ export function permitsTransitionWithSizeFinding(
  * @returns proposed Child Specs
  */
 export function assignRequirementsByDeliverySlice(
-  requirements: Array<{ id: string; deliverySlice: number }>,
+  requirements: readonly SlicedRequirement[],
 ): Map<number, string[]> {
   const assignments = new Map<number, string[]>();
 

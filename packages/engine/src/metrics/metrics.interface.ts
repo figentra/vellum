@@ -7,7 +7,9 @@
 export type MetricValue =
   | { readonly kind: "duration"; readonly value: number }
   | { readonly kind: "count"; readonly value: number }
-  | { readonly kind: "ratio"; readonly numerator: number; readonly denominator: number };
+  | { readonly kind: "ratio"; readonly numerator: number; readonly denominator: number }
+  /** The metric could not be computed; never reported as a zero */
+  | { readonly kind: "unavailable"; readonly reason: string };
 
 /**
  * The twelve metrics computed from the Ledger and git history.

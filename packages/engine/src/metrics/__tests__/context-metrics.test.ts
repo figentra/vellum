@@ -8,6 +8,7 @@ import {
   computeTaskMetrics,
   aggregateContextMetrics,
   anonymizeContextMetrics,
+  utf8ByteLength,
 } from "../context-metrics";
 import type { AggregatedContextMetrics } from "../context-metrics";
 import type { MetricsScope } from "../scope.types";
@@ -117,5 +118,12 @@ describe("anonymizeContextMetrics", () => {
     expect(anonymized.scope).toEqual(specScope);
     expect(anonymized.total_tasks).toBe(10);
     expect(anonymized.timestamp).toBeDefined();
+  });
+});
+
+describe("utf8ByteLength", () => {
+  it("counts UTF-8 bytes of 1-, 2-, 3- and 4-byte characters", () => {
+    expect(utf8ByteLength("aé€😀")).toBe(10);
+    expect(utf8ByteLength("")).toBe(0);
   });
 });

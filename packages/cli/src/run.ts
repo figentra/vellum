@@ -9,6 +9,7 @@ import { parseArgs, stringOption, unknownOption, type ParsedArgs } from "./args.
 import type { CliContext } from "./context.js";
 import { VERSION } from "./version.js";
 import { status } from "./commands/status.js";
+import { check } from "./commands/check.js";
 import { lint } from "./commands/lint.js";
 import { verify } from "./commands/verify.js";
 import { doctor } from "./commands/doctor.js";
@@ -22,9 +23,13 @@ USAGE
 
 COMMANDS
   status [spec] [--json]
-      Recorded state, artifact versions, valid approvals, verified tasks and
-      ledger integrity per spec. The Effective Lifecycle State is not
-      computed by this version.
+      Recorded and Effective Lifecycle State (with the failed precondition),
+      artifact versions, valid approvals, verified tasks and ledger
+      integrity per spec.
+  check [spec] [--json]
+      Check Mode for CI, writing nothing: fails a spec that is INVALID, whose
+      ledger fails integrity, or whose recorded state differs from its
+      effective state; legacy specs pass unless their stage is invalid.
   lint [spec] [--type=requirements|design|tasks] [--json]
       Protocol Validator: spec folder contract, frontmatter and checksums,
       task markers and criterion references, ledger schema and integrity.
@@ -45,18 +50,16 @@ COMMANDS
 EXIT STATUS
   0 PASS / done, 1 FAIL / refused, 2 INCONCLUSIVE, usage error, or not implemented
 
-Not implemented in this version (exit 2): check, adopt, sync.
+Not implemented in this version (exit 2): adopt, sync.
 `;
 
 /** Commands named by the spec but not implemented; each exits 2. */
 const NOT_IMPLEMENTED: Readonly<Record<string, string>> = {
-  check:
-    "check (Check Mode needs the Effective Lifecycle State, criteria 6.7-6.12, which this version does not compute); use 'vellum lint' and 'vellum verify'",
   adopt: "adopt (bringing a legacy spec under management, criterion 14)",
   sync: "sync (projection to assistant directories, criterion 13)",
 };
 
-const IMPLEMENTED = ["status", "lint", "verify", "doctor", "approve", "task start", "task complete"];
+const IMPLEMENTED = ["status", "lint", "verify", "doctor", "approve", "task start", "task complete", "check"];
 
 function usage(ctx: CliContext, message: string): number {
   ctx.stderr.write(`vellum: ${message}\nSee 'vellum --help'.\n`);
@@ -98,6 +101,13 @@ export async function run(argv: readonly string[], ctx: CliContext): Promise<num
       if (bad !== null) return bad;
       if (rest.length > 1) return usage(ctx, "status takes at most one spec");
       return status({ spec: rest[0], json }, withJson);
+    }
+
+    case "check": {
+      const bad = checkOptions(ctx, args, command, ["json"]);
+      if (bad !== null) return bad;
+      if (rest.length > 1) return usage(ctx, "check takes at most one spec");
+      return check({ spec: rest[0], json }, withJson);
     }
 
     case "lint": {

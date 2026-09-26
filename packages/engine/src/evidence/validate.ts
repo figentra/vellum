@@ -142,16 +142,13 @@ export function hasVerifiedEvidence(
   ledger: readonly LedgerEntry[],
   taskIdentifier: string,
 ): boolean {
-  for (const entry of ledger) {
-    if (entry.kind === "evidence") {
-      const payload = entry as any;
-      if (payload.task_id === taskIdentifier || payload.taskIdentifier === taskIdentifier) {
-        return payload.exit_status === 0;
-      }
-    }
-  }
-
-  return false;
+  // Any passing entry counts: a failed first attempt followed by a passing
+  // one is verified (the old loop returned the first entry's outcome).
+  return ledger.some((entry) => {
+    if (entry.kind !== "evidence") return false;
+    const payload = looseEvidence(entry);
+    return payload.taskId === taskIdentifier && payload.exitStatus === 0;
+  });
 }
 
 /**
@@ -164,14 +161,12 @@ export function findUnverifiedTasks(
 
   for (const entry of ledger) {
     if (entry.kind === "evidence") {
-      const payload = entry as any;
-      const taskId = payload.task_id ?? payload.taskIdentifier;
-      const exitStatus = payload.exit_status ?? payload.exitStatus ?? 1;
+      const { taskId, exitStatus } = looseEvidence(entry);
 
       if (exitStatus !== 0) {
         unverified.push({
-          taskId,
-          exitStatus,
+          taskId: taskId ?? "",
+          exitStatus: exitStatus ?? 1,
         });
       }
     }
@@ -206,5 +201,20 @@ export function checkEvidenceCompleteness(
   return {
     complete: missing.length === 0,
     missing: Object.freeze(missing),
+  };
+}
+
+/**
+ * Task and exit status of an evidence entry, in either the on-disk
+ * (`task_id`, `exit_status`) or the payload (`taskIdentifier`, `exitStatus`)
+ * spelling; a field of the wrong type reads as absent.
+ */
+function looseEvidence(entry: LedgerEntry): { taskId?: string; exitStatus?: number } {
+  const loose = entry as unknown as Record<string, unknown>;
+  const taskId = [loose.task_id, loose.taskIdentifier].find((v) => typeof v === "string");
+  const exitStatus = [loose.exit_status, loose.exitStatus].find((v) => typeof v === "number");
+  return {
+    ...(typeof taskId === "string" ? { taskId } : {}),
+    ...(typeof exitStatus === "number" ? { exitStatus } : {}),
   };
 }

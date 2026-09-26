@@ -89,6 +89,7 @@ export function queryStatus(
         gitCommits: git.gitCommits,
         ledgerHead: spec.ledgerHead,
         approvalCommits: git.approvalCommits,
+        verifiedHistory: git.verifiedHistory,
       }),
     });
   }

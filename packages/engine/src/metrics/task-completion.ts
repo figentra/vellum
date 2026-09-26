@@ -34,9 +34,12 @@ export function computeTaskCompletionRate(
     }
   }
 
+  // Only required tasks count: evidence for another task is not completion of a required one
+  const completed = new Set(requiredTasks.filter((task) => tasksWithEvidence.has(task)));
+
   return {
     kind: "ratio",
-    numerator: tasksWithEvidence.size,
-    denominator: requiredTasks.length,
+    numerator: completed.size,
+    denominator: new Set(requiredTasks).size,
   };
 }

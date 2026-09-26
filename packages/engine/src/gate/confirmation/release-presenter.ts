@@ -1,5 +1,10 @@
 /**
- * Release Presenter - collects exact values for Release Confirmation.
+ * Release Presenter - formats and validates the Release Confirmation.
+ *
+ * The engine reads no package.json, git or environment: the caller collects
+ * the exact package, version, commit, tag, environment and migration set and
+ * passes them in. (A previous `collectReleaseConfirmation` returned fixed
+ * example values whatever was being released; it is gone.)
  *
  * @see requirements.md Requirement 7.2
  */
@@ -20,31 +25,6 @@ export interface ReleaseConfirmation {
   environment: string;
   /** Migration set */
   migrations: string[];
-}
-
-/**
- * Collect release confirmation values.
- *
- * @param _specSlug - Spec slug
- * @returns Release confirmation values
- */
-export async function collectReleaseConfirmation(_specSlug: string): Promise<ReleaseConfirmation> {
-  // In real implementation, this collects:
-  // 1. Package name from package.json
-  // 2. Version from package.json or git tag
-  // 3. Current commit SHA from git rev-parse HEAD
-  // 4. Tag name (version with 'v' prefix)
-  // 5. Environment name from config
-  // 6. Migration set from .sdlc/migrations/
-
-  return {
-    package_name: "@figentra/vellum",
-    version: "1.0.0",
-    commit: "abc123def456",
-    tag: "v1.0.0",
-    environment: "production",
-    migrations: ["2026_09_01_init"],
-  };
 }
 
 /**
@@ -88,6 +68,14 @@ export function validateReleaseConfirmation(confirmation: ReleaseConfirmation): 
 
   if (!confirmation.commit.match(/^[a-f0-9]{40}$/)) {
     errors.push("Commit must be a valid SHA-1 hash");
+  }
+
+  if (confirmation.tag !== `v${confirmation.version}`) {
+    errors.push(`Tag ${confirmation.tag} does not name version ${confirmation.version}`);
+  }
+
+  if (confirmation.environment.trim() === "") {
+    errors.push("Environment must be named");
   }
 
   return errors;

@@ -1,62 +1,60 @@
 import type { MetricValue } from "./metrics.interface.js";
 import type { LedgerEntry } from "@vellum/protocol";
+import { extractCriteria } from "../coverage/validate.js";
 
 /**
  * Compute traceability coverage from Ledger entries.
  *
- * Counts criteria in requirements.md, counts criteria with at least one
- * linked evidence entry, produces ratio.
- *
- * Uses Trace Engine patterns from Slice 3, reading from Ledger rather
- * than calling runtime.
+ * A criterion is covered when a task that references it (tasks.md's criteria
+ * trailers) has an Evidence Entry that exited 0, or when an Evidence Entry
+ * names the criterion directly. The ratio is covered criteria over all
+ * criteria requirements.md defines.
  *
  * @param entries - Ledger entries in scope
- * @param criteriaCount - total criteria count from requirements.md
- * @returns MetricValue with ratio of criteria with evidence to total
+ * @param criteria - the criterion references requirements.md defines (e.g. "1.2")
+ * @param taskCriteria - task identifier to the criteria it references
+ * @returns MetricValue with ratio of criteria with passing evidence to total
  */
 export function computeTraceabilityCoverage(
   entries: readonly LedgerEntry[],
-  criteriaCount: number,
+  criteria: readonly string[],
+  taskCriteria: ReadonlyMap<string, readonly string[]>,
 ): MetricValue {
-  if (criteriaCount === 0) {
+  const defined = new Set(criteria);
+  if (defined.size === 0) {
     return { kind: "ratio", numerator: 0, denominator: 0 };
   }
 
-  // Find evidence entries
-  const evidenceEntries = entries.filter((e) => e.kind === "evidence");
-
-  // Group evidence by criterion (evidence should link to criterion)
-  const criteriaWithEvidence = new Set<string>();
-
-  for (const entry of evidenceEntries) {
-    if ("criterion" in entry && typeof entry.criterion === "string") {
-      criteriaWithEvidence.add(entry.criterion);
+  const covered = new Set<string>();
+  for (const entry of entries) {
+    if (entry.kind !== "evidence") continue;
+    const evidence = entry as unknown as {
+      readonly exit_status?: unknown;
+      readonly task_id?: unknown;
+      readonly criterion?: unknown;
+    };
+    if (evidence.exit_status !== 0) continue;
+    if (typeof evidence.criterion === "string" && defined.has(evidence.criterion)) {
+      covered.add(evidence.criterion);
     }
-    // Alternative: evidence links to task, task links to criterion
-    // This is simplified; real implementation uses Trace Engine
-    if ("task_id" in entry && typeof entry.task_id === "string") {
-      // Task identifiers should map to criteria via tasks.md
-      // For simplicity, count unique task_ids as coverage proxy
-      criteriaWithEvidence.add(entry.task_id);
+    if (typeof evidence.task_id === "string") {
+      for (const criterion of taskCriteria.get(evidence.task_id) ?? []) {
+        if (defined.has(criterion)) covered.add(criterion);
+      }
     }
   }
 
   return {
     kind: "ratio",
-    numerator: criteriaWithEvidence.size,
-    denominator: criteriaCount,
+    numerator: covered.size,
+    denominator: defined.size,
   };
 }
 
 /**
- * Count criteria from a requirements document.
- *
- * This is a simplified implementation. Real version parses requirements.md
- * to count acceptance criteria.
+ * Count the acceptance criteria a requirements document defines, with the
+ * same parser strict verification's coverage uses.
  */
 export function countCriteria(requirementsContent: string): number {
-  // Count criteria markers: "#### Acceptance Criteria" or criteria numbering
-  const criteriaPattern = /\d+\.\d+/g;
-  const matches = requirementsContent.match(criteriaPattern);
-  return matches ? new Set(matches).size : 0;
+  return extractCriteria(requirementsContent).length;
 }

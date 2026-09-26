@@ -90,6 +90,8 @@ function serializeMetricValue(value: MetricValue): Record<string, unknown> {
       return { kind: "count", value: value.value };
     case "ratio":
       return { kind: "ratio", numerator: value.numerator, denominator: value.denominator };
+    case "unavailable":
+      return { kind: "unavailable", reason: value.reason };
   }
 }
 
@@ -102,7 +104,7 @@ function serializeRecordMetric(
 
   if (key === "timePerStage") {
     // Lifecycle order
-    order = ["draft", "in_progress", "in_review", "approved", "merged", "released"];
+    order = ["draft", "in_progress", "in_review", "approved", "merged", "released", "unavailable"];
   } else {
     // Alphabetical order
     order = Object.keys(record).sort();

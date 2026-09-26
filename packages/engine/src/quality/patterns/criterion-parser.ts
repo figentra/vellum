@@ -42,9 +42,8 @@ export function parseCriteria(content: string): ParsedCriterion[] {
     // Match requirement header: ### Requirement N:
     const reqMatch = line.match(/^### Requirement (\d+):/);
     if (reqMatch) {
-      currentRequirement = reqMatch[1] ?? "";
       inAcceptanceCriteria = false;
-      // Reset criterion tracking
+      // Save the previous requirement's pending criterion under its own number
       if (currentCriterionText && currentCriterionRef) {
         criteria.push({
           reference: currentCriterionRef,
@@ -54,6 +53,7 @@ export function parseCriteria(content: string): ParsedCriterion[] {
           criterion_number: currentCriterionRef.split(".")[1] ?? "",
         });
       }
+      currentRequirement = reqMatch[1] ?? "";
       currentCriterionText = "";
       currentCriterionRef = "";
       continue;
@@ -65,8 +65,15 @@ export function parseCriteria(content: string): ParsedCriterion[] {
       continue;
     }
 
-    // Match criterion start: N. or N.N (at start of list item)
-    const criterionMatch = line.match(/^\s*(?:-\s+)?(\d+)\.(\d+)\s*(.*)$/);
+    // Match criterion start: N.M, or a numbered list item "M." under
+    // Requirement N (the form the specs are written in)
+    const qualified = line.match(/^\s*(?:-\s+)?(\d+)\.(\d+)\s*(.*)$/);
+    const listed = qualified || !currentRequirement ? null : line.match(/^\s*(\d+)\.\s+(.*)$/);
+    const criterionMatch = qualified
+      ? qualified
+      : listed
+        ? [listed[0], currentRequirement, listed[1], listed[2]]
+        : null;
     if (criterionMatch && inAcceptanceCriteria) {
       // Save previous criterion if any
       if (currentCriterionText && currentCriterionRef) {

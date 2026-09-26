@@ -19,13 +19,7 @@ export type MetricsScope =
 export interface ForbiddenIndividualScope {
   readonly kind: "forbidden";
   readonly grouping:
-    | "individual"
-    | "identity"
-    | "session"
-    | "author"
-    | "approver"
-    | "executor"
-    | "email";
+    "individual" | "identity" | "session" | "author" | "approver" | "executor" | "email";
 }
 
 /**
@@ -46,8 +40,10 @@ export interface ReportInput {
 export interface ReportResult {
   /** Computed metrics. */
   readonly metrics: Metrics;
-  /** Scope used. */
-  readonly scope: MetricsScope;
+  /** Scope used; null when the requested scope was refused. */
+  readonly scope: MetricsScope | null;
+  /** Rendered report; absent when the scope was refused. */
+  readonly output?: string;
   /** Specs included in the report. */
   readonly specsIncluded: readonly string[];
   /** Time range covered. */

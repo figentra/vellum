@@ -1,6 +1,6 @@
 /**
  * computeStatusReport counts only valid approvals and evidenced required
- * tasks, and does not claim an Effective Lifecycle State it did not compute.
+ * tasks, and reports the Effective Lifecycle State it computed from them.
  */
 
 import { describe, expect, it } from "vitest";
@@ -33,7 +33,13 @@ describe("computeStatusReport", () => {
       ledger: verifiedLedger(),
     });
 
-    expect(report.effectiveState).toBeNull();
+    // Every precondition up to the recorded IN_PROGRESS holds
+    expect(report.effectiveState).toBe("IN_PROGRESS");
+    expect(report.effective).toEqual({
+      kind: "computed",
+      state: "IN_PROGRESS",
+      failedPrecondition: null,
+    });
     expect(report.approvals.requirements).toEqual({ current: 1, required: 1, complete: true });
     expect(report.verification).toEqual({ required: 2, completed: 2, failed: 0, complete: true });
     expect(report.ledger).toEqual({ entries: 5, valid: true, failures: [] });
@@ -77,11 +83,26 @@ describe("computeStatusReport", () => {
     expect(report.verification).toEqual({ required: 2, completed: 0, failed: 1, complete: false });
   });
 
-  it("says in human output that the effective state is not computed", () => {
-    const text = formatStatusHuman(
-      computeStatusReport({ ...base, artifacts: allArtifacts(), ledger: [] }),
-    );
-    expect(text).toContain("Effective state: not computed");
+  it("reports an effective state behind the recorded one, naming the failed precondition", () => {
+    const report = computeStatusReport({ ...base, artifacts: allArtifacts(), ledger: [] });
+    expect(report.recordedState).toBe("IN_PROGRESS");
+    expect(report.effectiveState).toBe("IN_REVIEW");
+
+    const text = formatStatusHuman(report);
+    expect(text).toContain("Effective state: IN_REVIEW");
+    expect(text).toContain("failed precondition: IN_REVIEW → REQUIREMENTS_APPROVED");
     expect(text).toContain("Tasks verified: 0/2");
+  });
+
+  it("reports an undecidable effective state as null, not as the recorded state", () => {
+    const report = computeStatusReport({
+      ...base,
+      recordedState: "VERIFIED",
+      artifacts: allArtifacts(),
+      ledger: verifiedLedger(),
+    });
+    expect(report.effectiveState).toBeNull();
+    expect(report.effective).toMatchObject({ kind: "inconclusive", holdsThrough: "VERIFICATION" });
+    expect(formatStatusHuman(report)).toContain("Effective state: INCONCLUSIVE");
   });
 });

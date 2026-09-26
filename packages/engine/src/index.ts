@@ -26,9 +26,15 @@ export {
   getValidNextStates,
   getTransitionPreconditions,
   checkPreconditions,
-  computeEffectiveState,
   InvalidTransitionError,
 } from "./lifecycle/state-machine.js";
+
+export {
+  computeEffectiveLifecycleState,
+  isLifecycleState,
+  type EffectiveState,
+  type EffectiveStateInput,
+} from "./lifecycle/effective-state.js";
 
 // ============================================================================
 // Validation
@@ -154,5 +160,13 @@ export {
 // Check Mode
 // ============================================================================
 
-export { runCheckMode, isCheckMode, checkSingleSpec, formatCheckResult } from "./mode/check.js";
+export {
+  runCheckMode,
+  checkSingleSpec,
+  formatCheckResult,
+  type CheckModeSpec,
+  type CheckModeResult,
+  type CheckModeSpecResult,
+  type CheckSummary,
+} from "./mode/check.js";
 

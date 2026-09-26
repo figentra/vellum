@@ -79,7 +79,7 @@ export {
   validateLedgerEntry,
   type SchemaValidationFinding,
 } from "./ledger/schema.js";
-export { canonicalSerialize, computeLedgerEntryDigest } from "./ledger/canonical-json.js";
+export { canonicalSerialize, computeLedgerEntryDigest, sha256Hex } from "./ledger/canonical-json.js";
 
 // ============================================================================
 // Version
