@@ -7,7 +7,15 @@
  * @see design.md Criterion 12
  */
 
-import type { Artifact, LedgerEntry, ApprovalPolicy, Finding, CheckResult } from "@vellum/protocol";
+import type {
+  Artifact,
+  ArtifactKind,
+  LedgerEntry,
+  ApprovalPolicy,
+  Finding,
+  CheckResult,
+} from "@vellum/protocol";
+import { computeChecksum } from "@vellum/protocol";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
 import { verifyApproval } from "../approval/verify.js";
 import { createFinding } from "../validate/finding.js";
@@ -43,7 +51,7 @@ export interface StrictVerificationResult {
  * @returns Verification result
  */
 export function strictVerify(
-  _artifacts: readonly Artifact[],
+  artifacts: readonly Artifact[],
   ledger: readonly LedgerEntry[],
   policy: ApprovalPolicy | null,
   gitCommits: ReadonlyMap<
@@ -72,16 +80,31 @@ export function strictVerify(
       totalApprovals++;
       const payload = entry as any;
 
+      const artifactKind: ArtifactKind = payload.artifact?.replace(".md", "") ?? "requirements";
+      const current = artifacts.find((artifact) => artifact.kind === artifactKind);
+      if (!current) {
+        findings.push(
+          createFinding(
+            ".sdlc/ledger.jsonl",
+            entry.id,
+            "APPROVAL_INVALID",
+            `Approval invalid: approved artifact ${artifactKind}.md is not present`,
+          ),
+        );
+        continue;
+      }
+
       const result = verifyApproval(
         {
           approver: payload.identity ?? payload.approver ?? "",
-          artifact: payload.artifact?.replace(".md", "") ?? "requirements",
+          artifact: artifactKind,
           artifactChecksum: payload.artifact_checksum ?? payload.artifactChecksum ?? "",
           signalCommit: payload.approval_signal?.commit ?? payload.signalCommit ?? "",
         },
         policy,
         "standard",
         gitCommits as any,
+        computeChecksum(current.body),
       );
 
       if (result.valid) {

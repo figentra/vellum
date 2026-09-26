@@ -21,6 +21,8 @@ import type {
 import { brand } from "@vellum/protocol";
 
 describe("Approval Verification", () => {
+  const CURRENT = brand<string, "Checksum">("a".repeat(64));
+
   // Mock policy
   const mockPolicy: ApprovalPolicy = {
     approvers: new Map([
@@ -93,7 +95,7 @@ describe("Approval Verification", () => {
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
 
-      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits);
+      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(true);
     });
 
@@ -105,7 +107,7 @@ describe("Approval Verification", () => {
         signalCommit: brand<string, "CommitSha">("d".repeat(40)),
       };
 
-      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits);
+      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.reason).toBe("UNSIGNED_COMMIT");
@@ -120,7 +122,7 @@ describe("Approval Verification", () => {
         signalCommit: brand<string, "CommitSha">("c".repeat(40)),
       };
 
-      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits);
+      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.reason).toBe("FROM_ASSISTANT");
@@ -135,7 +137,7 @@ describe("Approval Verification", () => {
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
 
-      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits);
+      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.reason).toBe("NOT_AUTHORIZED");
@@ -150,11 +152,23 @@ describe("Approval Verification", () => {
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
 
-      const result = verifyApproval(approval, null, "standard", mockCommits);
+      const result = verifyApproval(approval, null, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.reason).toBe("POLICY_MISSING");
       }
+    });
+
+    it("should reject an approval bound to a different checksum", () => {
+      const approval: ApprovalPayload = {
+        approver: "alice@example.com",
+        artifact: "requirements",
+        artifactChecksum: brand<string, "Checksum">("b".repeat(64)),
+        signalCommit: brand<string, "CommitSha">("a".repeat(40)),
+      };
+
+      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
+      expect(result).toEqual({ valid: false, reason: "CHECKSUM_MISMATCH" });
     });
 
     it("should reject with invalid signal commit", () => {
@@ -165,7 +179,7 @@ describe("Approval Verification", () => {
         signalCommit: brand<string, "CommitSha">("z".repeat(40)),
       };
 
-      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits);
+      const result = verifyApproval(approval, mockPolicy, "standard", mockCommits, CURRENT);
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.reason).toBe("INVALID_SIGNAL");

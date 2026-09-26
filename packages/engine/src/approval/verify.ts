@@ -31,6 +31,11 @@ export type ApprovalRejectionReason =
 /**
  * Verify an approval is valid.
  * Pure function - all data passed in.
+ *
+ * `currentChecksum` is the Artifact Checksum of the artifact as it is now
+ * (computeChecksum from @vellum/protocol: SHA-256 of the canonical body). An
+ * approval is valid only for the checksum it bound (criterion 8.2), so a
+ * content edit invalidates it and a formatting-only edit does not.
  */
 export function verifyApproval(
   approval: {
@@ -42,6 +47,7 @@ export function verifyApproval(
   policy: ApprovalPolicy | null,
   riskClass: RiskClass,
   gitCommits: ReadonlyMap<string, GitCommit>,
+  currentChecksum: Checksum,
 ): ApprovalVerificationResult {
   // Check policy exists
   if (!policy) {
@@ -75,6 +81,11 @@ export function verifyApproval(
   // NOTE: the engine does not verify the signature against a key the policy
   // lists for the approver (criterion 7.3) — ApprovalPolicy carries no keys yet.
 
+  // Check the approval binds the artifact's current checksum (criterion 8.2)
+  if (approval.artifactChecksum !== currentChecksum) {
+    return { valid: false, reason: "CHECKSUM_MISMATCH" };
+  }
+
   // All checks passed
   return { valid: true };
 }
@@ -105,13 +116,9 @@ export function countValidApprovals(
       continue;
     }
 
-    // Check checksum matches (criterion 8.2)
-    if (approval.artifactChecksum !== currentChecksum) {
-      continue; // Invalidated approval, don't count
-    }
-
-    // Verify approval
-    const result = verifyApproval(approval, policy, riskClass, gitCommits);
+    // Verify approval, including the checksum binding (criterion 8.2): an
+    // invalidated approval is not counted
+    const result = verifyApproval(approval, policy, riskClass, gitCommits, currentChecksum);
     if (!result.valid) {
       continue;
     }
