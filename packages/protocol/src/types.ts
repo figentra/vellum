@@ -223,7 +223,8 @@ export type LedgerEntryKind =
   | "task_binding"
   | "block"
   | "unblock"
-  | "adoption";
+  | "adoption"
+  | "attempt";
 
 /** Ledger entry (unsigned, payload-only) */
 export type LedgerPayload =
@@ -241,7 +242,8 @@ export type LedgerPayload =
   | ReleasePayload
   | BlockPayload
   | UnblockPayload
-  | AdoptionPayload;
+  | AdoptionPayload
+  | AttemptPayload;
 
 /** Created payload (spec creation) */
 export interface CreatedPayload {
@@ -314,6 +316,19 @@ export interface TaskBindingPayload {
   readonly designChecksum: Checksum;
   readonly planVersion: number;
   readonly planChecksum: Checksum;
+}
+
+/**
+ * Attempt payload — one run of an Agent Role on one task (spec 003,
+ * criterion 19.8: the task, the Role Tier, the model, the Findings and the
+ * outcome). Retry counts (spec 005, criterion 1.1) are read from these.
+ */
+export interface AttemptPayload {
+  readonly taskIdentifier: TaskId;
+  readonly roleTier: string;
+  readonly model: string;
+  readonly findings: readonly Finding[];
+  readonly outcome: "success" | "failure" | "retry" | "escalated";
 }
 
 /** Gate result payload */
