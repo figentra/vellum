@@ -1,0 +1,31 @@
+# lefthook.yml — Git hooks for Vellum monorepo
+# https://github.com/evilmartians/lefthook
+
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "*.{ts,tsx,js,jsx,json,md,yml,yaml}"
+      run: "pnpm turbo run lint --filter=HEAD"
+
+    typecheck:
+      run: "pnpm turbo run typecheck --filter=HEAD"
+
+commit-msg:
+  commands:
+    conventional:
+      run: |
+        # Check conventional commit format
+        message=$(head -n1 {1})
+        if ! echo "$message" | grep -qE "^(feat|fix|docs|style|refactor|test|chore|perf|ci|build|revert)(\([^)]+\))?!?: .+"; then
+          echo "Commit message must follow conventional commits format"
+          echo "Example: feat(scope): description"
+          exit 1
+        fi
+
+pre-push:
+  commands:
+    test:
+      run: "pnpm turbo run test"
+
+CI: false

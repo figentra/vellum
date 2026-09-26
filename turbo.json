@@ -1,0 +1,87 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "ui": "tui",
+  "globalEnv": ["NODE_ENV"],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "lint": {
+      "dependsOn": ["^lint"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "test:unit": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "clean": {
+      "cache": false
+    }
+  },
+  "boundaries": {
+    "tags": {
+      "tooling": {
+        "dependencies": {
+          "allow": []
+        }
+      },
+      "protocol": {
+        "dependencies": {
+          "allow": ["tooling"]
+        }
+      },
+      "engine": {
+        "dependencies": {
+          "allow": ["protocol", "tooling"]
+        }
+      },
+      "storage": {
+        "dependencies": {
+          "allow": ["protocol", "engine", "tooling"]
+        }
+      },
+      "renderers": {
+        "dependencies": {
+          "allow": ["protocol", "engine", "tooling"]
+        }
+      },
+      "cli": {
+        "dependencies": {
+          "allow": ["protocol", "engine", "storage", "renderers", "tooling"]
+        }
+      },
+      "mcp": {
+        "dependencies": {
+          "allow": ["protocol", "engine", "storage", "renderers", "tooling"]
+        }
+      },
+      "method": {
+        "dependencies": {
+          "allow": []
+        }
+      },
+      "plugin": {
+        "dependencies": {
+          "allow": ["method", "renderers", "tooling"]
+        }
+      },
+      "vellum": {
+        "dependencies": {
+          "allow": ["cli", "mcp", "protocol", "engine", "storage", "renderers", "tooling"]
+        }
+      },
+      "testing": {
+        "dependencies": {
+          "allow": ["protocol", "engine", "storage", "renderers", "cli", "mcp", "vellum", "tooling"]
+        }
+      }
+    }
+  }
+}

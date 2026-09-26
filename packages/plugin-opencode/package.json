@@ -1,0 +1,23 @@
+{
+  "name": "@vellum/plugin-opencode",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "OpenCode plugin package — assembled from @vellum/method",
+  "files": ["dist"],
+  "scripts": {
+    "build": "echo 'Builds OpenCode plugin from method + renderers'",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .tsbuildinfo coverage"
+  },
+  "dependencies": {
+    "@vellum/method": "workspace:*",
+    "@vellum/renderers": "workspace:*"
+  },
+  "devDependencies": {
+    "@vellum/tsconfig": "workspace:*"
+  }
+}

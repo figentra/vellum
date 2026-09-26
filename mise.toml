@@ -1,0 +1,34 @@
+# mise.toml — Tool versions for Vellum monorepo
+# https://mise.jdx.dev
+
+[tools]
+node = "22.17.0"
+pnpm = "10.16.0"
+
+[tasks."install"]
+run = "pnpm install"
+description = "Install dependencies"
+
+[tasks."dev"]
+run = "pnpm turbo run build --watch"
+description = "Build packages in watch mode"
+
+[tasks."lint"]
+run = "pnpm lint"
+description = "Run linter"
+
+[tasks."typecheck"]
+run = "pnpm typecheck"
+description = "Run type checker"
+
+[tasks."test"]
+run = "pnpm test"
+description = "Run tests"
+
+[tasks."ci"]
+run = "pnpm turbo run lint typecheck test"
+description = "Run CI checks"
+
+[tasks."clean"]
+run = "pnpm clean"
+description = "Clean build artifacts"

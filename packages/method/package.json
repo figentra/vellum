@@ -1,0 +1,14 @@
+{
+  "name": "@vellum/method",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vellum method — skills, agents, templates, and prompts (data only, no code dependencies)",
+  "files": ["skills", "agents", "templates", "prompts"],
+  "scripts": {
+    "lint": "true",
+    "typecheck": "echo 'No TypeScript in method package — data only'",
+    "test": "echo 'Method package is data only — tests run in plugin packages'",
+    "clean": "echo 'Nothing to clean'"
+  }
+}

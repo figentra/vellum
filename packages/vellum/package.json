@@ -1,0 +1,40 @@
+{
+  "name": "@figentra/vellum",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Vellum — The ONE published npm package bundling everything",
+  "bin": {
+    "vellum": "./dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./cli": {
+      "import": "./dist/cli.js"
+    },
+    "./mcp": {
+      "import": "./dist/server.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsup src/index.ts src/cli.ts src/server.ts --format esm --dts --clean",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .tsbuildinfo coverage"
+  },
+  "dependencies": {
+    "@vellum/cli": "workspace:*",
+    "@vellum/mcp": "workspace:*"
+  },
+  "devDependencies": {
+    "@vellum/tsconfig": "workspace:*"
+  }
+}
