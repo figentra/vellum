@@ -142,6 +142,11 @@ describe("renderAgent", () => {
     expect(checkAgentFrontmatter("claude", out, "x")).toEqual([]);
   });
 
+  it("namespaces Claude Code skills when the agent ships inside a plugin", () => {
+    const out = renderAgent("claude", agent, body, { ...options, claudeSkillNamespace: "vellum" });
+    expect(out).toContain("skills:\n  - vellum:spec-tasks\n");
+  });
+
   it("renders the Kiro dialect: mapped tools, skill resources, no model for a null tier", () => {
     const out = renderAgent("kiro", agent, body, {
       ...options,

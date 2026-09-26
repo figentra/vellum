@@ -395,6 +395,11 @@ export interface RenderAgentOptions {
   source: string;
   /** Who generated the file, for the provenance comment. */
   generator: string;
+  /**
+   * Claude Code only: plugin namespace for the agent's `skills`. Skills shipped inside a plugin
+   * are addressed as `<plugin>:<skill>`; leave unset for skills installed in `.claude/skills`.
+   */
+  claudeSkillNamespace?: string;
   /** Kiro only: directory a skill resource resolves under. Default `.kiro/skills`. */
   kiroSkillRoot?: string;
 }
@@ -404,7 +409,10 @@ function claudeAgentFrontmatter(agent: NeutralAgent, options: RenderAgentOptions
   if (agent.tools) lines.push(`tools: ${agent.tools.join(", ")}`);
   const model = modelFor(agent, "claude", options.models);
   if (model) lines.push(`model: ${model}`);
-  if (agent.skills?.length) lines.push("skills:", ...agent.skills.map((s) => `  - ${s}`));
+  if (agent.skills?.length) {
+    const prefix = options.claudeSkillNamespace ? `${options.claudeSkillNamespace}:` : "";
+    lines.push("skills:", ...agent.skills.map((s) => `  - ${prefix}${s}`));
+  }
   return lines;
 }
 
