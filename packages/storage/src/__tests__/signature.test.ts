@@ -286,6 +286,13 @@ describe.skipIf(!HAS_GPG)("GPG-signed Approval Signals", () => {
     rmSync(root, { recursive: true, force: true });
   });
 
+  // Each GPG case signs a commit through gpg-agent and verifies it by importing
+  // the policy's keys into a fresh temporary keyring — several gpg process
+  // starts and a key import per test. On a loaded machine that alone has
+  // exceeded vitest's 5 s default, so each case gets the budget the keygen in
+  // beforeAll already has reason to need. The assertions are unchanged.
+  const GPG_TEST_TIMEOUT_MS = 30_000;
+
   function commitSignedBy(fingerprint: string): string {
     git(
       repo,
@@ -310,7 +317,7 @@ describe.skipIf(!HAS_GPG)("GPG-signed Approval Signals", () => {
     if (check.kind !== "verified") return;
     expect(check.signer.type).toBe("gpg");
     expect(signerIsApprovers(policy, "alice@example.com", check.signer)).toBe(true);
-  });
+  }, GPG_TEST_TIMEOUT_MS);
 
   it("rejects a key the host keyring holds but the policy does not list", () => {
     const sha = commitSignedBy(malloryFingerprint);
@@ -319,5 +326,5 @@ describe.skipIf(!HAS_GPG)("GPG-signed Approval Signals", () => {
       git(repo, ["log", "-1", "--format=%G?", sha], { GNUPGHOME: signingHome }).trim(),
     ).toMatch(/[GU]/);
     expect(verifyCommitSigner(repo, sha, policy).kind).toBe("unverified");
-  });
+  }, GPG_TEST_TIMEOUT_MS);
 });
