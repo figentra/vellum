@@ -14,23 +14,23 @@ export {
   validateChangesetContent,
   isChangesetRequired,
   type ChangesetValidationResult,
+  type ChangesetFile,
+  type ChangesetRelease,
 } from "./changeset-checker.js";
 export {
   checkObservability,
   getDefaultObservabilityEndpoints,
   type ObservabilityCheckResult,
   type ObservabilityEndpoint,
+  type ObservabilityProbe,
 } from "./observability-checker.js";
-export {
-  verifyRollbackPath,
-  isRollbackVerificationRequired,
-  type RollbackVerificationResult,
-} from "./rollback-verifier.js";
+export { verifyRollbackPath, isRollbackVerificationRequired } from "./rollback-verifier.js";
 export {
   runStrictVerifier,
   isStrictVerifierPassing,
   getStrictVerifierExitStatus,
   type StrictVerifierResult,
+  type StrictVerifierInput,
 } from "./strict-verifier-bridge.js";
 export {
   validateVersion,
@@ -38,3 +38,4 @@ export {
   usesCatalogReference,
   type VersionValidationResult,
 } from "./version-correctness.js";
+export type { CheckOutcome } from "./outcome.js";

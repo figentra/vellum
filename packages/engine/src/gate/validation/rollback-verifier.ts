@@ -1,66 +1,39 @@
 /**
- * Rollback Verifier - checks rollback path exists for critical releases.
+ * Rollback Verifier - checks a critical release declares a rollback path.
+ *
+ * 004 criterion 7.5: WHERE the Spec's Risk Class is `critical`, IF the release
+ * declares no rollback path, THEN the Release Gate refuses the release and
+ * names the missing rollback path. The engine reads no files, so the caller
+ * supplies what the release declares.
  *
  * @see requirements.md Requirement 7.5
  */
 
-/**
- * Rollback verification result.
- */
-export interface RollbackVerificationResult {
-  /** Whether rollback is possible */
-  possible: boolean;
-  /** Rollback path */
-  path?: string;
-  /** Verification errors */
-  errors: string[];
-}
+import type { CheckOutcome } from "./outcome.js";
 
 /**
- * Verify rollback path exists.
+ * Verify a release declares a rollback path where its risk class requires one.
  *
- * @param version - Release version
- * @param isCritical - Whether release is critical class
- * @returns Rollback verification result
+ * @param riskClass - Risk class of the release
+ * @param declaredRollbackPath - The rollback path the release declares; null or
+ *   empty when it declares none; undefined when the caller did not read the declaration
+ * @returns pass, fail naming the missing path, or not_checked
  */
-export async function verifyRollbackPath(
-  version: string,
-  isCritical: boolean,
-): Promise<RollbackVerificationResult> {
-  // Critical releases must have rollback path (criterion 7.5)
-  if (!isCritical) {
+export function verifyRollbackPath(
+  riskClass: "low" | "standard" | "high" | "critical",
+  declaredRollbackPath: string | null | undefined,
+): CheckOutcome {
+  if (!isRollbackVerificationRequired(riskClass)) return { status: "pass" };
+  if (declaredRollbackPath === undefined) {
+    return { status: "not_checked", reason: "the release's rollback declaration was not supplied" };
+  }
+  if (declaredRollbackPath === null || declaredRollbackPath.trim() === "") {
     return {
-      possible: true,
-      errors: [],
+      status: "fail",
+      errors: ["A critical release must declare a rollback path, and this release declares none"],
     };
   }
-
-  // In real implementation, check for:
-  // 1. Previous version tag exists
-  // 2. Database migration rollback script exists
-  // 3. Deployment rollback procedure documented
-
-  // Placeholder: assume rollback path exists
-  const previousVersion = getPreviousVersion(version);
-  const rollbackPath = `.sdlc/rollback-${previousVersion}.md`;
-
-  return {
-    possible: true,
-    path: rollbackPath,
-    errors: [],
-  };
-}
-
-/**
- * Get previous version for rollback.
- */
-function getPreviousVersion(version: string): string {
-  const parts = version.split(".").map(Number);
-  if (parts.length === 3 && parts[2] !== undefined) {
-    parts[2]--;
-    return parts.join(".");
-  }
-  return version;
+  return { status: "pass" };
 }
 
 /**

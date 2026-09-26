@@ -3,7 +3,6 @@
  */
 
 export {
-  collectReleaseConfirmation,
   formatReleaseConfirmation,
   validateReleaseConfirmation,
   type ReleaseConfirmation,
