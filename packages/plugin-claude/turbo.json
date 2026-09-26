@@ -1,4 +1,10 @@
 {
   "extends": ["//"],
-  "tags": ["plugin"]
+  "tags": ["plugin"],
+  "tasks": {
+    "build": {
+      "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/packages/method/**"],
+      "outputs": ["dist/**"]
+    }
+  }
 }

@@ -3,10 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Claude Code plugin — assembled from @vellum/method",
-  "files": ["dist"],
+  "description": "Claude Code plugin \u2014 assembled from @vellum/method",
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "echo 'Builds Claude plugin from method + renderers'",
+    "build": "node --experimental-strip-types --disable-warning=ExperimentalWarning src/cli.ts",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/",
     "test": "vitest run",
