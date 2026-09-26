@@ -30,9 +30,37 @@ export type { SpecInfo } from "./markdown.js";
 // Assistant Renderer
 // ============================================================================
 
-export { renderAssistantFrontmatter, createProvenanceMarker } from "./assistant.js";
+export {
+  ASSISTANT_TYPES,
+  AssistantSourceError,
+  KIRO_TOOLS,
+  KIRO_CAPABILITIES,
+  OPENCODE_ACTIONS,
+  parseFrontmatter,
+  parseNeutralAgent,
+  modelFor,
+  deriveOpenCodePermissions,
+  yamlScalar,
+  provenanceLine,
+  renderAgent,
+  renderOpenCodeCommand,
+  checkAgentFrontmatter,
+  checkSkillFrontmatter,
+  checkOpenCodeCommand,
+} from "./assistant.js";
 
-export type { AssistantType } from "./assistant.js";
+export type {
+  AssistantType,
+  AgentMode,
+  AgentSourceContext,
+  FrontmatterValue,
+  ModelMap,
+  NeutralAgent,
+  NeutralPermission,
+  ParsedDocument,
+  PermissionEffect,
+  RenderAgentOptions,
+} from "./assistant.js";
 
 // ============================================================================
 // CLI Output Renderer
