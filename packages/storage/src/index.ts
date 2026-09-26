@@ -41,7 +41,13 @@ export {
   computeEntryHash,
   verifyLedgerIntegrity,
   detectFork,
+  parseLedger,
+  LedgerError,
+  nodeLedgerFileSystem,
   type NewLedgerEntry,
+  type LedgerErrorCode,
+  type LedgerFileSystem,
+  type AppendLedgerEntryOptions,
 } from "./ledger.js";
 
 // ============================================================================
