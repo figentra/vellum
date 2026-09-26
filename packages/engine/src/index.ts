@@ -135,9 +135,3 @@ export {
 
 export { runCheckMode, isCheckMode, checkSingleSpec, formatCheckResult } from "./mode/check.js";
 
-// ============================================================================
-// Artifacts
-// ============================================================================
-
-// Export artifact utilities if needed
-export {} from "./artifact.js";
