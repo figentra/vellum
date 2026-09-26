@@ -7,8 +7,7 @@
  * @see design.md Criterion 9
  */
 
-import type { LedgerEntry, Checksum } from "@vellum/protocol";
-import { createFinding } from "../validate/finding.js";
+import type { LedgerEntry } from "@vellum/protocol";
 
 /**
  * Evidence validation result.

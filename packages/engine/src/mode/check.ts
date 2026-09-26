@@ -1,5 +1,5 @@
 /**
- * @vellum/engine — Check Mode Logic
+ * @stellum/engine — Check Mode Logic
  *
  * Implements --check mode for CI-safe verification.
  * No side effects, no file modifications.
@@ -8,10 +8,9 @@
  * @see design.md Criterion 6.6-6.10
  */
 
-import type { Artifact, LedgerEntry, ApprovalPolicy } from "@vellum/protocol";
+import type { Artifact, LedgerEntry, ApprovalPolicy, Finding } from "@vellum/protocol";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
 import { strictVerify } from "../verify/strict.js";
-import { createFinding, type Finding } from "../validate/finding.js";
 
 /**
  * Check mode result.
@@ -35,6 +34,13 @@ export interface CheckSummary {
   readonly invalidStates: number;
   readonly ledgerFailures: number;
   readonly stateMismatches: number;
+}
+
+/**
+ * Create a simple finding.
+ */
+function makeFinding(file: string, line: number, rule: string, message: string): Finding {
+  return { file, line, rule, message };
 }
 
 /**
@@ -64,7 +70,7 @@ export function runCheckMode(
     if (spec.state === "INVALID") {
       invalidStates++;
       allFindings.push(
-        createFinding(spec.id, 0, "STATE_INVALID", `Spec ${spec.id} is in INVALID state`),
+        makeFinding(spec.id, 0, "STATE_INVALID", `Spec ${spec.id} is in INVALID state`),
       );
     }
 
@@ -74,7 +80,7 @@ export function runCheckMode(
       ledgerFailures++;
       for (const failure of ledgerResult.failures) {
         allFindings.push(
-          createFinding(
+          makeFinding(
             `${spec.id}/.sdlc/ledger.jsonl`,
             failure.entry_id,
             "LEDGER_INTEGRITY",
@@ -83,10 +89,6 @@ export function runCheckMode(
         );
       }
     }
-
-    // Criterion 6.10: Check recorded/effective mismatch
-    // (Would need to compute effective state, for now just check ledger)
-    // In production, would call computeEffectiveState
 
     // Run strict verification
     const verifyResult = strictVerify(
@@ -141,7 +143,7 @@ export function checkSingleSpec(spec: {
 
   // Check state
   if (spec.state === "INVALID") {
-    findings.push(createFinding(spec.id, 0, "STATE_INVALID", `Spec is in INVALID state`));
+    findings.push(makeFinding(spec.id, 0, "STATE_INVALID", `Spec is in INVALID state`));
   }
 
   // Check ledger
@@ -149,7 +151,7 @@ export function checkSingleSpec(spec: {
   if (!ledgerResult.valid) {
     for (const failure of ledgerResult.failures) {
       findings.push(
-        createFinding(
+        makeFinding(
           `${spec.id}/.sdlc/ledger.jsonl`,
           failure.entry_id,
           "LEDGER_INTEGRITY",

@@ -64,6 +64,8 @@ export function verifyFindingsSorted(findings: readonly Finding[]): boolean {
     const prev = findings[i - 1];
     const curr = findings[i];
 
+    if (!prev || !curr) continue;
+
     // Check ordering
     if (prev.file > curr.file) return false;
     if (prev.file === curr.file && prev.line > curr.line) return false;
@@ -95,8 +97,8 @@ export function computeOutputHash(output: string): string {
  * This is a compile-time check, not runtime.
  */
 export function assertPureFunction<T extends (...args: any[]) => any>(
-  fn: T,
-  description: string,
+  _fn: T,
+  _description: string,
 ): void {
   // In TypeScript strict mode, pure functions are enforced by:
   // 1. No mutation of arguments
