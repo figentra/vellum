@@ -49,5 +49,18 @@ function sortedReplacer(_key: string, value: unknown): unknown {
  * @returns SHA-256 hex string (64 characters)
  */
 export function computeLedgerEntryDigest(entry: object): string {
-  return createHash("sha256").update(canonicalSerialize(entry), "utf8").digest("hex");
+  return sha256Hex(canonicalSerialize(entry));
+}
+
+/**
+ * SHA-256 (hex, 64 characters) of a string's UTF-8 bytes.
+ *
+ * The protocol owns hashing so that `@vellum/engine`, which may not import
+ * `node:*`, hashes with the same function the ledger and checksums use.
+ *
+ * @param text - Text to hash
+ * @returns SHA-256 hex string (64 characters)
+ */
+export function sha256Hex(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
 }
