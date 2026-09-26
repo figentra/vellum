@@ -102,6 +102,8 @@ describe("npm pack -> offline install -> run", () => {
     });
     expect(version.status).toBe(0);
     expect(version.stdout).toMatch(/^vellum \d+\.\d+\.\d+\n$/);
+    const manifest = JSON.parse(readFileSync(join(PACKAGE_DIR, "package.json"), "utf8")) as { version: string };
+    expect(version.stdout).toBe(`vellum ${manifest.version}\n`);
 
     const help = spawnSync(bin("vellum"), ["--help"], {
       cwd: repo,

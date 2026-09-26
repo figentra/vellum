@@ -1,4 +1,7 @@
+import { readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
+
+const { version } = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8")) as { version: string };
 
 /**
  * Bundle every @vellum/* workspace package into dist/ so the published
@@ -15,4 +18,6 @@ export default defineConfig({
   sourcemap: true,
   dts: { entry: "src/index.ts", resolve: [/^@vellum\//] },
   clean: true,
+  // One version everywhere: `vellum --version`, the MCP serverInfo and Evidence Entries.
+  define: { __VELLUM_VERSION__: JSON.stringify(version) },
 });
