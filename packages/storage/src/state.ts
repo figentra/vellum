@@ -1,239 +1,190 @@
 /**
- * State Manager - reads and writes Lifecycle Frontmatter and Task Markers in place.
+ * @vellum/storage — State File Operations
  *
- * All writes to Lifecycle Frontmatter go through this module, nowhere else.
- *
- * @see requirements.md Requirements 4.2, 5.2, 10.2
+ * Machine folder management for spec state.
+ * Stores computed state outside of version control.
  */
 
-import { readFile, writeFile } from "fs/promises";
-import { extractFrontmatter } from "./artifact-reader.js";
+import { join } from "node:path";
+import type { SpecState, LifecycleState, CommitSha } from "@vellum/protocol";
+import { brand } from "@vellum/protocol";
+import { createFilesystem } from "./fs.js";
+
+/** Machine folder name */
+export const MACHINE_FOLDER = ".sdlc";
+
+/** State file name */
+export const STATE_FILE = "state.json";
+
+/** Ledger file name */
+export const LEDGER_FILE = "ledger.jsonl";
 
 /**
- * Task marker values.
+ * Get machine folder path for a spec directory.
  */
-export type TaskMarker = "[ ]" | "[~]" | "[-]" | "[x]";
-
-/**
- * Parsed Lifecycle Frontmatter.
- */
-export interface LifecycleFrontmatter {
-  schema_version: string;
-  artifact_version: number;
-  artifact_status: string;
-  risk_class?: string | undefined;
+export function getMachineFolder(specPath: string): string {
+  return join(specPath, MACHINE_FOLDER);
 }
 
 /**
- * Artifacts that can have frontmatter.
+ * Get ledger file path for a spec directory.
  */
-export type ArtifactType = "requirements.md" | "design.md" | "tasks.md";
+export function getLedgerPath(specPath: string): string {
+  return join(getMachineFolder(specPath), LEDGER_FILE);
+}
 
 /**
- * Read frontmatter from an artifact.
- *
- * @param artifactPath - Path to the artifact file
- * @returns Parsed frontmatter (or null if none)
+ * Get state file path for a spec directory.
  */
-export async function readFrontmatter(artifactPath: string): Promise<LifecycleFrontmatter | null> {
-  const content = await readFile(artifactPath, "utf8");
-  const { frontmatter } = extractFrontmatter(content);
+export function getStatePath(specPath: string): string {
+  return join(getMachineFolder(specPath), STATE_FILE);
+}
 
-  if (!frontmatter) {
-    return null;
+/**
+ * Initialize machine folder for a spec.
+ * Creates .sdlc/ directory and initializes ledger.jsonl.
+ */
+export async function initMachineFolder(specPath: string): Promise<string> {
+  const fs = createFilesystem(specPath);
+  const machineFolder = MACHINE_FOLDER;
+
+  // Create machine folder
+  await fs.mkdirp(machineFolder);
+
+  // Initialize ledger with claim entry
+  const ledgerPath = join(machineFolder, LEDGER_FILE);
+  if (!(await fs.exists(ledgerPath))) {
+    await fs.writeFile(ledgerPath, "");
   }
 
-  return {
-    schema_version: frontmatter.schema_version as string,
-    artifact_version: frontmatter.artifact_version as number,
-    artifact_status: frontmatter.artifact_status as string,
-    risk_class: frontmatter.risk_class as string | undefined,
+  return machineFolder;
+}
+
+/**
+ * Read spec state from machine folder.
+ */
+export async function readState(machineFolder: string): Promise<SpecState> {
+  const fs = createFilesystem(machineFolder);
+  const statePath = STATE_FILE;
+
+  if (!(await fs.exists(statePath))) {
+    // Return default state if file doesn't exist
+    return {
+      effectiveState: "DRAFT",
+      recordedState: "DRAFT",
+    };
+  }
+
+  const content = await fs.readFile(statePath);
+
+  try {
+    const data = JSON.parse(content);
+    return {
+      effectiveState: data.effectiveState as LifecycleState,
+      recordedState: data.recordedState as LifecycleState,
+      lastTransition: data.lastTransition
+        ? {
+            from: data.lastTransition.from as LifecycleState,
+            to: data.lastTransition.to as LifecycleState,
+            timestamp: data.lastTransition.timestamp,
+            commit: brand<string, "CommitSha">(data.lastTransition.commit),
+          }
+        : undefined,
+    };
+  } catch {
+    throw new Error(`Invalid state file: ${statePath}`);
+  }
+}
+
+/**
+ * Write spec state to machine folder.
+ */
+export async function writeState(machineFolder: string, state: Partial<SpecState>): Promise<void> {
+  const fs = createFilesystem(machineFolder);
+  const statePath = STATE_FILE;
+
+  // Read existing state
+  const existing = await readState(machineFolder);
+
+  // Merge updates
+  const updated: SpecState = {
+    ...existing,
+    ...state,
   };
+
+  // Write atomically
+  const content = JSON.stringify(updated, null, 2);
+  await fs.writeFile(statePath, content);
 }
 
 /**
- * Write frontmatter to an artifact, preserving the body.
- *
- * Frontmatter is written in YAML key: value format.
- * The body is left byte-identical.
- *
- * @param artifactPath - Path to the artifact file
- * @param frontmatter - Frontmatter to write
+ * Clear state file (reset to default).
  */
-export async function writeFrontmatter(
-  artifactPath: string,
-  frontmatter: LifecycleFrontmatter,
-): Promise<void> {
-  const content = await readFile(artifactPath, "utf8");
-  const { body } = extractFrontmatter(content);
+export async function clearState(machineFolder: string): Promise<void> {
+  const fs = createFilesystem(machineFolder);
+  const statePath = STATE_FILE;
 
-  // Build YAML frontmatter
-  let yaml = "---\n";
-  yaml += `schema_version: "${frontmatter.schema_version}"\n`;
-  yaml += `artifact_version: ${frontmatter.artifact_version}\n`;
-  yaml += `artifact_status: "${frontmatter.artifact_status}"\n`;
-
-  if (frontmatter.risk_class) {
-    yaml += `risk_class: "${frontmatter.risk_class}"\n`;
+  if (await fs.exists(statePath)) {
+    await fs.delete(statePath);
   }
-
-  yaml += "---\n";
-
-  // Combine frontmatter and body
-  const newContent = yaml + body;
-
-  await writeFile(artifactPath, newContent, "utf8");
 }
 
 /**
- * Initialize frontmatter for an artifact.
- *
- * Creates initial frontmatter at the top of the file.
- *
- * @param artifactPath - Path to the artifact file
- * @param artifactType - Type of artifact
- * @param options - Initial values
+ * Discover all spec directories in repository.
  */
-export async function initializeFrontmatter(
-  artifactPath: string,
-  artifactType: ArtifactType,
-  options?: { artifact_status?: string; risk_class?: string },
-): Promise<void> {
-  const content = await readFile(artifactPath, "utf8");
+export async function discoverMachineFolders(repoPath: string): Promise<string[]> {
+  const fs = createFilesystem(repoPath);
+  const specsPath = ".agents/specs";
 
-  // Don't overwrite existing frontmatter
-  if (content.startsWith("---")) {
-    return;
+  if (!(await fs.exists(specsPath))) {
+    return [];
   }
 
-  const frontmatter: LifecycleFrontmatter = {
-    schema_version: "1.0",
-    artifact_version: 1,
-    artifact_status: options?.artifact_status || "DRAFT",
-    risk_class: artifactType === "requirements.md" ? options?.risk_class || "standard" : undefined,
-  };
+  const specDirs = await fs.readdir(specsPath);
+  const machineFolders: string[] = [];
 
-  // Build YAML frontmatter
-  let yaml = "---\n";
-  yaml += `schema_version: "${frontmatter.schema_version}"\n`;
-  yaml += `artifact_version: ${frontmatter.artifact_version}\n`;
-  yaml += `artifact_status: "${frontmatter.artifact_status}"\n`;
+  for (const specDir of specDirs) {
+    const specPath = join(specsPath, specDir);
+    const machineFolder = join(specPath, MACHINE_FOLDER);
 
-  if (frontmatter.risk_class) {
-    yaml += `risk_class: "${frontmatter.risk_class}"\n`;
-  }
-
-  yaml += "---\n";
-
-  // Combine frontmatter and existing content
-  const newContent = yaml + content;
-
-  await writeFile(artifactPath, newContent, "utf8");
-}
-
-/**
- * Read task marker from a task line.
- *
- * Task lines match: `- [x] N.N <title>` (Kiro Task Line Grammar).
- *
- * @param tasksPath - Path to tasks.md
- * @param taskId - Task identifier (e.g., "2.1")
- * @returns Marker value or null if task not found
- */
-export async function readTaskMarker(
-  tasksPath: string,
-  taskId: string,
-): Promise<TaskMarker | null> {
-  const content = await readFile(tasksPath, "utf8");
-  const lines = content.split("\n");
-
-  for (const line of lines) {
-    // Match task line pattern: - [x] N.N ...
-    const match = line?.match(/^-\s+\[([ x~\-])\]\s+(\d+\.\d+)/);
-    if (match) {
-      const markerChar = match[1];
-      const foundTaskId = match[2];
-
-      if (foundTaskId === taskId) {
-        switch (markerChar) {
-          case " ":
-            return "[ ]";
-          case "~":
-            return "[~]";
-          case "-":
-            return "[-]";
-          case "x":
-            return "[x]";
-        }
-      }
+    if (await fs.exists(machineFolder)) {
+      machineFolders.push(machineFolder);
     }
   }
 
-  return null;
+  return machineFolders;
 }
 
 /**
- * Write task marker, preserving rest of line.
- *
- * @param tasksPath - Path to tasks.md
- * @param taskId - Task identifier (e.g., "2.1")
- * @param marker - Marker value to write
+ * Get cache file path (outside VCS).
+ * Cache is stored in ~/.cache/vellum/<repo-hash>/.
  */
-export async function writeTaskMarker(
-  tasksPath: string,
-  taskId: string,
-  marker: TaskMarker,
-): Promise<void> {
-  const content = await readFile(tasksPath, "utf8");
-  const lines = content.split("\n");
+export function getCachePath(repoPath: string): string {
+  // Use a hash of the repo path for uniqueness
+  const { createHash } = require("node:crypto");
+  const repoHash = createHash("sha256").update(repoPath, "utf8").digest("hex").slice(0, 16);
 
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (!line) continue;
+  // Platform-specific cache directory
+  const cacheDir =
+    process.platform === "win32"
+      ? join(process.env.LOCALAPPDATA || "~", "cache", "vellum")
+      : join(process.env.XDG_CACHE_HOME || join("~", ".cache"), "vellum");
 
-    // Match task line pattern: - [x] N.N ...
-    const match = line.match(/^(^-\s+)\[([ x~\-])\](\s+)(\d+\.\d+)(.*)$/);
-    if (match) {
-      const prefix = match[1];
-      const spaces = match[3];
-      const foundTaskId = match[4];
-      const restOfLine = match[5];
+  return join(cacheDir, repoHash);
+}
 
-      if (foundTaskId === taskId) {
-        // Replace marker, keep rest of line intact
-        lines[i] = `${prefix}[${marker[1]}]${spaces}${foundTaskId}${restOfLine}`;
-        break;
-      }
+/**
+ * Clear all cache files for a repository.
+ */
+export async function clearCache(repoPath: string): Promise<void> {
+  const fs = createFilesystem(repoPath);
+  const cachePath = getCachePath(repoPath);
+
+  if (await fs.exists(cachePath)) {
+    // Delete all files in cache
+    const files = await fs.readdir(cachePath);
+    for (const file of files) {
+      await fs.delete(join(cachePath, file));
     }
   }
-
-  await writeFile(tasksPath, lines.join("\n"), "utf8");
-}
-
-/**
- * Validate task marker value.
- *
- * @param marker - Marker to validate
- * @returns True if valid
- */
-export function isValidMarker(marker: string): marker is TaskMarker {
-  return ["[ ]", "[~]", "[-]", "[x]"].includes(marker);
-}
-
-/**
- * Increment artifact version.
- *
- * Increments artifact_version by 1 in frontmatter.
- *
- * @param artifactPath - Path to artifact
- */
-export async function incrementArtifactVersion(artifactPath: string): Promise<void> {
-  const frontmatter = await readFrontmatter(artifactPath);
-
-  if (!frontmatter) {
-    return;
-  }
-
-  frontmatter.artifact_version += 1;
-  await writeFrontmatter(artifactPath, frontmatter);
 }

@@ -12,7 +12,10 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "schemas"],
+  "files": [
+    "dist",
+    "schemas"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
@@ -23,5 +26,6 @@
   },
   "devDependencies": {
     "@vellum/tsconfig": "workspace:*"
-  }
+  },
+  "dependencies": {}
 }

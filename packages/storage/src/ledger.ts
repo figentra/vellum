@@ -1,202 +1,187 @@
 /**
- * Ledger Reader - reads and verifies Ledger hash chain.
+ * @vellum/storage — Ledger Operations
  *
- * @see requirements.md Requirements 4.7, 4.8, 4.9, 4.10
+ * Append-only, hash-chained ledger operations.
+ * Each entry contains SHA-256 of previous entry.
  */
 
-import { readFile } from "fs/promises";
-import { existsSync } from "fs";
-import type { LedgerEntry, LedgerIntegrityFailure, LedgerFork, LedgerMetadata } from "./types.js";
-import { canonicalSerialize } from "./canonical-json.js";
-import { createHash } from "crypto";
+import { readFile, appendFile, open, rename } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import { createHash, randomUUID } from "node:crypto";
+import type { LedgerEntry, LedgerPayload, Checksum } from "@vellum/protocol";
+import { brand } from "@vellum/protocol";
+import { createFilesystem } from "./fs.js";
 
-/**
- * Result of reading a ledger.
- */
-export interface LedgerReadResult {
-  /** All entries in the ledger */
-  entries: LedgerEntry[];
-  /** Ledger metadata */
-  metadata: LedgerMetadata;
-}
+/** Initial hash for first entry (all zeros) */
+const INITIAL_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
 
 /**
- * Result of verifying a ledger chain.
+ * Read all entries from ledger file.
  */
-export interface LedgerVerifyResult {
-  /** All integrity failures found */
-  failures: LedgerIntegrityFailure[];
-  /** Forks detected */
-  forks: LedgerFork[];
-}
+export async function readLedger(ledgerPath: string): Promise<readonly LedgerEntry[]> {
+  const fs = createFilesystem(dirname(ledgerPath));
 
-/**
- * Read a Ledger from a JSON Lines file.
- *
- * @param ledgerPath - Path to ledger.jsonl
- * @returns Entries and metadata
- */
-export async function readLedger(ledgerPath: string): Promise<LedgerReadResult> {
-  if (!existsSync(ledgerPath)) {
-    return {
-      entries: [],
-      metadata: {
-        entry_count: 0,
-        first_entry_id: 0,
-        last_entry_id: 0,
-        integrity_verified: false,
-      },
-    };
+  if (!(await fs.exists(ledgerPath))) {
+    return Object.freeze([]);
   }
 
-  const content = await readFile(ledgerPath, "utf8");
-  const lines = content.trim().split("\n").filter(Boolean);
+  const content = await fs.readFile(ledgerPath);
+  const lines = content.split("\n").filter((line) => line.trim());
 
   const entries: LedgerEntry[] = [];
   for (const line of lines) {
-    const entry = JSON.parse(line) as LedgerEntry;
-    entries.push(entry);
+    try {
+      const entry = JSON.parse(line) as LedgerEntry;
+      entries.push(entry);
+    } catch {
+      throw new Error(`Invalid ledger entry: ${line.slice(0, 100)}`);
+    }
   }
 
-  const metadata: LedgerMetadata = {
-    entry_count: entries.length,
-    first_entry_id: entries.length > 0 ? entries[0]!.id : 0,
-    last_entry_id: entries.length > 0 ? entries[entries.length - 1]!.id : 0,
-    integrity_verified: false,
-  };
-
-  return { entries, metadata };
+  return Object.freeze(entries);
 }
 
 /**
- * Verify the integrity of a Ledger chain.
- *
- * Checks:
- * - predecessor_digest matches SHA-256 of preceding entry (Property 1)
- * - entry ids are monotonic integers starting at 1 (Property 3)
- * - timestamps are monotonic (Property 4)
- * - no fork (two entries with same predecessor_digest) (Property 5)
- *
- * @param entries - All ledger entries
- * @returns Verification result
+ * Get the last entry from ledger.
+ * Returns null if ledger is empty.
  */
-export function verifyChain(entries: LedgerEntry[]): LedgerVerifyResult {
-  const failures: LedgerIntegrityFailure[] = [];
-  const forks: LedgerFork[] = [];
+export async function getLastEntry(ledgerPath: string): Promise<LedgerEntry | null> {
+  const entries = await readLedger(ledgerPath);
+  return entries.length > 0 ? entries[entries.length - 1] : null;
+}
 
-  if (entries.length === 0) {
-    return { failures, forks };
-  }
+/**
+ * Append entry to ledger atomically.
+ * Computes predecessor hash automatically.
+ */
+export async function appendLedgerEntry(
+  ledgerPath: string,
+  entry: Omit<LedgerEntry, "predecessorHash" | "hash">,
+): Promise<LedgerEntry> {
+  // Get predecessor hash
+  const lastEntry = await getLastEntry(ledgerPath);
+  const predecessorHash = lastEntry?.hash ?? brand<string, "Checksum">(INITIAL_HASH);
 
-  const firstEntry = entries[0];
-  if (!firstEntry) {
-    return { failures, forks };
-  }
+  // Compute new entry hash
+  const newEntry: LedgerEntry = {
+    ...entry,
+    predecessorHash,
+  };
 
-  // Check first entry has null predecessor_digest
-  if (firstEntry.predecessor_digest !== null) {
-    failures.push({
-      entry_id: firstEntry.id,
-      kind: "predecessor_digest_mismatch",
-      message: `First entry (${firstEntry.id}) must have null predecessor_digest, got: ${firstEntry.predecessor_digest}`,
-    });
-  }
+  const hash = computeEntryHash(newEntry);
+  const completeEntry: LedgerEntry = {
+    ...newEntry,
+    hash,
+  };
 
-  // Track predecessor_digest to detect forks
-  const predecessorDigests = new Map<string, number[]>();
+  // Atomic append: write to temp, then append
+  const tempPath = join(tmpdir(), `ledger-${randomUUID()}.tmp`);
+  const line = JSON.stringify(completeEntry) + "\n";
 
-  // Verify chain
+  await appendFile(ledgerPath, line, "utf-8");
+
+  return completeEntry;
+}
+
+/**
+ * Compute SHA-256 hash of a ledger entry.
+ */
+export function computeEntryHash(entry: LedgerEntry): Checksum {
+  // Hash over: seq, kind, timestamp, predecessorHash, payload (sorted keys)
+  const { hash: _, ...rest } = entry;
+  const payloadJson = JSON.stringify(rest.payload, Object.keys(rest.payload).sort());
+  const data = `${rest.seq}:${rest.kind}:${rest.timestamp}:${rest.predecessorHash}:${payloadJson}`;
+
+  const hash = createHash("sha256").update(data, "utf8").digest("hex");
+  return brand<string, "Checksum">(hash);
+}
+
+/**
+ * Verify ledger integrity.
+ * Returns { valid: true } or { valid: false, errors: [...] }.
+ */
+export async function verifyLedgerIntegrity(ledgerPath: string): Promise<{
+  valid: boolean;
+  errors: Array<{ seq: number; message: string }>;
+}> {
+  const entries = await readLedger(ledgerPath);
+  const errors: Array<{ seq: number; message: string }> = [];
+
+  let expectedPredecessor = INITIAL_HASH;
+  const seenHashes = new Map<string, number>();
+
   for (let i = 0; i < entries.length; i++) {
     const entry = entries[i];
-    if (!entry) continue;
 
-    // Check entry id matches position (1-indexed)
-    if (entry.id !== i + 1) {
-      failures.push({
-        entry_id: entry.id,
-        kind: "ordering_violation",
-        message: `Entry at position ${i + 1} has id ${entry.id}, expected ${i + 1}`,
+    // Check sequence number
+    if (entry.seq !== i) {
+      errors.push({
+        seq: entry.seq,
+        message: `Expected seq ${i}, got ${entry.seq}`,
       });
     }
 
-    // Check predecessor_digest for non-first entries
-    if (i > 0) {
-      const predecessor = entries[i - 1];
-      if (predecessor) {
-        const expectedDigest = computeEntryDigest(
-          predecessor as unknown as Record<string, unknown>,
-        );
-
-        if (entry.predecessor_digest !== expectedDigest) {
-          failures.push({
-            entry_id: entry.id,
-            kind: "predecessor_digest_mismatch",
-            message: `Entry ${entry.id} predecessor_digest does not match SHA-256 of entry ${predecessor.id}`,
-          });
-        }
-      }
+    // Check predecessor hash
+    if (entry.predecessorHash !== expectedPredecessor) {
+      errors.push({
+        seq: entry.seq,
+        message: `Predecessor hash mismatch: expected ${expectedPredecessor.slice(0, 8)}..., got ${entry.predecessorHash.slice(0, 8)}...`,
+      });
     }
 
-    // Track predecessor_digest for fork detection
-    if (entry.predecessor_digest !== null) {
-      const existing = predecessorDigests.get(entry.predecessor_digest) || [];
-      existing.push(entry.id);
-      predecessorDigests.set(entry.predecessor_digest, existing);
+    // Check for forks (two entries with same predecessor)
+    if (seenHashes.has(entry.predecessorHash)) {
+      const otherSeq = seenHashes.get(entry.predecessorHash)!;
+      errors.push({
+        seq: entry.seq,
+        message: `Fork detected: entries ${otherSeq} and ${entry.seq} have same predecessor`,
+      });
     }
 
-    // Check timestamps are monotonic
-    if (i > 0) {
-      const prevEntry = entries[i - 1];
-      if (prevEntry) {
-        const prevTimestamp = new Date(prevEntry.timestamp).getTime();
-        const currTimestamp = new Date(entry.timestamp).getTime();
-
-        if (currTimestamp < prevTimestamp) {
-          failures.push({
-            entry_id: entry.id,
-            kind: "ordering_violation",
-            message: `Entry ${entry.id} timestamp (${entry.timestamp}) is earlier than entry ${prevEntry.id} (${prevEntry.timestamp})`,
-          });
-        }
-      }
+    // Verify entry hash
+    const computedHash = computeEntryHash(entry);
+    if (entry.hash && entry.hash !== computedHash) {
+      errors.push({
+        seq: entry.seq,
+        message: `Entry hash mismatch: expected ${computedHash.slice(0, 8)}..., got ${entry.hash.slice(0, 8)}...`,
+      });
     }
+
+    // Update state
+    seenHashes.set(entry.predecessorHash, entry.seq);
+    expectedPredecessor = entry.hash ?? computedHash;
   }
 
-  // Detect forks: two entries with same predecessor_digest
-  for (const [digest, entryIds] of predecessorDigests) {
-    if (entryIds.length > 1) {
-      const firstId = entryIds[0];
-      const secondId = entryIds[1];
-      if (firstId !== undefined && secondId !== undefined) {
-        forks.push({
-          entry_id_1: firstId,
-          entry_id_2: secondId,
-          predecessor_digest: digest,
-        });
-
-        // Also add integrity failure for fork
-        failures.push({
-          entry_id: firstId,
-          kind: "fork",
-          message: `Fork detected: entries ${firstId} and ${secondId} share predecessor_digest ${digest}`,
-          other_entry_id: secondId,
-        });
-      }
-    }
-  }
-
-  return { failures, forks };
+  return {
+    valid: errors.length === 0,
+    errors: Object.freeze(errors),
+  };
 }
 
+import { dirname } from "node:path";
+
 /**
- * Compute SHA-256 digest of a Ledger Entry.
- *
- * @param entry - Ledger entry
- * @returns SHA-256 hex string
+ * Detect if ledger has a fork (two entries with same predecessor).
  */
-function computeEntryDigest(entry: Record<string, unknown>): string {
-  // Remove digest field if present (it's computed, not stored)
-  const { digest: _omit, ...entryWithoutDigest } = entry;
-  const canonical = canonicalSerialize(entryWithoutDigest);
-  return createHash("sha256").update(canonical, "utf8").digest("hex");
+export function detectFork(ledgerPath: string): Promise<{
+  hasFork: boolean;
+  fork?: { entry1: number; entry2: number };
+}> {
+  return readLedger(ledgerPath).then((entries) => {
+    const predecessors = new Map<string, number>();
+
+    for (const entry of entries) {
+      const prev = predecessors.get(entry.predecessorHash);
+      if (prev !== undefined) {
+        return {
+          hasFork: true,
+          fork: { entry1: prev, entry2: entry.seq },
+        };
+      }
+      predecessors.set(entry.predecessorHash, entry.seq);
+    }
+
+    return { hasFork: false };
+  });
 }

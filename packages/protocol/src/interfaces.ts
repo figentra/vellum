@@ -11,10 +11,11 @@ import type {
   ArtifactKind,
   Checksum,
   CommitSha,
-  GitCommit,
+
   LedgerEntry,
   SpecDirectory,
 } from "./types.js";
+  GitCommit,
 
 // ============================================================================
 // Git Operations Interface

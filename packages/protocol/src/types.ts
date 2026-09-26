@@ -549,3 +549,38 @@ export interface ExaminationSummary {
   readonly kind: string;
   readonly count: number;
 }
+
+// ============================================================================
+// Git Types
+// ============================================================================
+
+/**
+ * Git commit metadata.
+ * Immutable record from git history.
+ */
+export interface GitCommit {
+  /** Commit SHA (full 40-char hex) */
+  readonly oid: string;
+  /** Tree SHA */
+  readonly tree: string;
+  /** Parent commit SHAs */
+  readonly parent: readonly string[];
+  /** Author name */
+  readonly author: {
+    readonly name: string;
+    readonly email: string;
+    readonly timestamp: number;
+    readonly timezoneOffset: number;
+  };
+  /** Committer name */
+  readonly committer: {
+    readonly name: string;
+    readonly email: string;
+    readonly timestamp: number;
+    readonly timezoneOffset: number;
+  };
+  /** Commit message */
+  readonly message: string;
+  /** GPG signature (if signed) */
+  readonly gpgsig?: string;
+}
