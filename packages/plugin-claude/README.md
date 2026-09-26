@@ -20,5 +20,7 @@ Validate the output with `claude plugin validate --strict dist`.
 ## Open items
 
 - `.mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`.
-  `packages/vellum` declares that bin, but the package is `private` and unpublished, so the
-  command fails until `@figentra/vellum` is published.
+  `@figentra/vellum` is published only to the private registry `https://npm.figentra.com/`,
+  so `npx` resolves it only when the user's `~/.npmrc` routes the `@figentra` scope there and
+  authenticates (see the root README, "Installing"). Until the first release tag is pushed the
+  package is unpublished and the command fails.

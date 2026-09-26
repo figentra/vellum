@@ -1,17 +1,35 @@
 name: Release
 
+# A human pushes a vX.Y.Z tag; this job publishes @figentra/vellum at that
+# version to the private Figentra registry (https://npm.figentra.com/, an
+# npflared registry). Nothing is published to the public npm registry:
+# packages/vellum/package.json pins publishConfig.registry, and a bundle test
+# fails if it changes.
+#
+# The registry token is never stored in GitHub. The job authenticates to
+# Infisical with GitHub OIDC and reads NPFLARED_AUTH_TOKEN from the /ci path.
+# A human sets up, once:
+#   - an Infisical machine identity with GitHub OIDC auth bound to this
+#     repository and to tag refs, allowed to read /ci in the prod environment;
+#   - NPFLARED_AUTH_TOKEN in /ci (a npflared token that may publish @figentra/vellum);
+#   - repository variables (not secrets) INFISICAL_IDENTITY_ID and INFISICAL_PROJECT_SLUG.
+
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - "v*.*.*"
 
 permissions:
-  contents: write
-  packages: write
+  contents: write # the GitHub release
+  id-token: write # the OIDC token Infisical verifies
+
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  build-and-release:
-    name: Build and Release
+  publish:
+    name: Publish @figentra/vellum
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -20,96 +38,50 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
+          node-version: "22"
+          cache: "pnpm"
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm turbo run build
-
-      - name: Run tests
-        run: pnpm turbo run test
-
-      - name: Check bundle size
+      - name: Take the version from the tag
+        id: version
         run: |
-          TOTAL_SIZE=$(du -sb packages/vellum/dist/ | cut -f1)
-          MAX_SIZE=$((500 * 1024))
-          if [ "$TOTAL_SIZE" -gt "$MAX_SIZE" ]; then
-            echo "Error: Bundle size exceeds limit"
+          VERSION="${GITHUB_REF_NAME#v}"
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "Tag $GITHUB_REF_NAME is not vMAJOR.MINOR.PATCH[-PRERELEASE]" >&2
             exit 1
           fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Version from tag
-        id: get_version
-        run: echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      # Set before the build: the bundle embeds this version in
+      # `vellum --version`, the MCP serverInfo and every Evidence Entry.
+      - name: Stamp the version into packages/vellum
+        run: npm pkg set version="${{ steps.version.outputs.version }}" --prefix packages/vellum
 
-      - name: Update package versions
+      - run: pnpm install --frozen-lockfile
+
+      # The same gate CI runs, including the pack -> offline install -> run test.
+      - name: Build, typecheck, lint and test
+        run: pnpm turbo run build typecheck lint test --force
+
+      - name: Fetch the registry token from Infisical
+        uses: Infisical/secrets-action@v1.0.16
+        with:
+          method: "oidc"
+          identity-id: ${{ vars.INFISICAL_IDENTITY_ID }}
+          project-slug: ${{ vars.INFISICAL_PROJECT_SLUG }}
+          env-slug: "prod"
+          secret-path: "/ci"
+
+      - name: Publish to npm.figentra.com
+        working-directory: packages/vellum
         run: |
-          VERSION=${{ steps.get_version.outputs.VERSION }}
-          # Update workspace packages to release version
-          jq --arg v "${VERSION#v}" '.version = $v' package.json > tmp.json && mv tmp.json package.json
-          find packages -name "package.json" -exec sh -c 'jq --arg v "'${VERSION#v}'" '\''.version = $v'\'' "$1" > tmp.json && mv tmp.json "$1"' _ {} \;
+          # The .npmrc names the variable, never the value; npm expands it.
+          echo '//npm.figentra.com/:_authToken=${NPFLARED_AUTH_TOKEN}' > .npmrc
+          npm publish
+          rm -f .npmrc
 
-      - name: Publish to npm
-        run: |
-          echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" > ~/.npmrc
-          cd packages/vellum
-          pnpm publish --access public --no-git-checks
+      - name: Create the GitHub release
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Create GitHub Release
-        uses: actions/create-release@v1
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          body: |
-            Release ${{ github.ref }}
-            
-            ## Changes
-            See [CHANGELOG.md](./CHANGELOG.md) for details.
-            
-            ## Installation
-            ```bash
-            npm install @figentra/vellum@${{ steps.get_version.outputs.VERSION }}
-            ```
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Notify on failure
-        if: failure()
+          GH_TOKEN: ${{ github.token }}
         run: |
-          echo "Release failed. Please check the logs."
-          # Could add Slack/Discord notification here
-
-  publish-docs:
-    name: Publish Documentation
-    runs-on: ubuntu-latest
-    needs: build-and-release
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build docs
-        run: |
-          echo "Building documentation..."
-          # Could use a static site generator like VitePress
-          # pnpm docs:build
-
-      - name: Deploy docs to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          # Or ./docs-dist if using a static site generator
+          gh release create "$GITHUB_REF_NAME" --verify-tag --title "Vellum $GITHUB_REF_NAME" \
+            --notes "Install: add \`@figentra:registry=https://npm.figentra.com/\` to your .npmrc, then \`npm install @figentra/vellum@${{ steps.version.outputs.version }}\`."

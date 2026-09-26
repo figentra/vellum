@@ -1,10 +1,13 @@
 {
   "name": "@figentra/vellum",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
-  "description": "Vellum — specification lifecycle enforcement: the vellum CLI and the read-only vellum-mcp server, bundled with no runtime dependencies",
+  "description": "Vellum \u2014 specification lifecycle enforcement: the vellum CLI and the read-only vellum-mcp server, bundled with no runtime dependencies",
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.figentra.com/",
+    "access": "public"
+  },
   "engines": {
     "node": ">=22.0.0"
   },

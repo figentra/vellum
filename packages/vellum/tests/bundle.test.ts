@@ -141,6 +141,10 @@ describe("Bundle Verification", () => {
       );
       expect(packageJson().engines.node).toBe(root.engines.node);
     });
+
+    it("publishes only to the private Figentra registry, never the public npm registry", () => {
+      expect(packageJson().publishConfig?.registry).toBe("https://npm.figentra.com/");
+    });
   });
 
   describe("Bundle Size", () => {

@@ -57,6 +57,32 @@ Principles: one version for the bundle; the engine is pure (it imports only
 - [Architecture overview](docs/architecture.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
+## Installing
+
+`@figentra/vellum` is published to Figentra's private npm registry, `https://npm.figentra.com/`
+(npflared), never to the public npm registry. Route the scope there and authenticate in your
+user-level `~/.npmrc`:
+
+```ini
+@figentra:registry=https://npm.figentra.com/
+//npm.figentra.com/:_authToken=${NPFLARED_AUTH_TOKEN}
+```
+
+The file names the variable, never the token; npm expands it from the environment. Keep the
+token in your secret vault and inject it into the environment (for example
+`infisical run --path=/agents -- <command>`); never write the value into a file.
+
+```bash
+npm install --save-dev @figentra/vellum
+npx vellum doctor
+```
+
+The package has no runtime dependencies and needs Node.js 22 or later. It provides two bins:
+`vellum` (the CLI) and `vellum-mcp` (the read-only MCP server the assistant plugins start).
+
+Releases: a maintainer pushes a `vX.Y.Z` tag, and `.github/workflows/release.yml` runs the full
+gate and publishes that version, taking the registry token from Infisical over GitHub OIDC.
+
 ## Development
 
 ```bash

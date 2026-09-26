@@ -25,5 +25,7 @@ through `vellum task complete <spec> <id> --command=…`, which runs the command
   `skill://.kiro/skills/<name>/SKILL.md` resource URIs assume the Power's skills end up in the
   workspace's `.kiro/skills/`. Unverified.
 - `mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`.
-  `packages/vellum` declares that bin, but the package is `private` and unpublished, so the
-  command fails until `@figentra/vellum` is published.
+  `@figentra/vellum` is published only to the private registry `https://npm.figentra.com/`,
+  so `npx` resolves it only when the user's `~/.npmrc` routes the `@figentra` scope there and
+  authenticates (see the root README, "Installing"). Until the first release tag is pushed the
+  package is unpublished and the command fails.
