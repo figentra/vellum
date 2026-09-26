@@ -6,6 +6,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { homedir } from "node:os";
 import { join } from "node:path";
 import type { SpecState, LifecycleState } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
@@ -178,11 +179,16 @@ export function getCachePath(repoPath: string): string {
     .digest("hex")
     .slice(0, 16);
 
-  // Platform-specific cache directory
+  // Platform-specific cache directory. Node does not expand "~", so the
+  // fallback is the real home directory.
   const cacheDir =
     process.platform === "win32"
-      ? join(process.env.LOCALAPPDATA || "~", "cache", "vellum")
-      : join(process.env.XDG_CACHE_HOME || join("~", ".cache"), "vellum");
+      ? join(
+          process.env.LOCALAPPDATA || join(homedir(), "AppData", "Local"),
+          "cache",
+          "vellum",
+        )
+      : join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "vellum");
 
   return join(cacheDir, repoHash);
 }

@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
@@ -55,6 +55,26 @@ describe("getCachePath in the built ES module", () => {
       expect(run.stdout).toBe(expected);
     } finally {
       rmSync(cacheHome, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("getCachePath without a cache-home variable", () => {
+  it("falls back to the real home directory, never a literal '~'", async () => {
+    const { getCachePath } = await import("../state.js");
+    const saved = {
+      xdg: process.env.XDG_CACHE_HOME,
+      local: process.env.LOCALAPPDATA,
+    };
+    delete process.env.XDG_CACHE_HOME;
+    delete process.env.LOCALAPPDATA;
+    try {
+      const path = getCachePath("/some/repo");
+      expect(path.split(/[\\/]/)).not.toContain("~");
+      expect(path.startsWith(homedir())).toBe(true);
+    } finally {
+      if (saved.xdg !== undefined) process.env.XDG_CACHE_HOME = saved.xdg;
+      if (saved.local !== undefined) process.env.LOCALAPPDATA = saved.local;
     }
   });
 });
