@@ -39,12 +39,18 @@ export function renderHuman(
   lines.push("--- Timing ---");
   if (metrics.leadTime.kind === "duration") {
     lines.push(`Lead Time: ${formatDuration(metrics.leadTime.value)}`);
+  } else if (metrics.leadTime.kind === "unavailable") {
+    lines.push(`Lead Time: unavailable (${metrics.leadTime.reason})`);
   }
   if (metrics.cycleTime.kind === "duration") {
     lines.push(`Cycle Time: ${formatDuration(metrics.cycleTime.value)}`);
+  } else if (metrics.cycleTime.kind === "unavailable") {
+    lines.push(`Cycle Time: unavailable (${metrics.cycleTime.reason})`);
   }
   if (metrics.approvalLatency.kind === "duration") {
     lines.push(`Approval Latency: ${formatDuration(metrics.approvalLatency.value)}`);
+  } else if (metrics.approvalLatency.kind === "unavailable") {
+    lines.push(`Approval Latency: unavailable (${metrics.approvalLatency.reason})`);
   }
 
   // Time per stage
@@ -53,6 +59,8 @@ export function renderHuman(
   for (const [stage, value] of Object.entries(metrics.timePerStage)) {
     if (value.kind === "duration") {
       lines.push(`  ${stage}: ${formatDuration(value.value)}`);
+    } else if (value.kind === "unavailable") {
+      lines.push(`  ${stage}: unavailable (${value.reason})`);
     }
   }
 
@@ -63,14 +71,20 @@ export function renderHuman(
     lines.push(
       `Rework Rate: ${formatRatioHuman(metrics.reworkRate.numerator, metrics.reworkRate.denominator)}`,
     );
+  } else if (metrics.reworkRate.kind === "unavailable") {
+    lines.push(`Rework Rate: unavailable (${metrics.reworkRate.reason})`);
   }
   if (metrics.gateFailures.kind === "count") {
     lines.push(`Gate Failures: ${metrics.gateFailures.value}`);
+  } else if (metrics.gateFailures.kind === "unavailable") {
+    lines.push(`Gate Failures: unavailable (${metrics.gateFailures.reason})`);
   }
   if (metrics.traceabilityCoverage.kind === "ratio") {
     lines.push(
       `Traceability Coverage: ${formatRatioHuman(metrics.traceabilityCoverage.numerator, metrics.traceabilityCoverage.denominator)}`,
     );
+  } else if (metrics.traceabilityCoverage.kind === "unavailable") {
+    lines.push(`Traceability Coverage: unavailable (${metrics.traceabilityCoverage.reason})`);
   }
 
   // Failure classes
@@ -79,6 +93,8 @@ export function renderHuman(
   for (const [fc, value] of Object.entries(metrics.failureClassCounts)) {
     if (value.kind === "count") {
       lines.push(`  ${fc}: ${value.value}`);
+    } else if (value.kind === "unavailable") {
+      lines.push(`  ${fc}: unavailable (${value.reason})`);
     }
   }
 
@@ -87,11 +103,15 @@ export function renderHuman(
   lines.push("--- Execution ---");
   if (metrics.retryCounts.kind === "count") {
     lines.push(`Retry Counts: ${metrics.retryCounts.value}`);
+  } else if (metrics.retryCounts.kind === "unavailable") {
+    lines.push(`Retry Counts: unavailable (${metrics.retryCounts.reason})`);
   }
   if (metrics.taskCompletionRate.kind === "ratio") {
     lines.push(
       `Task Completion Rate: ${formatRatioHuman(metrics.taskCompletionRate.numerator, metrics.taskCompletionRate.denominator)}`,
     );
+  } else if (metrics.taskCompletionRate.kind === "unavailable") {
+    lines.push(`Task Completion Rate: unavailable (${metrics.taskCompletionRate.reason})`);
   }
 
   // Release metrics
@@ -101,11 +121,15 @@ export function renderHuman(
     lines.push(
       `Amendment Rate: ${formatRatioHuman(metrics.amendmentRate.numerator, metrics.amendmentRate.denominator)}`,
     );
+  } else if (metrics.amendmentRate.kind === "unavailable") {
+    lines.push(`Amendment Rate: unavailable (${metrics.amendmentRate.reason})`);
   }
   if (metrics.releaseRollbackRate.kind === "ratio") {
     lines.push(
       `Rollback Rate: ${formatRatioHuman(metrics.releaseRollbackRate.numerator, metrics.releaseRollbackRate.denominator)}`,
     );
+  } else if (metrics.releaseRollbackRate.kind === "unavailable") {
+    lines.push(`Rollback Rate: unavailable (${metrics.releaseRollbackRate.reason})`);
   }
 
   return lines.join("\n");

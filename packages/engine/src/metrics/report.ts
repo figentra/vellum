@@ -1,5 +1,5 @@
 import type { ReportResult } from "./scope.types.js";
-import type { Metrics } from "./metrics.interface.js";
+import type { Metrics, MetricValue } from "./metrics.interface.js";
 import { validateScope } from "./validator.js";
 import { computeLeadTime } from "./lead-time.js";
 import { computeCycleTime } from "./cycle-time.js";
@@ -13,16 +13,13 @@ import { computeApprovalLatency } from "./approval-latency.js";
 import { computeAmendmentRate } from "./amendment-rate.js";
 import { computeTaskCompletionRate } from "./task-completion.js";
 import { computeRollbackRate } from "./rollback-rate.js";
-// import { anonymize } from "./anonymizer.js";
 import { renderJson } from "./render/json.js";
 import { renderHuman } from "./render/human.js";
 import type { LedgerEntry } from "@vellum/protocol";
 
 /**
- * Metrics computation context.
- *
- * This would be populated by reading from the Ledger and git history.
- * For now, this is a placeholder that would be filled by actual readers.
+ * Metrics computation context: what the caller read from the Ledger, git
+ * history and the specs' artifacts. The engine reads none of it itself.
  */
 export interface MetricsContext {
   /** Ledger entries in scope */
@@ -33,8 +30,10 @@ export interface MetricsContext {
   artifactTimestamps: ReadonlyMap<string, number>;
   /** Required task IDs */
   requiredTasks: readonly string[];
-  /** Total criteria count */
-  criteriaCount: number;
+  /** Criterion references requirements.md defines (e.g. "1.2") */
+  criteria: readonly string[];
+  /** Task identifier to the criteria it references (tasks.md trailers) */
+  taskCriteria: ReadonlyMap<string, readonly string[]>;
   /** State transitions */
   stateTransitions: ReadonlyArray<{
     readonly specId: string;
@@ -47,8 +46,11 @@ export interface MetricsContext {
 /**
  * Produce a metrics report for a scope.
  *
- * Computes twelve metrics from the Ledger and git history, aggregates by scope,
- * strips individual identity, and produces a report.
+ * Computes twelve metrics from the Ledger and git history and renders them.
+ * Every metric is an aggregate (a duration, count or ratio), so the report
+ * carries no individual identity; a scope that groups by individual is
+ * refused before anything is computed. A metric whose computation fails is
+ * reported as `unavailable` with the reason, never as zero.
  *
  * Reads no Implementation Half, invokes no lifecycle hook.
  *
@@ -69,8 +71,8 @@ export function report(
   } catch (error) {
     if (error instanceof Error && "exitStatus" in error) {
       return {
-        metrics: createEmptyMetrics(),
-        scope: { kind: "repository" }, // Placeholder
+        metrics: createUnavailableMetrics(error.message),
+        scope: null,
         specsIncluded: [],
         exitStatus: (error as { exitStatus: number }).exitStatus,
         error: error.message,
@@ -87,13 +89,13 @@ export function report(
   const metrics: Metrics = {
     leadTime: safeCompute(() => computeLeadTime(context.entries, context.gitHistory)),
     cycleTime: safeCompute(() => computeCycleTime(context.entries)),
-    timePerStage: safeCompute(() => computeTimePerStage(context.stateTransitions)),
+    timePerStage: safeComputeRecord(() => computeTimePerStage(context.stateTransitions)),
     reworkRate: safeCompute(() => computeReworkRate(context.entries)),
     gateFailures: safeCompute(() => countGateFailures(context.entries)),
-    failureClassCounts: safeCompute(() => countFailureClasses(context.entries)),
+    failureClassCounts: safeComputeRecord(() => countFailureClasses(context.entries)),
     retryCounts: safeCompute(() => countRetries(context.entries)),
     traceabilityCoverage: safeCompute(() =>
-      computeTraceabilityCoverage(context.entries, context.criteriaCount),
+      computeTraceabilityCoverage(context.entries, context.criteria, context.taskCriteria),
     ),
     approvalLatency: safeCompute(() =>
       computeApprovalLatency(context.entries, context.artifactTimestamps),
@@ -104,9 +106,6 @@ export function report(
     ),
     releaseRollbackRate: safeCompute(() => computeRollbackRate(context.entries)),
   };
-
-  // Anonymize (strip identity fields)
-  // anonymize({ metrics });
 
   // Render
   const specsIncluded = extractSpecsIncluded(context.entries);
@@ -121,41 +120,59 @@ export function report(
     metrics,
     scope,
     specsIncluded,
-    timeRange,
+    ...(timeRange ? { timeRange } : {}),
     exitStatus: 0,
     output,
-  } as ReportResult & { output: string };
+  };
 }
 
 /**
- * Safely compute a metric, returning zero-valued on error.
+ * Compute a metric; a failure is reported as `unavailable` with its reason.
  */
-function safeCompute<T>(compute: () => T): T {
+function safeCompute(compute: () => MetricValue): MetricValue {
   try {
     return compute();
-  } catch {
-    // Return zero-valued metric
-    return createEmptyMetrics().leadTime as T;
+  } catch (error) {
+    return { kind: "unavailable", reason: error instanceof Error ? error.message : String(error) };
   }
 }
 
 /**
- * Create empty (zero-valued) metrics.
+ * Compute a keyed metric; a failure is reported under the key "unavailable".
  */
-function createEmptyMetrics(): Metrics {
+function safeComputeRecord(
+  compute: () => Record<string, MetricValue>,
+): Record<string, MetricValue> {
+  try {
+    return compute();
+  } catch (error) {
+    return {
+      unavailable: {
+        kind: "unavailable",
+        reason: error instanceof Error ? error.message : String(error),
+      },
+    };
+  }
+}
+
+/**
+ * Every metric unavailable, for a refused report.
+ */
+function createUnavailableMetrics(reason: string): Metrics {
+  const none: MetricValue = { kind: "unavailable", reason };
   return {
-    leadTime: { kind: "duration", value: 0 },
-    cycleTime: { kind: "duration", value: 0 },
+    leadTime: none,
+    cycleTime: none,
     timePerStage: {},
-    reworkRate: { kind: "ratio", numerator: 0, denominator: 0 },
-    gateFailures: { kind: "count", value: 0 },
+    reworkRate: none,
+    gateFailures: none,
     failureClassCounts: {},
-    retryCounts: { kind: "count", value: 0 },
-    traceabilityCoverage: { kind: "ratio", numerator: 0, denominator: 0 },
-    approvalLatency: { kind: "duration", value: 0 },
-    amendmentRate: { kind: "ratio", numerator: 0, denominator: 0 },
-    taskCompletionRate: { kind: "ratio", numerator: 0, denominator: 0 },
-    releaseRollbackRate: { kind: "ratio", numerator: 0, denominator: 0 },
+    retryCounts: none,
+    traceabilityCoverage: none,
+    approvalLatency: none,
+    amendmentRate: none,
+    taskCompletionRate: none,
+    releaseRollbackRate: none,
   };
 }
 
