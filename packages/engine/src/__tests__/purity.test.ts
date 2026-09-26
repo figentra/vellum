@@ -61,6 +61,7 @@ const AMBIENT_READS: ReadonlyArray<readonly [RegExp, string]> = [
   [/\bMath\.random\s*\(/g, "draws randomness: Math.random("],
   [/\bprocess\s*\./g, "reads the host: process."],
   [/\bglobalThis\s*\./g, "reads the host: globalThis."],
+  [/\bBuffer\s*\./g, "uses a Node host API: Buffer."],
 ];
 
 /** Strip comments so prose that names a forbidden call is not a violation. */

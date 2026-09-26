@@ -67,15 +67,15 @@ export function computeTaskMetrics(
       task_id: taskId,
       spec_slug: specSlug,
       bundle_size_bytes: 0,
-      original_size_bytes: Buffer.byteLength(originalContent, "utf-8"),
+      original_size_bytes: utf8ByteLength(originalContent),
       size_ratio: 0,
       computed: false,
       reason: "Bundle not available",
     };
   }
 
-  const bundleSize = Buffer.byteLength(bundleContent, "utf-8");
-  const originalSize = Buffer.byteLength(originalContent, "utf-8");
+  const bundleSize = utf8ByteLength(bundleContent);
+  const originalSize = utf8ByteLength(originalContent);
 
   return {
     task_id: taskId,
@@ -173,4 +173,18 @@ export function reportUncomputedTasks(
       task_id: m.task_id,
       reason: m.reason || "Unknown reason",
     }));
+}
+
+/**
+ * Byte length of a string encoded as UTF-8, computed without a host API
+ * (the engine may not use Node's Buffer). A lone surrogate counts as the
+ * 3-byte replacement character, as an encoder would write it.
+ */
+export function utf8ByteLength(text: string): number {
+  let bytes = 0;
+  for (const char of text) {
+    const code = char.codePointAt(0)!;
+    bytes += code < 0x80 ? 1 : code < 0x800 ? 2 : code < 0x10000 ? 3 : 4;
+  }
+  return bytes;
 }
