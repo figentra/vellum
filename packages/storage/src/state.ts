@@ -5,6 +5,7 @@
  * Stores computed state outside of version control.
  */
 
+import { createHash } from "node:crypto";
 import { join } from "node:path";
 import type { SpecState, LifecycleState } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
@@ -105,7 +106,10 @@ export async function readState(machineFolder: string): Promise<SpecState> {
 /**
  * Write spec state to machine folder.
  */
-export async function writeState(machineFolder: string, state: Partial<SpecState>): Promise<void> {
+export async function writeState(
+  machineFolder: string,
+  state: Partial<SpecState>,
+): Promise<void> {
   const fs = createFilesystem(machineFolder);
   const statePath = STATE_FILE;
 
@@ -138,7 +142,9 @@ export async function clearState(machineFolder: string): Promise<void> {
 /**
  * Discover all spec directories in repository.
  */
-export async function discoverMachineFolders(repoPath: string): Promise<string[]> {
+export async function discoverMachineFolders(
+  repoPath: string,
+): Promise<string[]> {
   const fs = createFilesystem(repoPath);
   const specsPath = ".agents/specs";
 
@@ -167,8 +173,10 @@ export async function discoverMachineFolders(repoPath: string): Promise<string[]
  */
 export function getCachePath(repoPath: string): string {
   // Use a hash of the repo path for uniqueness
-  const { createHash } = require("node:crypto");
-  const repoHash = createHash("sha256").update(repoPath, "utf8").digest("hex").slice(0, 16);
+  const repoHash = createHash("sha256")
+    .update(repoPath, "utf8")
+    .digest("hex")
+    .slice(0, 16);
 
   // Platform-specific cache directory
   const cacheDir =
