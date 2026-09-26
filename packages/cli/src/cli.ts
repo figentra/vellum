@@ -1,17 +1,8 @@
 #!/usr/bin/env node
 /**
- * Vellum CLI entry point: process wiring around run().
+ * Vellum CLI entry point.
  */
 
-import { createCliContext } from "./context.js";
-import { run } from "./run.js";
+import { main } from "./main.js";
 
-run(process.argv.slice(2), createCliContext({})).then(
-  (status) => {
-    process.exitCode = status;
-  },
-  (error: unknown) => {
-    process.stderr.write(`vellum: internal error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`);
-    process.exitCode = 2;
-  },
-);
+void main();

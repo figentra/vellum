@@ -12,6 +12,7 @@ export { VERSION } from "./version.js";
 export type { CliContext, OutputStream } from "./context.js";
 export { createCliContext, detectAssistantSession } from "./context.js";
 export { run, HELP } from "./run.js";
+export { main } from "./main.js";
 
 export { lint } from "./commands/lint.js";
 export { status } from "./commands/status.js";
