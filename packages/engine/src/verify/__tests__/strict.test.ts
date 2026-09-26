@@ -10,6 +10,7 @@ import {
   approvals,
   artifact,
   commits,
+  verifiedLedger,
   policyFor,
   REQUIREMENTS,
   DESIGN,
@@ -19,8 +20,8 @@ import {
 const policy = policyFor("standard");
 
 describe("strictVerify", () => {
-  it("passes a complete, approved, covered spec", () => {
-    const result = strictVerify(allArtifacts(), approvals(), policy, commits, "standard");
+  it("passes a complete, approved, covered, evidenced spec", () => {
+    const result = strictVerify(allArtifacts(), verifiedLedger(), policy, commits, "standard");
 
     expect(result.findings).toEqual([]);
     expect(result.result).toBe("PASS");
@@ -36,7 +37,7 @@ describe("strictVerify", () => {
     );
     const result = strictVerify(
       allArtifacts({ requirements: reformatted }),
-      approvals(),
+      verifiedLedger(),
       policy,
       commits,
       "standard",
@@ -50,7 +51,7 @@ describe("strictVerify", () => {
     const edited = REQUIREMENTS.replace("A folder", "A file");
     const result = strictVerify(
       allArtifacts({ requirements: edited }),
-      approvals(),
+      verifiedLedger(),
       policy,
       commits,
       "standard",
@@ -64,7 +65,7 @@ describe("strictVerify", () => {
   it("reports missing artifacts and approvals of them", () => {
     const result = strictVerify(
       [artifact("design", DESIGN), artifact("tasks", TASKS)],
-      approvals(),
+      verifiedLedger(),
       policy,
       commits,
       "standard",

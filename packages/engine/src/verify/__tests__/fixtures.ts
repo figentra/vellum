@@ -135,6 +135,33 @@ export function approvals(): LedgerEntry[] {
   );
 }
 
+/** An on-disk (ledger/types) evidence entry for `taskId`. */
+export function evidenceEntry(taskId: string, exitStatus = 0, commit = "c".repeat(40)): LedgerEntry {
+  return {
+    kind: "evidence",
+    id: 0,
+    predecessor_digest: null,
+    timestamp: "2026-09-26T11:00:00Z",
+    task_id: taskId,
+    command: "pnpm test",
+    exit_status: exitStatus,
+    start_timestamp: "2026-09-26T11:00:00Z",
+    finish_timestamp: "2026-09-26T11:00:05Z",
+    commit,
+    affected_paths: [],
+    environment_versions: { platform: "0.0.0", schema: "1.0", node: "22.0.0" },
+    uncommitted: false,
+  } as unknown as LedgerEntry;
+}
+
+/**
+ * The approvals of all three artifacts, then passing evidence for both
+ * required tasks in TASKS (criterion 12.4), chained.
+ */
+export function verifiedLedger(): LedgerEntry[] {
+  return chain([...approvals(), evidenceEntry("1"), evidenceEntry("2")]);
+}
+
 /** An artifact whose frontmatter claims `claimed` as its checksum, whatever its body. */
 export function artifact(kind: ArtifactKind, body: string, claimed?: string): Artifact {
   return {
