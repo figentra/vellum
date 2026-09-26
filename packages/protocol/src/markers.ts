@@ -71,7 +71,11 @@ export function formatMarker(marker: TaskMarker): string {
  * - Task identifier: number with optional hierarchy (1, 2.3, 5.1.4)
  * - Task text: any text after identifier
  * - Optional trailers: HTML comments with criteria and/or properties
- * - Optional task marker: `(optional)` in the text
+ * - Kiro requirements trailer ending the text: `_Requirements: 1.2, 3.4_`
+ *   (the form the method's tasks template writes); merged with a comment
+ *   trailer when both are present
+ * - Optional task marker: `(optional)` in the text, or Kiro's `*` right after
+ *   the checkbox (`- [ ]* 1.3`) or the identifier (`- [ ] 1.3* …`)
  */
 export function parseTaskLine(line: string): {
   marker: TaskMarker;
@@ -83,8 +87,10 @@ export function parseTaskLine(line: string): {
 } | null {
   // Match the basic task line structure
   // Format: - [x] N(.N)*  Text <!-- criteria: ... --> <!-- properties: ... -->
+  // A `*` right after the checkbox (`- [ ]* 1.3`) or right after the
+  // identifier (`- [ ] 1.3* …`) marks the task optional (Kiro form).
   const baseMatch = line.match(
-    /^(\s*)-\s*\[([ x~-])\]\s*(\d+(?:\.\d+)*)\s*\.?\s*(.*?)(\s*<!--[\s\S]*?-->)?$/,
+    /^(\s*)-\s*\[([ x~-])\](\*?)\s*(\d+(?:\.\d+)*)(\*?)\s*\.?\s*(.*?)(\s*<!--[\s\S]*?-->)?$/,
   );
 
   if (!baseMatch) {
@@ -92,9 +98,10 @@ export function parseTaskLine(line: string): {
   }
 
   const markerChar = baseMatch[2];
-  const identifierStr = baseMatch[3];
-  const text = baseMatch[4];
-  const trailers = baseMatch[5];
+  const identifierStr = baseMatch[4];
+  const starred = baseMatch[3] === "*" || baseMatch[5] === "*";
+  const text = baseMatch[6];
+  const trailers = baseMatch[7];
 
   // Validate required groups exist
   if (!markerChar || !identifierStr || text === undefined) {
@@ -115,8 +122,8 @@ export function parseTaskLine(line: string): {
 
   // Check for optional marker
   let taskText = text.trim();
-  const isOptional = taskText.includes("(optional)");
-  if (isOptional) {
+  const isOptional = starred || taskText.includes("(optional)");
+  if (taskText.includes("(optional)")) {
     taskText = taskText.replace(/\s*\(optional\)\s*/g, "").trim();
   }
 
@@ -124,20 +131,21 @@ export function parseTaskLine(line: string): {
   let requirementsTrailer: CriterionId[] | undefined;
   let propertiesTrailer: PropertyId[] | undefined;
 
+  // Kiro requirements trailer at the end of the text: `_Requirements: 1.2, 3.4_`
+  const kiroTrailer = /\s*_Requirements:\s*([\d.,\s]+?)\s*_$/.exec(taskText);
+  if (kiroTrailer?.[1] !== undefined) {
+    taskText = taskText.slice(0, kiroTrailer.index).trim();
+    const criteria = parseCriterionList(kiroTrailer[1]);
+    if (criteria.length > 0) requirementsTrailer = criteria;
+  }
+
   if (trailers) {
     // Parse criteria trailer: <!-- criteria: 1.2, 3.4 -->
     const criteriaMatch = trailers.match(/<!--\s*criteria:\s*([\d.,\s]+)\s*-->/);
     if (criteriaMatch && criteriaMatch[1]) {
-      const criteriaStr = criteriaMatch[1];
-      const criteria = criteriaStr
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s)
-        .map((s) => parseCriterionId(s))
-        .filter((id): id is CriterionId => id !== null);
-
+      const criteria = parseCriterionList(criteriaMatch[1]);
       if (criteria.length > 0) {
-        requirementsTrailer = criteria;
+        requirementsTrailer = [...new Set([...(requirementsTrailer ?? []), ...criteria])];
       }
     }
 
@@ -180,6 +188,16 @@ export function parseTaskLine(line: string): {
   }
 
   return result;
+}
+
+/** Criterion identifiers in a comma-separated list; unparseable items are dropped. */
+function parseCriterionList(list: string): CriterionId[] {
+  return list
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s)
+    .map((s) => parseCriterionId(s))
+    .filter((id): id is CriterionId => id !== null);
 }
 
 /**

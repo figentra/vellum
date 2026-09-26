@@ -31,7 +31,7 @@ const FRONTMATTER = /^---\n[\s\S]*?\n---(?:\n|$)/;
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const DELIMITER_CELL = /^(:?)-+(:?)$/;
 /** A task line's marker, as the Kiro Task Line Grammar (markers.ts) reads it. */
-const TASK_MARKER = /^(\s*-\s*\[)[ x~-](\]\s*\d+(?:\.\d+)*)/;
+const TASK_MARKER = /^(\s*-\s*\[)[ x~-](\]\*?\s*\d+(?:\.\d+)*)/;
 
 /** Return the canonical form of an artifact's text (frontmatter excluded). */
 export function canonicalArtifactBody(text: string): string {

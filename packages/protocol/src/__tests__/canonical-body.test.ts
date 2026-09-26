@@ -63,6 +63,13 @@ describe("canonicalArtifactBody", () => {
     }
   });
 
+  it("reads a Kiro optional task's marker as not started too, star in either place", () => {
+    const plan = (m: string) =>
+      `# Tasks\n\n- [${m}]* 1.3 Test it _Requirements: 1.1_\n- [${m}] 1.4* Test more _Requirements: 1.1_\n`;
+    expect(canonicalArtifactBody(plan("x"))).toBe(canonicalArtifactBody(plan(" ")));
+    expect(canonicalArtifactBody(plan("-"))).toBe(canonicalArtifactBody(plan(" ")));
+  });
+
   it("keeps task markers inside a code fence, and a changed task's text, significant", () => {
     const fenced = (m: string) => `\`\`\`\n- [${m}] 1 Example\n\`\`\`\n`;
     expect(canonicalArtifactBody(fenced("x"))).not.toBe(canonicalArtifactBody(fenced(" ")));

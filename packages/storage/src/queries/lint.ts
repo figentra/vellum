@@ -174,7 +174,7 @@ function lintSpec(
       : null;
     tasksText.split("\n").forEach((raw, index) => {
       const line = raw.replace(/\r$/, "");
-      const checkbox = /^\s*-\s*\[(.)\]\s*\d/.exec(line);
+      const checkbox = /^\s*-\s*\[(.)\]\*?\s*\d/.exec(line);
       if (checkbox && !" x~-".includes(checkbox[1]!)) {
         findings.push({
           file: tasksFile,
