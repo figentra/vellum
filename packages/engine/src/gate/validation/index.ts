@@ -7,6 +7,7 @@ export {
   isApprovalStale,
   validateApprovals,
   type ApprovalValidationResult,
+  type ApprovalValidationPolicy,
 } from "./approval-validator.js";
 export {
   checkChangeset,
