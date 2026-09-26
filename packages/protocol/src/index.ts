@@ -73,6 +73,7 @@ export type {
 } from "./ledger/types.js";
 
 export { createQualityFinding } from "./ledger/types.js";
+export { canonicalSerialize } from "./ledger/canonical-json.js";
 
 // ============================================================================
 // Version

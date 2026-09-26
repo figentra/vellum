@@ -9,7 +9,7 @@ import { appendFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, basename } from "node:path";
 import type { LedgerEntry, Checksum } from "@vellum/protocol";
-import { brand } from "@vellum/protocol";
+import { brand, canonicalSerialize } from "@vellum/protocol";
 import { createFilesystem } from "./fs.js";
 
 /**
@@ -96,15 +96,13 @@ export async function appendLedgerEntry(
 }
 
 /**
- * Compute SHA-256 hash of a ledger entry.
+ * Compute SHA-256 hash of a ledger entry: every field except `hash`, in
+ * canonical JSON (keys sorted at every depth), so a change to any field —
+ * nested ones included — changes the hash.
  */
 export function computeEntryHash(entry: LedgerEntry): Checksum {
-  // Hash over: id, kind, timestamp, predecessor_digest, payload (sorted keys)
   const { hash: _, ...rest } = entry;
-  const payloadJson = JSON.stringify(rest, Object.keys(rest).sort());
-  const data = `${rest.id}:${rest.kind}:${rest.timestamp}:${rest.predecessor_digest}:${payloadJson}`;
-
-  const hash = createHash("sha256").update(data, "utf8").digest("hex");
+  const hash = createHash("sha256").update(canonicalSerialize(rest), "utf8").digest("hex");
   return brand<string, "Checksum">(hash);
 }
 

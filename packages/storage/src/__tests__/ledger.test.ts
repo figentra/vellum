@@ -137,6 +137,22 @@ describe("Ledger Operations", () => {
       expect(computeEntryHash(entry)).toBe(computeEntryHash(entry));
     });
 
+    it("should cover nested payload fields", () => {
+      const entry = createTestEntry(0, "evidence", {
+        taskIdentifier: brand<string, "TaskId">("1.1"),
+        commandText: "pnpm test",
+        exitStatus: 0,
+        startedAt: "2026-09-26T10:00:00Z",
+        finishedAt: "2026-09-26T10:01:00Z",
+        headCommit: brand<string, "CommitSha">("c".repeat(40)),
+        affectedPaths: ["src/a.ts"],
+        environmentVersions: { node: "22.0.0" },
+      });
+      const tampered = { ...entry, environmentVersions: { node: "18.0.0" } } as LedgerEntry;
+
+      expect(computeEntryHash(tampered)).not.toBe(computeEntryHash(entry));
+    });
+
     it("should differ for different entries", () => {
       const entry1 = createTestEntry(0, "claim", {
         type: "created",
