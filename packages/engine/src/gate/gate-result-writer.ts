@@ -4,7 +4,7 @@
  * @see requirements.md Requirement 5.1
  */
 
-import type { GateResultPayload, LedgerEntry } from "../../domain/ledger/types";
+import type { GateResultPayload, LedgerEntry } from "@vellum/protocol";
 
 /**
  * Gate result writer options.

@@ -10,8 +10,8 @@
  * @see Requirement 1.11 - reject approval when approver authored
  */
 
-import type { RiskClass } from "../../domain/policy/types";
-import type { DecisionRecord } from "../../domain/decision/types";
+import type { RiskClass } from "../domain/policy/types";
+import type { DecisionRecord } from "../domain/decision/types";
 
 /**
  * Valid Risk Classes.

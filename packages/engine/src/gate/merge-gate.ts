@@ -4,7 +4,7 @@
  * @see requirements.md Requirements 6.1-6.6
  */
 
-import type { QualityFinding, FindingSeverity } from "../../domain/ledger/types";
+import type { QualityFinding, FindingSeverity } from "@vellum/protocol";
 import type { GateEvaluationResult, GateRunnerOptions } from "./index";
 import { runStrictVerifier, isStrictVerifierPassing } from "./validation/strict-verifier-bridge";
 import { checkChangeset } from "./validation/changeset-checker";

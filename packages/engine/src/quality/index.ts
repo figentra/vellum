@@ -4,8 +4,8 @@
  * @see requirements.md Requirements 1, 2, 3
  */
 
-import type { QualityFinding, CheckResult } from "../../domain/ledger/types";
-import { createQualityFinding } from "../../domain/ledger/types";
+import type { QualityFinding, CheckResult } from "@vellum/protocol";
+import { createQualityFinding } from "@vellum/protocol";
 import { RULE_IDS } from "./rules";
 import { parseAndValidateEars } from "./ears-parser";
 import { checkVagueTerms } from "./vague-terms";

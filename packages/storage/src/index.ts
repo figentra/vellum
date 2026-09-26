@@ -12,5 +12,89 @@
  * - Ledger modifications only through programmatic interface
  */
 
-// Placeholder — will be populated during Slice 1 Wave 3 implementation
+// ============================================================================
+// Filesystem Operations
+// ============================================================================
+
+export {
+  createFilesystem,
+  parseFrontmatter,
+  serializeFrontmatter,
+  computeChecksum,
+  stripFrontmatter,
+} from "./fs.js";
+
+// ============================================================================
+// Git Operations
+// ============================================================================
+
+export { createGitOps, verifyCommitSignature, getSignatureStatus } from "./git.js";
+
+// ============================================================================
+// Ledger Operations
+// ============================================================================
+
+export {
+  readLedger,
+  getLastEntry,
+  appendLedgerEntry,
+  computeEntryHash,
+  verifyLedgerIntegrity,
+  detectFork,
+} from "./ledger.js";
+
+// ============================================================================
+// Machine Folder Operations
+// ============================================================================
+
+export {
+  MACHINE_FOLDER,
+  STATE_FILE,
+  LEDGER_FILE,
+  getMachineFolder,
+  getLedgerPath,
+  getStatePath,
+  initMachineFolder,
+  readState,
+  writeState,
+  clearState,
+  discoverMachineFolders,
+  getCachePath,
+  clearCache,
+} from "./state.js";
+
+// ============================================================================
+// Policy Operations
+// ============================================================================
+
+export {
+  loadPolicy,
+  getApproverByEmail,
+  isAuthorisedForRiskClass,
+  getRequirementsForRiskClass,
+} from "./policy.js";
+
+// ============================================================================
+// Spec Discovery
+// ============================================================================
+
+export {
+  SPEC_DIR,
+  ARTIFACT_FILES,
+  discoverSpecs,
+  readSpecMetadata,
+  findSpec,
+  isValidSpecDirectory,
+} from "./discovery.js";
+
+// ============================================================================
+// Artifact Cache
+// ============================================================================
+
+export { createCache } from "./cache.js";
+
+// ============================================================================
+// Version
+// ============================================================================
+
 export const VERSION = "0.0.0" as const;

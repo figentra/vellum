@@ -13,7 +13,7 @@ import {
   serializeFrontmatter,
   computeChecksum,
   stripFrontmatter,
-} from "../src/fs.js";
+} from "../fs.ts";
 
 describe("Filesystem Operations", () => {
   let testDir: string;

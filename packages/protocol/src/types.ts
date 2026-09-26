@@ -382,6 +382,36 @@ export interface ExaminationSummary {
 }
 
 // ============================================================================
+// Transition Types
+// ============================================================================
+
+/** Kinds of transition preconditions */
+export type TransitionPreconditionKind =
+  | "ARTIFACT_EXISTS"
+  | "ARTIFACT_VALID"
+  | "APPROVAL_COUNT_MET"
+  | "NO_BLOCKING_DECISIONS"
+  | "NO_OPEN_BLOCKING_QUESTIONS"
+  | "PREVIOUS_APPROVALS_VALID"
+  | "TASK_GRAPH_VALID"
+  | "TASK_DISPATCHED"
+  | "ALL_REQUIRED_TASKS_VERIFIED"
+  | "STRICT_VERIFICATION_PASS"
+  | "BLOCKING_REASON_RECORDED"
+  | "UNBLOCKING_DECISION_RECORDED"
+  | "RATIONALE_RECORDED"
+  | "SUPERSEDING_SPEC_RECORDED"
+  | "COVERAGE_COMPLETE"
+  | "TRANSITION_INVALID";
+
+/** A transition precondition check result */
+export interface TransitionPrecondition {
+  readonly kind: TransitionPreconditionKind;
+  readonly met: boolean;
+  readonly message?: string;
+}
+
+// ============================================================================
 // Parsing and Formatting Functions
 // ============================================================================
 

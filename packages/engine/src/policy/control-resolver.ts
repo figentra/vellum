@@ -5,7 +5,7 @@
  * @see Requirement 1.5 - exit 2 when two rules of equal specificity conflict
  */
 
-import type { Control, RiskClass } from "../../domain/policy/types";
+import type { Control, RiskClass } from "../domain/policy/types";
 
 /**
  * Context for resolving Controls.

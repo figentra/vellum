@@ -14,7 +14,7 @@ import {
   computeEntryHash,
   verifyLedgerIntegrity,
   detectFork,
-} from "../src/ledger.js";
+} from "../ledger.ts";
 import type { LedgerEntry, LedgerPayload } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
 

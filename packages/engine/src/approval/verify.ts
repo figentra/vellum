@@ -7,14 +7,11 @@
 
 import type {
   ApprovalPolicy,
-  ApprovalPayload,
   GitCommit,
   ArtifactKind,
   RiskClass,
   Checksum,
-  CommitSha,
 } from "@vellum/protocol";
-import { brand } from "@vellum/protocol";
 
 /** Approval verification result */
 export type ApprovalVerificationResult =
@@ -36,7 +33,12 @@ export type ApprovalRejectionReason =
  * Pure function - all data passed in.
  */
 export function verifyApproval(
-  approval: ApprovalPayload,
+  approval: {
+    readonly approver: string;
+    readonly artifact: ArtifactKind;
+    readonly artifactChecksum: Checksum;
+    readonly signalCommit: string;
+  },
   policy: ApprovalPolicy | null,
   riskClass: RiskClass,
   gitCommits: ReadonlyMap<string, GitCommit>,
@@ -47,7 +49,7 @@ export function verifyApproval(
   }
 
   // Check signal commit exists
-  const commit = gitCommits.get(unwrap(approval.signalCommit));
+  const commit = gitCommits.get(approval.signalCommit);
   if (!commit) {
     return { valid: false, reason: "INVALID_SIGNAL" };
   }
@@ -58,7 +60,7 @@ export function verifyApproval(
   }
 
   // Check approver is authorized
-  const authorizedApprovers = getApprovers(policy, riskClass, approval.artifactKind);
+  const authorizedApprovers = getApprovers(policy, riskClass, approval.artifact);
   if (!authorizedApprovers.includes(approval.approver)) {
     return { valid: false, reason: "NOT_AUTHORIZED" };
   }
@@ -81,7 +83,12 @@ export function verifyApproval(
  * Pure function - iterates and verifies.
  */
 export function countValidApprovals(
-  approvals: readonly ApprovalPayload[],
+  approvals: readonly Array<{
+    readonly approver: string;
+    readonly artifact: ArtifactKind;
+    readonly artifactChecksum: Checksum;
+    readonly signalCommit: string;
+  }>,
   policy: ApprovalPolicy | null,
   riskClass: RiskClass,
   artifactKind: ArtifactKind,
@@ -93,127 +100,108 @@ export function countValidApprovals(
 
   for (const approval of approvals) {
     // Check artifact matches
-    if (approval.artifactKind !== artifactKind) {
+    if (approval.artifact !== artifactKind) {
       continue;
     }
 
     // Check checksum matches (criterion 8.2)
     if (approval.artifactChecksum !== currentChecksum) {
-      // Invalidated approval - checksum mismatch
-      // Not counted, but not an error either
-      continue;
+      continue; // Invalidated approval, don't count
     }
 
     // Verify approval
     const result = verifyApproval(approval, policy, riskClass, gitCommits);
-    if (result.valid) {
-      // Check for duplicate approver
-      if (!seenApprovers.has(approval.approver)) {
-        seenApprovers.add(approval.approver);
-        count++;
-      }
+    if (!result.valid) {
+      continue;
     }
+
+    // Check distinct approvers (criterion 7.11)
+    if (seenApprovers.has(approval.approver)) {
+      continue; // Already approved by this person
+    }
+
+    seenApprovers.add(approval.approver);
+    count++;
   }
 
   return count;
 }
 
 /**
- * Check if all required approvals are present.
+ * Get the required number of approvals for an artifact.
  */
-export function hasRequiredApprovals(
-  approvals: readonly ApprovalPayload[],
+export function getRequiredApprovalCount(
   policy: ApprovalPolicy | null,
   riskClass: RiskClass,
   artifactKind: ArtifactKind,
-  currentChecksum: Checksum,
-  gitCommits: ReadonlyMap<string, GitCommit>,
-): { met: boolean; count: number; required: number } {
-  const count = countValidApprovals(
-    approvals,
-    policy,
-    riskClass,
-    artifactKind,
-    currentChecksum,
-    gitCommits,
-  );
+): number {
+  if (!policy) {
+    return 0;
+  }
 
-  const required = policy ? getRequiredCount(policy, riskClass, artifactKind) : 0;
+  const riskMap = policy.requiredCount.get(riskClass);
+  if (!riskMap) {
+    return 0;
+  }
 
-  return {
-    met: count >= required,
-    count,
-    required,
-  };
+  return riskMap.get(artifactKind) ?? 0;
 }
 
 /**
- * Get approvers for (risk class, artifact kind) from policy.
+ * Get authorized approvers for an artifact.
  */
 export function getApprovers(
-  policy: ApprovalPolicy,
+  policy: ApprovalPolicy | null,
   riskClass: RiskClass,
   artifactKind: ArtifactKind,
 ): readonly string[] {
-  const classMap = policy.approvers.get(riskClass);
-  if (!classMap) return [];
-
-  const approvers = classMap.get(artifactKind);
-  return approvers ?? [];
-}
-
-/**
- * Get required approval count for (risk class, artifact kind) from policy.
- */
-export function getRequiredCount(
-  policy: ApprovalPolicy,
-  riskClass: RiskClass,
-  artifactKind: ArtifactKind,
-): number {
-  const classMap = policy.requiredCount.get(riskClass);
-  if (!classMap) return 0;
-
-  return classMap.get(artifactKind) ?? 0;
-}
-
-/**
- * Check if an identity matches a policy approver.
- * Handles various identity formats (email, name, key fingerprint).
- */
-export function matchesApprover(identity: string, approver: string): boolean {
-  // Exact match
-  if (identity === approver) {
-    return true;
+  if (!policy) {
+    return [];
   }
 
-  // Email match (identity might be full email, approver might be just username)
-  if (identity.includes("@") && approver.includes("@")) {
-    return identity.toLowerCase() === approver.toLowerCase();
+  const riskMap = policy.approvers.get(riskClass);
+  if (!riskMap) {
+    return [];
   }
 
-  // Name match (case-insensitive)
-  return identity.toLowerCase() === approver.toLowerCase();
+  return riskMap.get(artifactKind) ?? [];
 }
 
 /**
- * Generate a diagnostic for invalid approval.
+ * Check if a checksum has changed (approval invalidation).
+ */
+export function isApprovalInvalidated(
+  approvalChecksum: Checksum,
+  currentChecksum: Checksum,
+): boolean {
+  return approvalChecksum !== currentChecksum;
+}
+
+/**
+ * Diagnose why an approval failed verification.
+ * Returns a human-readable explanation.
  */
 export function diagnoseInvalidApproval(
-  approval: ApprovalPayload,
+  approval: {
+    readonly approver: string;
+    readonly artifact: ArtifactKind;
+    readonly artifactChecksum: Checksum;
+    readonly signalCommit: string;
+  },
   result: { valid: false; reason: ApprovalRejectionReason },
 ): string {
   switch (result.reason) {
     case "NOT_AUTHORIZED":
-      return `Approver '${approval.approver}' is not authorized for ${approval.artifactKind}`;
+      return `Approver '${approval.approver}' is not authorized for ${approval.artifact}`;
 
     case "INVALID_SIGNAL":
-      return `Approval signal commit '${unwrap(approval.signalCommit).slice(0, 8)}' not found`;
+      return `Approval signal commit '${approval.signalCommit.slice(0, 8)}' not found`;
 
     case "FROM_ASSISTANT":
       return `Approval from assistant session not permitted`;
 
     case "CHECKSUM_MISMATCH":
-      return `Approval checksum '${unwrap(approval.artifactChecksum).slice(0, 8)}' does not match current artifact`;
+      return `Approval checksum '${approval.artifactChecksum.slice(0, 8)}' does not match current artifact`;
 
     case "UNSIGNED_COMMIT":
       return `Approval commit must be signed`;
@@ -222,14 +210,9 @@ export function diagnoseInvalidApproval(
       return `Approval policy file missing or invalid`;
 
     case "ARTIFACT_MISMATCH":
-      return `Approval is for '${approval.artifactKind}', not current artifact`;
+      return `Approval is for '${approval.artifact}', not current artifact`;
 
     default:
       return `Approval invalid: ${result.reason}`;
   }
-}
-
-// Helper to unwrap branded types
-function unwrap<T, B>(branded: ReturnType<typeof brand<T, B>>): T {
-  return branded as T;
 }

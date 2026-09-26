@@ -3,8 +3,17 @@
  *
  * Exposes Vellum capabilities to AI assistants via MCP:
  * - status, context, trace, workspace map
- * - Refuses writes
+ * - Refuses writes (mutations must go through CLI)
+ *
+ * ## Design Principles
+ *
+ * - Read-only interface
+ * - All queries return JSON
+ * - State queries are deterministic
+ * - No mutations through MCP
  */
 
-// Placeholder — will be populated during Slice 4 implementation
-export const VERSION = "0.0.0" as const;
+export const VERSION = "0.1.0" as const;
+
+// Re-export types for programmatic use
+export type { McpServer } from "@modelcontextprotocol/sdk/server/index.js";

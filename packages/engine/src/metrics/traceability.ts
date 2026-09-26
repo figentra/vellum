@@ -1,5 +1,5 @@
 import type { MetricValue } from "./metrics.interface.js";
-import type { LedgerEntry } from "../../domain/ledger/types.js";
+import type { LedgerEntry } from "@vellum/protocol";
 
 /**
  * Compute traceability coverage from Ledger entries.

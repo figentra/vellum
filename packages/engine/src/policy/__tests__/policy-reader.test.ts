@@ -11,7 +11,7 @@ import {
   mergeWithDefaults,
   DEFAULT_RISK_CLASS_CONTROLS,
 } from "../policy-reader";
-import type { RiskClass } from "../../../domain/policy/types";
+import type { RiskClass } from "../domain/policy/types";
 
 describe("policy-reader", () => {
   describe("DEFAULT_RISK_CLASS_CONTROLS", () => {

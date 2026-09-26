@@ -70,6 +70,8 @@ export type {
   CheckResult as CheckResultFull,
 } from "./ledger/types.js";
 
+export { createQualityFinding } from "./ledger/types.js";
+
 // ============================================================================
 // Version
 // ============================================================================

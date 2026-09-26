@@ -7,7 +7,7 @@
  * @see Requirement 12.4 - exit 2 if Model Tier outside reader/frontier
  */
 
-import type { ModelTier } from "../../domain/policy/types";
+import type { ModelTier } from "../domain/policy/types";
 
 /**
  * Agent Roles that are Frontier-Only (may write, review, design or decide gates).

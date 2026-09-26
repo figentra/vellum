@@ -4,8 +4,8 @@
  * @see requirements.md Requirements 2.5, 2.6
  */
 
-import type { QualityFinding } from "../../domain/ledger/types";
-import { createQualityFinding } from "../../domain/ledger/types";
+import type { QualityFinding } from "@vellum/protocol";
+import { createQualityFinding } from "@vellum/protocol";
 import { RULE_IDS } from "./rules";
 
 /**

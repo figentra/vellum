@@ -4,7 +4,7 @@
  * @see requirements.md Requirement 5.5, design.md Gate Integrity
  */
 
-import type { GateResultPayload } from "../../domain/ledger/types";
+import type { GateResultPayload } from "@vellum/protocol";
 
 /**
  * Gate integrity violation.

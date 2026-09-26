@@ -10,7 +10,7 @@
  * @see Requirement 13.7 - exit 2 for non-positive-integer limit
  */
 
-import type { Finding } from "../../domain/ledger/types";
+import type { Finding } from "@vellum/protocol";
 
 /**
  * Default Spec Size Limit.

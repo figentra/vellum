@@ -28,7 +28,8 @@
     "@vellum/protocol": "workspace:*",
     "@vellum/engine": "workspace:*",
     "@vellum/storage": "workspace:*",
-    "@vellum/renderers": "workspace:*"
+    "@vellum/renderers": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "devDependencies": {
     "@vellum/tsconfig": "workspace:*"

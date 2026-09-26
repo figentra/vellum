@@ -6,7 +6,7 @@
  * @see Requirement 1.6 - exit 2 on schema violation
  */
 
-import type { Policy, Control, RiskClass, PolicySchema } from "../../domain/policy/types";
+import type { Policy, Control, RiskClass, PolicySchema } from "../domain/policy/types";
 
 /**
  * Policy validation error.

@@ -24,7 +24,6 @@
     "clean": "rm -rf dist .tsbuildinfo coverage"
   },
   "dependencies": {
-    "isomorphic-git": "catalog:runtime",
     "@vellum/protocol": "workspace:*",
     "@vellum/engine": "workspace:*"
   },

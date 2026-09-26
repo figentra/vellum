@@ -12,8 +12,14 @@ export const EXIT_STATUS = {
   INCONCLUSIVE: 2,
 } as const;
 
+/** Exit status type */
+export type ExitStatus = (typeof EXIT_STATUS)[keyof typeof EXIT_STATUS];
+
 /** Diagnostic severity levels */
 export type DiagnosticSeverity = "error" | "warn" | "info";
+
+/** Finding severity (for compatibility) */
+export type FindingSeverity = DiagnosticSeverity;
 
 /** Diagnostic code definitions */
 export const DiagnosticCodes = {

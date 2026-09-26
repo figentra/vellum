@@ -4,7 +4,7 @@
  * @see requirements.md Requirement 6.1
  */
 
-import type { ApprovalPayload } from "../../../domain/ledger/types";
+import type { ApprovalPayload } from "@vellum/protocol";
 
 /**
  * Approval validation result.

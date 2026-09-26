@@ -4,7 +4,7 @@
  * @see Requirement 20.17 - default 65,536 bytes
  */
 
-import type { Finding } from "../../domain/ledger/types";
+import type { Finding } from "@vellum/protocol";
 
 /**
  * Default Section Write Threshold in bytes.

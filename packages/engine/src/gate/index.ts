@@ -4,7 +4,7 @@
  * @see requirements.md Requirements 5, 6, 7
  */
 
-import type { QualityFinding } from "../../domain/ledger/types";
+import type { QualityFinding } from "@vellum/protocol";
 import { ReviewGate } from "./review-gate";
 import { MergeGate } from "./merge-gate";
 import { ReleaseGate } from "./release-gate";

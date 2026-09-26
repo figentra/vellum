@@ -4,7 +4,7 @@
  * @see requirements.md Requirements 5.1-5.4
  */
 
-import type { QualityFinding, FindingSeverity } from "../../domain/ledger/types";
+import type { QualityFinding, FindingSeverity } from "@vellum/protocol";
 import type { GateEvaluationResult, GateRunnerOptions } from "./index";
 
 /**

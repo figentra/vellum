@@ -16,7 +16,7 @@ import { computeRollbackRate } from "./rollback-rate.js";
 // import { anonymize } from "./anonymizer.js";
 import { renderJson } from "./render/json.js";
 import { renderHuman } from "./render/human.js";
-import type { LedgerEntry } from "../../domain/ledger/types.js";
+import type { LedgerEntry } from "@vellum/protocol";
 
 /**
  * Metrics computation context.

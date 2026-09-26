@@ -4,7 +4,7 @@
  * @see requirements.md Requirements 7.1-7.6
  */
 
-import type { QualityFinding, FindingSeverity } from "../../domain/ledger/types";
+import type { QualityFinding, FindingSeverity } from "@vellum/protocol";
 import type { GateEvaluationResult, GateRunnerOptions } from "./index";
 import { validateVersion } from "./validation/version-correctness";
 import { verifyRollbackPath, isRollbackVerificationRequired } from "./validation/rollback-verifier";

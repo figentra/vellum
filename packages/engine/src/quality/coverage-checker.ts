@@ -4,7 +4,7 @@
  * @see requirements.md Requirements 2.1, 2.2
  */
 
-import type { QualityFinding } from "../../domain/ledger/types";
+import type { QualityFinding } from "@vellum/protocol";
 import { RULE_IDS } from "./rules";
 import { parseCriteria } from "./patterns/criterion-parser";
 

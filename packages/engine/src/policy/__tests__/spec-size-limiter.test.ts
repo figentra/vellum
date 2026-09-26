@@ -11,7 +11,7 @@ import {
   permitsTransitionWithSizeFinding,
   DEFAULT_SPEC_SIZE_LIMIT,
 } from "../spec-size-limiter";
-import type { Finding } from "../../../domain/ledger/types";
+import type { Finding } from "@vellum/protocol";
 
 describe("spec-size-limiter", () => {
   describe("DEFAULT_SPEC_SIZE_LIMIT", () => {

@@ -4,7 +4,7 @@
  * @see design.md Quality Checker Rule Set
  */
 
-import type { CheckDefinition } from "../../domain/ledger/types";
+import type { CheckDefinition } from "@vellum/protocol";
 
 /**
  * Rule Identifier constants - stable codes for quality checks.

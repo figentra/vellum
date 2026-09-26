@@ -28,7 +28,8 @@
     "@vellum/protocol": "workspace:*",
     "@vellum/engine": "workspace:*",
     "@vellum/storage": "workspace:*",
-    "@vellum/renderers": "workspace:*"
+    "@vellum/renderers": "workspace:*",
+    "cley": "^0.0.0-rc-2"
   },
   "devDependencies": {
     "@vellum/tsconfig": "workspace:*"
