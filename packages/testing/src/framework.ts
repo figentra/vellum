@@ -20,7 +20,12 @@ import type {
   Finding,
   DiagnosticCode,
 } from "@vellum/protocol";
-import { parseChecksum, parseCommitSha, parseSpecId } from "@vellum/protocol";
+import {
+  computeLedgerEntryDigest,
+  parseChecksum,
+  parseCommitSha,
+  parseSpecId,
+} from "@vellum/protocol";
 
 // ============================================================================
 // Fixture Repository Builder
@@ -239,12 +244,12 @@ export async function createTestLedger(
 }
 
 /**
- * Compute predecessor digest for a ledger entry.
+ * Compute the predecessor digest a successor of `entry` records: the
+ * protocol's computeLedgerEntryDigest (SHA-256 of canonical JSON, keys sorted
+ * at every depth), the one digest the ledger writer and verifier use.
  */
 export function computePredecessorDigest(entry: LedgerEntry): string {
-  // Create a canonical representation with fields in a specific order
-  const canonical = JSON.stringify(entry);
-  return crypto.createHash("sha256").update(canonical).digest("hex");
+  return computeLedgerEntryDigest(entry);
 }
 
 // ============================================================================
