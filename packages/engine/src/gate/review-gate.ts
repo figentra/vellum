@@ -104,6 +104,9 @@ export class ReviewGate {
       ...(this.inputs.adrs ? { adrs: this.inputs.adrs } : {}),
     });
     outcome.findings.push(...quality.findings);
+    for (const skipped of quality.not_checked) {
+      outcome.skip(`quality: ${skipped.check}`, skipped.reason);
+    }
 
     // Required approvals of this version (criterion 5.3)
     const approvals = this.inputs.approvals;

@@ -83,3 +83,15 @@ describe("review gate", () => {
     expect(result.not_checked.map((n) => n.check)).toContain("required approvals (criterion 5.3)");
   });
 });
+
+describe("review gate — quality checks it could not run", () => {
+  it("lists a plan check that needed context the caller did not supply", async () => {
+    const result = await new ReviewGate("plan", options, {
+      artifacts: allArtifacts(),
+      approvals: approvalInputs,
+    }).evaluate();
+
+    expect(result.not_checked.map((n) => n.check)).toContain("quality: criterion 3.7");
+    expect(result.status).not.toBe("pass");
+  });
+});

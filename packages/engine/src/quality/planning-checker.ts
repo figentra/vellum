@@ -48,15 +48,27 @@ export function parseTasks(tasksText: string): TaskInfo[] {
     const line = lines[i];
     if (!line) continue;
 
-    // Match task markdown: - [ ] N. Title or - [-] N.N Title
-    const match = line.match(/^-\s+\[[~\-\sx]\]\s+([\d.]+)\.\s+(.+)/);
+    // Match task markdown: - [ ] N. Title or - [-] N.N Title (sub-tasks may be indented)
+    const match = line.match(/^\s*-\s+\[[~\-\sx]\]\s+(\d+(?:\.\d+)*)\.?\s+(.+)/);
     if (match && match[1] && match[2]) {
+      // The protocol's trailers: <!-- criteria: 1.2 --> <!-- properties: P1 -->
+      const criteriaTrailer = match[2].match(/<!--\s*criteria:\s*([\d.,\s]+?)\s*-->/);
+      const propertiesTrailer = match[2].match(/<!--\s*properties:\s*([P\d,\s]+?)\s*-->/);
+      const title = match[2].replace(/<!--[\s\S]*?-->/g, "").trim();
       const task: TaskInfo = {
         id: match[1],
-        title: match[2],
+        title,
         state: "pending",
         line_number: i + 1,
       };
+      if (criteriaTrailer?.[1]) {
+        task.referenced_criteria = splitList(criteriaTrailer[1]);
+      }
+      if (propertiesTrailer?.[1]) {
+        task.referenced_properties = splitList(propertiesTrailer[1]).map((p) =>
+          p.replace(/^P/, ""),
+        );
+      }
 
       // Look for Requirements trailer in following lines
       for (let j = i + 1; j < Math.min(i + 5, lines.length); j++) {
@@ -64,7 +76,10 @@ export function parseTasks(tasksText: string): TaskInfo[] {
         if (!reqLine) continue;
         const reqMatch = reqLine.match(/_Requirements:\s*([\d.,\s]+)_/i);
         if (reqMatch && reqMatch[1]) {
-          task.referenced_criteria = reqMatch[1].split(",").map((s) => s.trim());
+          task.referenced_criteria = [
+            ...(task.referenced_criteria ?? []),
+            ...splitList(reqMatch[1]),
+          ];
           break;
         }
         if (reqLine.match(/^-\s+\[/)) {
@@ -88,13 +103,39 @@ export function parseTasks(tasksText: string): TaskInfo[] {
   return tasks;
 }
 
+function splitList(list: string): string[] {
+  return list
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => item !== "");
+}
+
+/** Rule identifier of a check the planning checker could not run. */
+export const CHECK_NOT_RUN = "CHECK_NOT_RUN" as const;
+
+/**
+ * What the plan's context says, for the checks tasks.md alone cannot decide.
+ * An option left undefined makes its check report CHECK_NOT_RUN rather than
+ * pass or fail.
+ */
+export interface PlanCoverageOptions {
+  /** Whether the change adds a published surface (criterion 3.7) */
+  readonly addsPublishedSurface?: boolean;
+  /** Whether the Policy requires a release for the Spec's Risk Class (criterion 3.8) */
+  readonly releaseRequired?: boolean;
+}
+
 /**
  * Check plan coverage (criterion 3.1-3.8).
+ *
+ * Checks it cannot run are reported as `info` findings with rule
+ * CHECK_NOT_RUN, naming the criterion and the reason — never as a pass.
  *
  * @param requirementsText - Full requirements.md text
  * @param designText - Full design.md text
  * @param tasksText - Full tasks.md text
  * @param tasksPath - Path to tasks.md
+ * @param options - Change and Policy context for criteria 3.7 and 3.8
  * @returns Array of quality findings
  */
 export function checkPlanCoverage(
@@ -102,6 +143,7 @@ export function checkPlanCoverage(
   designText: string,
   tasksText: string,
   tasksPath: string,
+  options: PlanCoverageOptions = {},
 ): QualityFinding[] {
   const findings: QualityFinding[] = [];
 
@@ -137,9 +179,16 @@ export function checkPlanCoverage(
         ),
       );
     }
-
-    // TODO: Check path count against policy maximum (criterion 3.4)
   }
+
+  // Path count against the Policy's per-task maximum (criterion 3.4)
+  findings.push(
+    notRun(
+      "3.4",
+      "tasks.md has no specified syntax for a task's declared paths, so the per-task path count cannot be read",
+      tasksPath,
+    ),
+  );
 
   // Check each criterion is referenced (criterion 3.1)
   for (const criterion of criteria) {
@@ -204,34 +253,54 @@ export function checkPlanCoverage(
     );
   }
 
-  // Check for documentation task when public surface changes (criterion 3.7)
-  // TODO: Detect public surface changes
-  // For now, assume any design.md has public surface
-  if (!hasDocumentationTask) {
+  // Documentation task when the change adds a published surface (criterion 3.7)
+  if (options.addsPublishedSurface === undefined) {
+    findings.push(
+      notRun("3.7", "whether the change adds a published surface was not supplied", tasksPath),
+    );
+  } else if (options.addsPublishedSurface && !hasDocumentationTask) {
     findings.push(
       createQualityFinding(
         RULE_IDS.MISSING_DOCUMENTATION_TASK,
-        "No documentation task found",
+        "The change adds a published surface and no documentation task was found",
         tasksPath,
         1,
-        "warn",
+        "error",
       ),
     );
   }
 
-  // Check for release task if policy requires (criterion 3.8)
-  // TODO: Check policy
-  if (!hasReleaseTask) {
+  // Release task when the Policy requires a release (criterion 3.8)
+  if (options.releaseRequired === undefined) {
+    findings.push(
+      notRun(
+        "3.8",
+        "whether the Policy requires a release for the Spec's Risk Class was not supplied",
+        tasksPath,
+      ),
+    );
+  } else if (options.releaseRequired && !hasReleaseTask) {
     findings.push(
       createQualityFinding(
         RULE_IDS.MISSING_RELEASE_TASK,
-        "No release task found",
+        "The Policy requires a release and no release task was found",
         tasksPath,
         1,
-        "warn",
+        "error",
       ),
     );
   }
 
   return findings;
+}
+
+function notRun(criterion: string, reason: string, tasksPath: string): QualityFinding {
+  return createQualityFinding(
+    CHECK_NOT_RUN,
+    `criterion ${criterion} not checked: ${reason}`,
+    tasksPath,
+    1,
+    "info",
+    criterion,
+  );
 }
