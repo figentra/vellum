@@ -8,7 +8,12 @@
 import { open, readFile, rename, rm } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
-import type { LedgerEntry, LedgerHead, LedgerIntegrityFailure } from "@vellum/protocol";
+import type {
+  LedgerEntry,
+  LedgerEntryFull,
+  LedgerHead,
+  LedgerIntegrityFailure,
+} from "@vellum/protocol";
 import { computeLedgerEntryDigest } from "@vellum/protocol";
 import { checkLedgerIntegrity, detectForks } from "@vellum/engine";
 
@@ -19,7 +24,7 @@ import { checkLedgerIntegrity, detectForks } from "@vellum/engine";
  * member (the header), which would forbid every payload field; distributing
  * over the union keeps each member's payload.
  */
-export type NewLedgerEntry = WithoutChainFields<LedgerEntry>;
+export type NewLedgerEntry = WithoutChainFields<LedgerEntry> | WithoutChainFields<LedgerEntryFull>;
 
 type WithoutChainFields<E> = E extends unknown ? Omit<E, "predecessor_digest"> : never;
 

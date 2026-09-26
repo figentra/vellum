@@ -1,79 +1,136 @@
 /**
- * vellum verify — Run Strict Verifier for one or all specs
+ * vellum verify — Run the Strict Verifier for one or all specs
  */
 
-import type { CliContext } from "../context.js";
+import type { LifecycleState } from "@vellum/protocol";
 import { EXIT_STATUS } from "@vellum/protocol";
+import { formatVerificationHuman, strictVerify, type StrictVerificationResult } from "@vellum/engine";
+import { loadSpec, specRiskClass } from "@vellum/storage";
+import type { CliContext } from "../context.js";
+import {
+  enginePolicy,
+  gitContext,
+  isLegacy,
+  openRepo,
+  recordedState,
+  selectSpecs,
+  writeJson,
+} from "../repo.js";
 
 interface VerifyArgs {
   spec?: string | undefined;
   json: boolean;
 }
 
+/** Table 5.A states from IN_PROGRESS on (criterion 12.9). */
+const IN_PROGRESS_OR_LATER: readonly LifecycleState[] = [
+  "IN_PROGRESS",
+  "VERIFICATION",
+  "VERIFIED",
+  "MERGED",
+  "RELEASED",
+  "DONE",
+];
+
 /**
- * Run verify command.
+ * Run verify (the Strict Verifier; `--strict` is accepted and changes
+ * nothing — there is no lenient mode).
  *
- * T4.5: Full verification, all gates check, generate report.
- * Criterion 12.1: Counts reported and PASS/FAIL
- * Criterion 12.2: Uncovered criterion detection
- * Criterion 12.3: Uncited property detection
- * Criterion 12.4: Required task evidence check
- * Criterion 12.5: Valid Approval check
- * Criterion 12.6: Ledger integrity check
- * Criterion 12.7: FAIL → exit status 1
- * Criterion 12.8: No file modification
- * Criterion 12.9: Verify all IN_PROGRESS+ specs when no argument
+ * For each spec: ledger integrity including the Ledger Head; every approval
+ * counts only if the commit that added it to the ledger changes only the
+ * ledger and is signed by a key the Approval Policy lists for the approving
+ * identity, from a human session, bound to the artifact's current checksum;
+ * criteria coverage and property citation; each required task has passing
+ * evidence at HEAD or an ancestor.
+ *
+ * Without a spec argument, verifies each managed spec whose Recorded
+ * Lifecycle State is IN_PROGRESS or later (the Effective state is not
+ * computed by this version).
+ *
+ * Exit: 0 PASS, 1 FAIL, 2 INCONCLUSIVE (nothing to verify, or an input that
+ * could not be read or parsed).
  */
 export async function verify(args: VerifyArgs, ctx: CliContext): Promise<number> {
-  const { spec, json } = args;
-
-  try {
-    // TODO: Wire to actual engine when ready
-    // const verifier = createStrictVerifier();
-    // const result = await verifier.verify(spec);
-
-    // Placeholder implementation
-    if (json) {
-      ctx.stdout.write(
-        JSON.stringify(
-          {
-            command: "verify",
-            spec: spec ?? "all",
-            result: "PASS",
-            summary: {
-              criteriaTotal: 0,
-              criteriaCovered: 0,
-              propertiesTotal: 0,
-              propertiesCited: 0,
-              tasksExecuted: 0,
-              tasksVerified: 0,
-              approvalsRequired: 0,
-              approvalsValid: 0,
-              ledgerIntegrity: "PASS",
-            },
-            details: {
-              uncoveredCriteria: [] as any[],
-              uncitedProperties: [] as any[],
-              invalidApprovals: [] as any[],
-              ledgerIssues: [] as any[],
-            },
-          },
-          null,
-          2,
-        ) + "\n",
-      );
-    } else {
-      if (!spec) {
-        ctx.stdout.write("Verifying all IN_PROGRESS+ specs...\n");
-      } else {
-        ctx.stdout.write(`Verifying spec ${spec}...\n`);
-      }
-      ctx.stdout.write("\n✓ All checks passed\n");
-    }
-
-    return EXIT_STATUS.SUCCESS;
-  } catch (error) {
-    ctx.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
-    return EXIT_STATUS.FAILURE;
+  const repo = await openRepo(ctx);
+  if (typeof repo === "number") return repo;
+  const selected = selectSpecs(ctx, repo.root, args.spec);
+  if (typeof selected === "number") return selected;
+  if (repo.policy.kind === "invalid") {
+    ctx.stderr.write(`vellum verify: INCONCLUSIVE — Approval Policy ${repo.policy.path} is invalid: ${repo.policy.message}\n`);
+    return EXIT_STATUS.INCONCLUSIVE;
   }
+  const policy = enginePolicy(repo.policy);
+
+  const specs = selected
+    .map((ref) => loadSpec(ref))
+    .filter(
+      (spec) =>
+        args.spec !== undefined ||
+        (!isLegacy(spec) && IN_PROGRESS_OR_LATER.includes(recordedState(spec))),
+    );
+  if (specs.length === 0) {
+    ctx.stderr.write(
+      "vellum verify: INCONCLUSIVE — no spec to verify (no managed spec is IN_PROGRESS or later)\n",
+    );
+    if (args.json) writeJson(ctx, { command: "verify", result: "INCONCLUSIVE", specs: [] });
+    return EXIT_STATUS.INCONCLUSIVE;
+  }
+
+  const results: Array<
+    | ({ spec: string } & StrictVerificationResult)
+    | { spec: string; result: "INCONCLUSIVE"; problems: string[] }
+  > = [];
+  for (const spec of specs) {
+    const problems = [
+      ...(isLegacy(spec) ? [`${spec.ref.slug} is a legacy spec: it has no Lifecycle Frontmatter or ledger`] : []),
+      ...spec.artifactProblems.map((p) => p.message),
+      ...(spec.ledgerProblem ? [spec.ledgerProblem] : []),
+    ];
+    if (problems.length > 0) {
+      results.push({ spec: spec.ref.slug, result: "INCONCLUSIVE", problems });
+      continue;
+    }
+    const git = gitContext(repo.root, spec, policy);
+    const result = strictVerify(
+      spec.artifacts,
+      spec.ledger,
+      policy,
+      git.gitCommits,
+      specRiskClass(repo.policy, spec.ref.slug),
+      {
+        ledgerHead: spec.ledgerHead,
+        approvalCommits: git.approvalCommits,
+        verifiedHistory: git.verifiedHistory,
+      },
+    );
+    results.push({ spec: spec.ref.slug, ...result });
+  }
+
+  const overall = results.some((r) => r.result === "INCONCLUSIVE")
+    ? "INCONCLUSIVE"
+    : results.some((r) => r.result === "FAIL")
+      ? "FAIL"
+      : "PASS";
+
+  if (args.json) {
+    writeJson(ctx, { command: "verify", policy: repo.policy.kind, result: overall, specs: results });
+  } else {
+    if (repo.policy.kind === "missing") {
+      ctx.stdout.write(`Approval Policy: missing (${repo.policy.path}); no approval can be valid\n\n`);
+    }
+    for (const r of results) {
+      ctx.stdout.write(`Spec: ${r.spec}\n`);
+      ctx.stdout.write(
+        "problems" in r
+          ? `Result: INCONCLUSIVE\n${r.problems.map((p) => `  ${p}`).join("\n")}\n\n`
+          : `${formatVerificationHuman(r)}\n\n`,
+      );
+    }
+    ctx.stdout.write(`Overall: ${overall}\n`);
+  }
+  return overall === "PASS"
+    ? EXIT_STATUS.SUCCESS
+    : overall === "FAIL"
+      ? EXIT_STATUS.FAILURE
+      : EXIT_STATUS.INCONCLUSIVE;
 }

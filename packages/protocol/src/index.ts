@@ -74,6 +74,11 @@ export type {
 } from "./ledger/types.js";
 
 export { createQualityFinding } from "./ledger/types.js";
+export {
+  LEDGER_SCHEMA_VERSION,
+  validateLedgerEntry,
+  type SchemaValidationFinding,
+} from "./ledger/schema.js";
 export { canonicalSerialize, computeLedgerEntryDigest } from "./ledger/canonical-json.js";
 
 // ============================================================================

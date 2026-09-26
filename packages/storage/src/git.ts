@@ -249,25 +249,33 @@ class GitOpsImpl implements GitReader, GitWriter {
   }
 
   private parseSessionMetadata(message: string): GitCommit["sessionMetadata"] {
-    // Check for assistant session markers (Kiro, Claude, OpenCode, etc.)
-    const assistantPatterns = [
-      /^assistant:\s*(\S+)/im,
-      /^co-authored-by:.*\[(\S+):\s*assistant\]/im,
-      /^generated-by:.*\[(\S+):\s*assistant\]/im,
-    ];
-
-    for (const pattern of assistantPatterns) {
-      const match = message.match(pattern);
-      if (match && match[1]) {
-        return {
-          isAssistant: true,
-          assistantName: match[1],
-        };
-      }
-    }
-
-    return undefined;
+    return parseSessionMetadata(message);
   }
+}
+
+/**
+ * Read assistant-session markers from a commit message (its trailers
+ * included): `Assistant: <name>`, or a `Co-Authored-By:` / `Generated-By:`
+ * trailer tagged `[<name>: assistant]`.
+ */
+export function parseSessionMetadata(message: string): GitCommit["sessionMetadata"] {
+  const assistantPatterns = [
+    /^assistant:\s*(\S+)/im,
+    /^co-authored-by:.*\[(\S+):\s*assistant\]/im,
+    /^generated-by:.*\[(\S+):\s*assistant\]/im,
+  ];
+
+  for (const pattern of assistantPatterns) {
+    const match = message.match(pattern);
+    if (match && match[1]) {
+      return {
+        isAssistant: true,
+        assistantName: match[1],
+      };
+    }
+  }
+
+  return undefined;
 }
 
 // Helper to unbrand for internal use

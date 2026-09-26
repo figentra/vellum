@@ -7,7 +7,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const METHOD = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CLI_SOURCE = join(METHOD, "..", "cli", "src", "cli.ts");
+const CLI_SOURCE = join(METHOD, "..", "cli", "src", "run.ts");
 
 const EXPECTED_SKILLS = [
   "durable-findings",
@@ -63,16 +63,20 @@ function codeText(markdown) {
   return [...fenced, ...inline];
 }
 
-/** The CLI's command list, read from its dispatch switch as data. */
+/**
+ * The CLI's implemented command list, read as data from run.ts's IMPLEMENTED
+ * array. Commands the CLI names as not implemented (they exit 2) are not in
+ * it, so a method file instructing one is reported.
+ */
 function cliCommands() {
   const source = read(CLI_SOURCE);
-  const top = source.indexOf("switch (args.command)");
-  const sub = source.indexOf("switch (args.subcommand)");
-  assert.ok(top !== -1 && sub > top, "cli.ts no longer has the command/subcommand switches this test reads");
-  const subEnd = source.indexOf("default:", sub);
-  const cases = (text) => [...text.matchAll(/case "([a-z][\w-]*)":/g)].map((m) => m[1]);
-  const taskSubcommands = new Set(cases(source.slice(sub, subEnd)));
-  const commands = new Set(cases(source.slice(top)).filter((c) => !taskSubcommands.has(c)));
+  const list = /const IMPLEMENTED = \[([^\]]*)\]/.exec(source);
+  assert.ok(list, "run.ts no longer has the IMPLEMENTED list this test reads");
+  const names = [...list[1].matchAll(/"([a-z][\w -]*)"/g)].map((m) => m[1]);
+  const commands = new Set(names.map((n) => n.split(" ")[0]));
+  const taskSubcommands = new Set(
+    names.filter((n) => n.startsWith("task ")).map((n) => n.slice("task ".length)),
+  );
   return { commands, taskSubcommands };
 }
 
@@ -93,8 +97,8 @@ test("no method file contains CLAUDE_PLUGIN_ROOT", () => {
 test("the CLI command list read from packages/cli is the one the method was written against", () => {
   const { commands, taskSubcommands } = cliCommands();
   // Guards against a parse that silently finds nothing and makes the next test vacuous.
-  for (const c of ["status", "lint", "check", "verify", "approve", "task", "adopt", "sync", "doctor"])
-    assert.ok(commands.has(c), `cli.ts has no '${c}' command`);
+  for (const c of ["status", "lint", "verify", "approve", "task", "doctor"])
+    assert.ok(commands.has(c), `run.ts has no '${c}' command`);
   assert.deepEqual([...taskSubcommands].sort(), ["complete", "start"]);
 });
 

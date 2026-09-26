@@ -1,24 +1,21 @@
 /**
  * @vellum/cli — Vellum command-line interface
  *
- * Commands: status, lint, check, verify, approve, adopt, doctor, sync, task
+ * Implemented: status, lint, verify, doctor, approve, task start,
+ * task complete. check, adopt and sync exit 2 as not implemented.
  *
- * Each command is thin — it delegates to engine and uses renderers for output.
- * No rule logic lives here; a rule found in a command handler is a finding.
+ * Commands read through @vellum/storage and decide through @vellum/engine.
  */
 
-export const VERSION = "0.1.0" as const;
+export { VERSION } from "./version.js";
 
-// Re-export types for consumers
-export type { CliContext } from "./context.js";
+export type { CliContext, OutputStream } from "./context.js";
+export { createCliContext, detectAssistantSession } from "./context.js";
+export { run, HELP } from "./run.js";
 
-// Re-export command handlers for programmatic use
 export { lint } from "./commands/lint.js";
 export { status } from "./commands/status.js";
-export { approve } from "./commands/approve.js";
+export { approve, APPROVE_HELP } from "./commands/approve.js";
 export { verify } from "./commands/verify.js";
-export { check } from "./commands/check.js";
-export { adopt } from "./commands/adopt.js";
 export { doctor } from "./commands/doctor.js";
-export { sync } from "./commands/sync.js";
 export { task } from "./commands/task.js";

@@ -1,178 +1,179 @@
 /**
- * vellum doctor — Run diagnostics for environment issues
+ * vellum doctor — Diagnose the environment and the repository
  */
 
-import type { CliContext } from "../context.js";
+import { execFileSync } from "node:child_process";
 import { EXIT_STATUS } from "@vellum/protocol";
-import type { DiagnosticSeverity } from "@vellum/protocol";
+import { checkLedgerIntegrity } from "@vellum/engine";
+import { findRepoRoot, listSpecs, loadApprovalPolicy, loadSpec, runGit } from "@vellum/storage";
+import type { CliContext } from "../context.js";
+import { isLegacy, writeJson } from "../repo.js";
 
 interface DoctorArgs {
   json: boolean;
 }
 
-interface DiagnosticResult {
-  category: string;
-  name: string;
-  severity: DiagnosticSeverity;
-  message: string;
-  passed: boolean;
+/** One diagnostic's outcome. NOT_CHECKED is never counted as a pass. */
+type Outcome = "PASS" | "FAIL" | "NOT_APPLICABLE" | "NOT_CHECKED";
+
+interface Diagnostic {
+  readonly category: string;
+  readonly outcome: Outcome;
+  readonly message: string;
 }
 
+/** Table 17.A categories this version does not evaluate. */
+const NOT_IMPLEMENTED = [
+  "Assistant plugin version",
+  "Repository hooks",
+  "Stale markers",
+  "ADR supersession",
+  "Disposable cache",
+] as const;
+
+/** Git 2.34 is the first release that verifies SSH commit signatures. */
+const MIN_GIT: readonly [number, number] = [2, 34];
+
 /**
- * Run doctor command.
+ * Run doctor.
  *
- * T4.7: Diagnose issues, check environment, suggest fixes.
- * Criterion 17.1: Table 17.A categories checked
- * Criterion 17.2-17.12: Each diagnostic
- * Criterion 17.3, 17.10, 17.12: Not-Applicable Reports
+ * Evaluates: git repository and version, Node.js version, the signing tools
+ * the Approval Policy's keys need, the Approval Policy, each managed spec's
+ * ledger integrity (Ledger Head included), and untracked spec documents
+ * (criterion 17.7). The other Table 17.A categories are reported as
+ * NOT_CHECKED (not implemented) — never as PASS.
+ *
+ * Exit: 1 when a diagnostic FAILs, 0 otherwise.
  */
 export async function doctor(args: DoctorArgs, ctx: CliContext): Promise<number> {
-  const { json } = args;
+  const results: Diagnostic[] = [];
+  const add = (category: string, outcome: Outcome, message: string) =>
+    results.push({ category, outcome, message });
 
-  try {
-    const results: DiagnosticResult[] = [];
+  const node = Number.parseInt(process.versions.node.split(".")[0] ?? "0", 10);
+  add(
+    "Node.js version",
+    node >= 22 ? "PASS" : "FAIL",
+    `Node.js ${process.versions.node}${node >= 22 ? "" : " is too old (need >= 22)"}`,
+  );
 
-    // Run each diagnostic category
-    results.push(await checkGitRepository(ctx));
-    results.push(await checkGitVersion(ctx));
-    results.push(await checkNodeVersion(ctx));
-    results.push(await checkSpecsDirectory(ctx));
-    results.push(await checkApprovalPolicy(ctx));
-    results.push(await checkLedgerIntegrity(ctx));
+  const gitVersion = tool("git", ["--version"]);
+  const parsed = /(\d+)\.(\d+)/.exec(gitVersion ?? "");
+  const gitOk =
+    parsed !== null &&
+    (Number(parsed[1]) > MIN_GIT[0] ||
+      (Number(parsed[1]) === MIN_GIT[0] && Number(parsed[2]) >= MIN_GIT[1]));
+  add(
+    "Git version",
+    gitOk ? "PASS" : "FAIL",
+    gitVersion === null
+      ? "git is not installed"
+      : `${gitVersion.trim()}${gitOk ? "" : ` (need >= ${MIN_GIT.join(".")} to verify SSH-signed approvals)`}`,
+  );
 
-    const hasErrors = results.some((r) => r.severity === "error" && !r.passed);
-    const hasWarnings = results.some((r) => r.severity === "warn" && !r.passed);
+  const root = findRepoRoot(ctx.cwd);
+  add(
+    "Git repository",
+    root === null ? "FAIL" : "PASS",
+    root === null ? `${ctx.cwd} is not inside a git work tree` : root,
+  );
 
-    // TODO: Wire to actual diagnostics when ready
-    // const diagnosticRunner = createDiagnosticRunner();
-    // const results = await diagnosticRunner.runAll();
+  if (root !== null) {
+    const specs = listSpecs(root);
+    const managed = specs.map((ref) => loadSpec(ref)).filter((spec) => !isLegacy(spec));
 
-    if (json) {
-      ctx.stdout.write(
-        JSON.stringify(
-          {
-            command: "doctor",
-            status: hasErrors ? "FAIL" : hasWarnings ? "WARN" : "PASS",
-            diagnostics: results,
-          },
-          null,
-          2,
-        ) + "\n",
-      );
+    const policy = await loadApprovalPolicy(root);
+    if (policy.kind === "loaded") {
+      add("Approval Policy", "PASS", `${policy.path}: ${policy.policy.identities.length} approver(s)`);
+      const types = new Set(policy.policy.identities.flatMap((i) => i.keys.map((k) => k.type)));
+      if (types.has("ssh")) {
+        const found = tool("ssh-keygen", ["-V"]) !== null || tool("which", ["ssh-keygen"]) !== null;
+        add("Signing tools", found ? "PASS" : "FAIL", found ? "ssh-keygen found" : "the policy lists SSH keys but ssh-keygen is not installed");
+      }
+      if (types.has("gpg")) {
+        const found = tool("gpg", ["--version"]) !== null;
+        add("Signing tools", found ? "PASS" : "FAIL", found ? "gpg found" : "the policy lists GPG keys but gpg is not installed");
+      }
+    } else if (policy.kind === "invalid") {
+      add("Approval Policy", "FAIL", `${policy.path} is invalid: ${policy.message}`);
     } else {
-      ctx.stdout.write("Running diagnostics...\n\n");
-
-      for (const result of results) {
-        const icon = result.passed ? "✓" : result.severity === "error" ? "✗" : "⚠";
-        const status = result.passed ? "PASS" : result.severity.toUpperCase();
-        ctx.stdout.write(`${icon} ${result.category}: ${status}\n`);
-        if (!result.passed) {
-          ctx.stdout.write(`  ${result.message}\n`);
-        }
-      }
-
-      ctx.stdout.write("\n");
-      if (hasErrors) {
-        ctx.stdout.write("✗ Some checks failed. See above for details.\n");
-      } else if (hasWarnings) {
-        ctx.stdout.write("⚠ Some checks passed with warnings.\n");
-      } else {
-        ctx.stdout.write("✓ All checks passed.\n");
-      }
+      add(
+        "Approval Policy",
+        managed.length > 0 ? "FAIL" : "NOT_APPLICABLE",
+        managed.length > 0
+          ? `${policy.path} is missing: no approval of a managed spec can be valid`
+          : `${policy.path} is missing; no spec is under Vellum management`,
+      );
     }
 
-    return hasErrors ? EXIT_STATUS.FAILURE : EXIT_STATUS.SUCCESS;
-  } catch (error) {
-    ctx.stderr.write(`Error: ${error instanceof Error ? error.message : String(error)}\n`);
-    return EXIT_STATUS.FAILURE;
+    if (managed.length === 0) {
+      add("Ledger integrity", "NOT_APPLICABLE", "no spec is under Vellum management");
+    }
+    for (const spec of managed) {
+      const failures = spec.ledgerProblem
+        ? [spec.ledgerProblem]
+        : checkLedgerIntegrity(spec.ledger, spec.ledgerHead).failures.map(
+            (f) => `entry ${f.entry_id}: ${f.message}`,
+          );
+      add(
+        "Ledger integrity",
+        failures.length === 0 ? "PASS" : "FAIL",
+        failures.length === 0
+          ? `${spec.ref.slug}: ${spec.ledger.length} entries intact`
+          : `${spec.ref.slug}: ${failures.join("; ")}`,
+      );
+    }
+
+    if (specs.length === 0) {
+      add("Untracked spec documents", "NOT_APPLICABLE", "the repository holds no Spec Directory");
+    } else {
+      const untracked = runGit(root, [
+        "status",
+        "--porcelain",
+        "--untracked-files=all",
+        "--",
+        ".agents/specs",
+      ])
+        .split("\n")
+        .filter((l) => l.startsWith("?? "))
+        .map((l) => l.slice(3))
+        .filter((p) => !p.includes("/.sdlc/"));
+      add(
+        "Untracked spec documents",
+        untracked.length === 0 ? "PASS" : "FAIL",
+        untracked.length === 0
+          ? `${specs.length} spec director(ies), no untracked document`
+          : `untracked: ${untracked.join(", ")}`,
+      );
+    }
   }
+
+  for (const category of NOT_IMPLEMENTED) {
+    add(category, "NOT_CHECKED", "not implemented in this version");
+  }
+
+  const failed = results.some((r) => r.outcome === "FAIL");
+  if (args.json) {
+    writeJson(ctx, { command: "doctor", result: failed ? "FAIL" : "PASS", diagnostics: results });
+  } else {
+    for (const r of results) ctx.stdout.write(`${r.outcome.padEnd(14)} ${r.category}: ${r.message}\n`);
+    ctx.stdout.write(
+      failed
+        ? "\nFAIL: at least one diagnostic failed\n"
+        : "\nNo evaluated diagnostic failed; NOT_CHECKED categories were not evaluated\n",
+    );
+  }
+  return failed ? EXIT_STATUS.FAILURE : EXIT_STATUS.SUCCESS;
 }
 
-/**
- * Check: Git repository detected
- */
-async function checkGitRepository(_ctx: CliContext): Promise<DiagnosticResult> {
-  // Placeholder - would check for .git directory
-  return {
-    category: "git",
-    name: "repository",
-    severity: "error",
-    message: "Not in a Git repository",
-    passed: true,
-  };
-}
-
-/**
- * Check: Git version >= 2.0
- */
-async function checkGitVersion(_ctx: CliContext): Promise<DiagnosticResult> {
-  // Placeholder - would run 'git --version'
-  return {
-    category: "git",
-    name: "version",
-    severity: "warn",
-    message: "Git version check not implemented",
-    passed: true,
-  };
-}
-
-/**
- * Check: Node.js version >= 22.0
- */
-async function checkNodeVersion(_ctx: CliContext): Promise<DiagnosticResult> {
-  const version = process.version.replace(/^v/, "");
-  const major = parseInt(version.split(".")[0] ?? "0", 10);
-  const passed = major >= 22;
-
-  return {
-    category: "environment",
-    name: "node-version",
-    severity: "error",
-    message: passed
-      ? `Node.js ${version} is supported`
-      : `Node.js ${version} is too old (need >= 22.0)`,
-    passed,
-  };
-}
-
-/**
- * Check: .agents/specs/ directory exists
- */
-async function checkSpecsDirectory(_ctx: CliContext): Promise<DiagnosticResult> {
-  // Placeholder - would check for directory existence
-  return {
-    category: "spec",
-    name: "specs-directory",
-    severity: "error",
-    message: ".agents/specs/ directory not found",
-    passed: true,
-  };
-}
-
-/**
- * Check: Approval policy file present
- */
-async function checkApprovalPolicy(_ctx: CliContext): Promise<DiagnosticResult> {
-  // Placeholder - would check for policy file
-  return {
-    category: "policy",
-    name: "approval-policy",
-    severity: "warn",
-    message: "Approval policy file not found (using defaults)",
-    passed: true,
-  };
-}
-
-/**
- * Check: Ledger integrity
- */
-async function checkLedgerIntegrity(_ctx: CliContext): Promise<DiagnosticResult> {
-  // Placeholder - would run ledger integrity checks
-  return {
-    category: "ledger",
-    name: "integrity",
-    severity: "error",
-    message: "Ledger integrity check not implemented",
-    passed: true,
-  };
+/** A tool's stdout, or null when it cannot run. */
+function tool(command: string, args: readonly string[]): string | null {
+  try {
+    return execFileSync(command, [...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  } catch (error) {
+    // `ssh-keygen -V` is not an option on every build; a spawn that ran and
+    // exited non-zero still proves the binary exists.
+    const code = (error as { code?: unknown }).code;
+    return code === "ENOENT" ? null : command === "ssh-keygen" ? "" : null;
+  }
 }
