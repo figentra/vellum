@@ -2,7 +2,8 @@
  * The package as a consumer gets it: `npm pack` this package, install the
  * tarball into a fresh directory under os.tmpdir() with `npm install
  * --offline` (it has no dependencies, so nothing needs the network), then run
- * the installed `vellum` and `vellum-mcp` bins.
+ * the installed `vellum` and `vellum-mcp` bins. The pack-and-install step is
+ * shared with the @vellum/e2e suite (@vellum/vitest-config/pack).
  *
  * Needs `build` first (this package's turbo `test` depends on it).
  */
@@ -20,9 +21,9 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { packAndInstall } from "@vellum/vitest-config/pack";
 
 const PACKAGE_DIR = join(__dirname, "..");
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
 
 describe("npm pack -> offline install -> run", () => {
   let base: string;
@@ -33,9 +34,7 @@ describe("npm pack -> offline install -> run", () => {
 
   beforeAll(() => {
     base = mkdtempSync(join(tmpdir(), "vellum-pack-"));
-    consumer = join(base, "consumer");
     repo = join(base, "repo");
-    mkdirSync(consumer);
     mkdirSync(repo);
     const gitconfig = join(base, "gitconfig");
     writeFileSync(gitconfig, "");
@@ -43,33 +42,9 @@ describe("npm pack -> offline install -> run", () => {
       ...process.env,
       GIT_CONFIG_GLOBAL: gitconfig,
       GIT_CONFIG_NOSYSTEM: "1",
-      npm_config_cache: join(base, "npm-cache"),
-      npm_config_update_notifier: "false",
     };
 
-    const packed = JSON.parse(
-      execFileSync(npm, ["pack", "--json", "--pack-destination", base], {
-        cwd: PACKAGE_DIR,
-        env,
-        encoding: "utf8",
-      }),
-    ) as Array<{ filename: string }>;
-    const tarball = join(base, packed[0]!.filename);
-
-    writeFileSync(
-      join(consumer, "package.json"),
-      `${JSON.stringify({ name: "consumer", private: true }, null, 2)}\n`,
-    );
-    execFileSync(
-      npm,
-      ["install", "--offline", "--no-audit", "--no-fund", tarball],
-      {
-        cwd: consumer,
-        env,
-        encoding: "utf8",
-        stdio: ["ignore", "pipe", "pipe"],
-      },
-    );
+    ({ consumer } = packAndInstall(PACKAGE_DIR, base, env));
     execFileSync("git", ["init", "-q", repo], { env });
   }, 120_000);
 

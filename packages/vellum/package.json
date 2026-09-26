@@ -46,6 +46,7 @@
   "devDependencies": {
     "@vellum/cli": "workspace:*",
     "@vellum/mcp": "workspace:*",
-    "@vellum/tsconfig": "workspace:*"
+    "@vellum/tsconfig": "workspace:*",
+    "@vellum/vitest-config": "workspace:*"
   }
 }

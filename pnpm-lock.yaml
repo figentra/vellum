@@ -70,6 +70,21 @@ importers:
         specifier: workspace:*
         version: link:../../tooling/tsconfig
 
+  packages/e2e:
+    devDependencies:
+      '@figentra/vellum':
+        specifier: workspace:*
+        version: link:../vellum
+      '@vellum/renderers':
+        specifier: workspace:*
+        version: link:../renderers
+      '@vellum/tsconfig':
+        specifier: workspace:*
+        version: link:../../tooling/tsconfig
+      '@vellum/vitest-config':
+        specifier: workspace:*
+        version: link:../../tooling/vitest
+
   packages/engine:
     dependencies:
       '@vellum/protocol':
@@ -214,6 +229,9 @@ importers:
       '@vellum/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
+      '@vellum/vitest-config':
+        specifier: workspace:*
+        version: link:../../tooling/vitest
 
   tooling/oxlint: {}
 

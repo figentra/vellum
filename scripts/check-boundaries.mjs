@@ -7,7 +7,7 @@
  *   method    → no code dependencies at all
  *   plugins   → method, renderers
  *   vellum    → cli, mcp
- *   testing   → any package; private; nothing depends on it
+ *   testing   → any package; private; nothing depends on it (@vellum/testing, @vellum/e2e)
  *   tooling   → nothing; anything but method may depend on it
  *
  * Why a script and not only turbo.json `boundaries`: Turborepo evaluates tag
@@ -41,6 +41,7 @@ function tierOf(name) {
     "@vellum/mcp": "mcp",
     "@vellum/method": "method",
     "@vellum/testing": "testing",
+    "@vellum/e2e": "testing",
     "@vellum/tsconfig": "tooling",
     "@vellum/oxlint-config": "tooling",
     "@vellum/vitest-config": "tooling",
