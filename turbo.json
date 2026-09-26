@@ -8,7 +8,11 @@
       "outputs": ["dist/**"]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": ["^lint", "//#check:boundaries"]
+    },
+    "//#check:boundaries": {
+      "inputs": ["scripts/check-boundaries.mjs", "pnpm-workspace.yaml", "**/package.json", "!**/node_modules/**"],
+      "outputs": []
     },
     "typecheck": {
       "dependsOn": ["^typecheck"]
@@ -69,7 +73,7 @@
       },
       "plugin": {
         "dependencies": {
-          "allow": ["method", "renderers", "tooling"]
+          "allow": ["method", "renderers", "engine", "protocol", "tooling"]
         }
       },
       "vellum": {
@@ -79,7 +83,7 @@
       },
       "testing": {
         "dependencies": {
-          "allow": ["protocol", "engine", "storage", "renderers", "cli", "mcp", "vellum", "tooling"]
+          "allow": ["protocol", "engine", "storage", "renderers", "cli", "mcp", "vellum", "method", "plugin", "tooling"]
         }
       }
     }

@@ -92,7 +92,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check dependency boundaries
-        run: pnpm turbo run build --dry=json | jq .
+        run: pnpm check:boundaries
 
   security:
     name: Security Audit
