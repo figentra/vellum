@@ -22,9 +22,7 @@ export * from "./diagnostics.js";
 // ============================================================================
 
 export {
-  INITIAL_PREDECESSOR_HASH,
   computeChecksum,
-  computeLedgerEntryHash,
   parseFrontmatter,
   serializeFrontmatter,
   validateFrontmatterChecksum,
@@ -59,6 +57,7 @@ export type {
   LedgerEntryHeader as LedgerEntryHeaderFull,
   LedgerEntryKind as LedgerEntryKindFull,
   LedgerIntegrityFailure,
+  LedgerHead,
   LedgerFork,
   LedgerMetadata,
   ApprovalPayload as ApprovalPayloadFull,
@@ -73,7 +72,7 @@ export type {
 } from "./ledger/types.js";
 
 export { createQualityFinding } from "./ledger/types.js";
-export { canonicalSerialize } from "./ledger/canonical-json.js";
+export { canonicalSerialize, computeLedgerEntryDigest } from "./ledger/canonical-json.js";
 
 // ============================================================================
 // Version

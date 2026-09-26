@@ -12,12 +12,7 @@ import type {
   LedgerEntry,
   RiskClass,
 } from "@vellum/protocol";
-import {
-  brand,
-  computeChecksum,
-  computeLedgerEntryHash,
-  INITIAL_PREDECESSOR_HASH,
-} from "@vellum/protocol";
+import { brand, computeChecksum, computeLedgerEntryDigest } from "@vellum/protocol";
 
 export const REQUIREMENTS = `# Requirements
 
@@ -111,22 +106,14 @@ export function approvalEntry(
 
 /**
  * Re-link entries into a chain the engine's integrity check accepts: ids from
- * 1, a null predecessor first, then each predecessor the previous entry's hash.
+ * 1, a null predecessor first, then each predecessor the previous entry's digest.
  */
 export function chain(entries: readonly LedgerEntry[]): LedgerEntry[] {
   const linked: LedgerEntry[] = [];
   entries.forEach((entry, index) => {
     const previous = linked[index - 1];
     const predecessor_digest =
-      previous === undefined
-        ? null
-        : computeLedgerEntryHash({
-            seq: previous.id,
-            kind: previous.kind,
-            timestamp: previous.timestamp,
-            predecessorHash: previous.predecessor_digest ?? INITIAL_PREDECESSOR_HASH,
-            payload: previous as unknown as Record<string, unknown>,
-          });
+      previous === undefined ? null : computeLedgerEntryDigest(previous);
     linked.push({ ...entry, id: index + 1, predecessor_digest } as LedgerEntry);
   });
   return linked;

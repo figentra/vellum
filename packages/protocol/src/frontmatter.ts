@@ -9,17 +9,6 @@ import { createHash } from "node:crypto";
 import type { LifecycleFrontmatter, LifecycleState, Checksum } from "./types";
 import { parseChecksum } from "./types";
 import { canonicalArtifactBody } from "./canonical-body.js";
-import { canonicalSerialize } from "./ledger/canonical-json.js";
-
-// ============================================================================
-// Frontmatter Constants
-// ============================================================================
-
-/**
- * The initial hash for the first ledger entry
- */
-export const INITIAL_PREDECESSOR_HASH =
-  "0000000000000000000000000000000000000000000000000000000000000000" as const;
 
 // ============================================================================
 // Checksum Computation
@@ -35,25 +24,6 @@ export const INITIAL_PREDECESSOR_HASH =
 export function computeChecksum(body: string): Checksum {
   const content = canonicalArtifactBody(body);
   const hash = createHash("sha256").update(content, "utf8").digest("hex");
-  return hash as Checksum;
-}
-
-/**
- * Hash a ledger entry for the chain
- */
-export function computeLedgerEntryHash(entry: {
-  seq: number;
-  kind: string;
-  timestamp: string;
-  predecessorHash: string;
-  payload: Record<string, unknown>;
-}): Checksum {
-  // Hash is computed over: seq, kind, timestamp, predecessorHash, payload in
-  // canonical JSON (keys sorted at every depth). An array replacer would be an
-  // allow-list applied at every depth, silently dropping nested fields.
-  const payloadJson = canonicalSerialize(entry.payload);
-  const data = `${entry.seq}:${entry.kind}:${entry.timestamp}:${entry.predecessorHash}:${payloadJson}`;
-  const hash = createHash("sha256").update(data, "utf8").digest("hex");
   return hash as Checksum;
 }
 

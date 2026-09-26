@@ -11,8 +11,8 @@
  * @see design.md Criteria 4.5-4.11
  */
 
-import type { LedgerEntry, LedgerIntegrityFailure } from "@vellum/protocol";
-import { computeLedgerEntryHash, INITIAL_PREDECESSOR_HASH } from "@vellum/protocol";
+import type { LedgerEntry, LedgerHead, LedgerIntegrityFailure } from "@vellum/protocol";
+import { computeLedgerEntryDigest } from "@vellum/protocol";
 
 /**
  * Ledger integrity check result.
@@ -25,101 +25,189 @@ export interface LedgerIntegrityResult {
 }
 
 /**
- * Check ledger integrity.
- * Validates hash chain, ordering, forking, and schema.
+ * Check ledger integrity (criteria 4.5, 4.7-4.10).
  *
- * @param entries - Ledger entries in sequence
+ * The chain format is the protocol's (`@vellum/protocol` ledger/types): ids
+ * run 1, 2, 3…; the first entry's `predecessor_digest` is null; every later
+ * entry's is `computeLedgerEntryDigest` of the entry before it.
+ *
+ * - An entry whose recorded predecessor matches no entry in the ledger while
+ *   its id follows its predecessor's is an edit of that predecessor (4.7): the
+ *   failure names the edited entry.
+ * - An id gap is a removed entry (4.8): the failure names the entry after the
+ *   gap.
+ * - An entry chaining to an entry other than the one before it is a
+ *   reordering (4.9): the failure names both.
+ * - Two entries recording the same predecessor are a fork (4.10), naming both.
+ *
+ * `head` is the Ledger Head recorded beside the ledger. Pass it (or `null`
+ * when the head file is absent) to detect removal of trailing entries and
+ * edits of the last entry, which no successor digest covers. Omit it only
+ * where no head is available to check; the result then says nothing about
+ * the ledger's tail.
+ *
+ * @param entries - Ledger entries in file order
+ * @param head - The recorded Ledger Head, null when absent, undefined to skip
  * @returns Integrity check result
  */
-export function checkLedgerIntegrity(entries: readonly LedgerEntry[]): LedgerIntegrityResult {
+export function checkLedgerIntegrity(
+  entries: readonly LedgerEntry[],
+  head?: LedgerHead | null,
+): LedgerIntegrityResult {
   const failures: LedgerIntegrityFailure[] = [];
 
-  // Empty ledger is valid
-  if (entries.length === 0) {
-    return { valid: true, failures: [] };
-  }
+  const digests = entries.map((entry) => computeLedgerEntryDigest(entry));
+  const byDigest = new Map<string, LedgerEntry>();
+  entries.forEach((entry, index) => byDigest.set(digests[index]!, entry));
 
-  // Track predecessor digests for fork detection
-  const seenDigests = new Map<string, number>();
+  const seenPredecessors = new Map<string, number>();
 
-  // Expected predecessor for first entry
-  let expectedPredecessor: string | null = INITIAL_PREDECESSOR_HASH;
-
-  // Check each entry
-  for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i];
-    if (!entry) continue; // Skip undefined entries
-
+  entries.forEach((entry, index) => {
     const entryId = entry.id;
+    const actual = entry.predecessor_digest;
 
-    // Check ID sequence
-    if (entryId !== i + 1) {
-      failures.push({
-        entry_id: entryId,
-        kind: "ordering_violation",
-        message: `Expected entry ID ${i + 1}, got ${entryId}`,
-      });
-    }
-
-    // Check predecessor digest (criterion 4.5)
-    const actualPredecessor = entry.predecessor_digest;
-    if (i === 0) {
-      // First entry should have null predecessor
-      if (actualPredecessor !== null) {
-        failures.push({
-          entry_id: entryId,
-          kind: "predecessor_digest_mismatch",
-          message: `First entry should have null predecessor, got: ${actualPredecessor}`,
-        });
-      }
-    } else {
-      // Non-first entries must match expected predecessor
-      if (actualPredecessor !== expectedPredecessor) {
-        failures.push({
-          entry_id: entryId,
-          kind: "predecessor_digest_mismatch",
-          message: `Expected predecessor ${expectedPredecessor?.slice(0, 16)}..., got ${actualPredecessor?.slice(0, 16)}...`,
-        });
-      }
-    }
-
-    // Check for fork (duplicate predecessor digest)
-    if (actualPredecessor !== null) {
-      if (seenDigests.has(actualPredecessor)) {
-        const otherEntryId = seenDigests.get(actualPredecessor)!;
+    // Fork: two entries claiming the same predecessor (criterion 4.10)
+    if (actual !== null) {
+      const rival = seenPredecessors.get(actual);
+      if (rival !== undefined) {
         failures.push({
           entry_id: entryId,
           kind: "fork",
-          message: `Fork detected: entries ${otherEntryId} and ${entryId} have same predecessor`,
-          other_entry_id: otherEntryId,
+          message: `Ledger fork: entry ${rival} and entry ${entryId} record the same predecessor ${actual.slice(0, 12)}…`,
+          other_entry_id: rival,
         });
+        return;
       }
-      seenDigests.set(actualPredecessor, entryId);
+      seenPredecessors.set(actual, entryId);
     }
 
-    // Compute expected predecessor for next entry
-    try {
-      // Map ledger entry to computeLedgerEntryHash format
-      expectedPredecessor = computeLedgerEntryHash({
-        seq: entry.id,
-        kind: entry.kind,
-        timestamp: entry.timestamp,
-        predecessorHash: entry.predecessor_digest ?? INITIAL_PREDECESSOR_HASH,
-        payload: entry as unknown as Record<string, unknown>,
-      });
-    } catch (error) {
+    if (index === 0) {
+      if (entryId !== 1) {
+        failures.push({
+          entry_id: entryId,
+          kind: "missing_entry",
+          message: `Ledger starts at entry ${entryId}, not 1: entries before it were removed`,
+        });
+      } else if (actual !== null) {
+        failures.push({
+          entry_id: entryId,
+          kind: "predecessor_digest_mismatch",
+          message: `Entry 1 records predecessor ${actual.slice(0, 12)}…; the first entry's predecessor must be null`,
+        });
+      }
+      return;
+    }
+
+    const previous = entries[index - 1]!;
+    const expected = digests[index - 1]!;
+    if (actual === expected) {
+      if (entryId !== previous.id + 1) {
+        failures.push({
+          entry_id: entryId,
+          kind: "ordering_violation",
+          message: `Entry ${entryId} follows entry ${previous.id}; expected id ${previous.id + 1}`,
+          other_entry_id: previous.id,
+        });
+      }
+      return;
+    }
+
+    const chainsTo = actual === null ? undefined : byDigest.get(actual);
+    if (chainsTo !== undefined) {
       failures.push({
         entry_id: entryId,
+        kind: "ordering_violation",
+        message: `Entries out of order: entry ${entryId} chains to entry ${chainsTo.id} but follows entry ${previous.id}`,
+        other_entry_id: chainsTo.id,
+      });
+    } else if (entryId !== previous.id + 1) {
+      failures.push({
+        entry_id: entryId,
+        kind: "missing_entry",
+        message: `Entry ${entryId}'s predecessor digest matches no entry: entry ${previous.id + 1} was removed`,
+      });
+    } else {
+      failures.push({
+        entry_id: previous.id,
         kind: "predecessor_digest_mismatch",
-        message: `Failed to compute hash: ${error}`,
+        message: `Entry ${previous.id}'s content differs from what entry ${entryId}'s predecessor digest covers: entry ${previous.id} was edited`,
+        other_entry_id: entryId,
       });
     }
+  });
+
+  if (head !== undefined) {
+    failures.push(...headFailures(entries, digests, head));
   }
 
   return {
     valid: failures.length === 0,
     failures: Object.freeze(failures),
   };
+}
+
+/** Compare the ledger's tail with the recorded Ledger Head. */
+function headFailures(
+  entries: readonly LedgerEntry[],
+  digests: readonly string[],
+  head: LedgerHead | null,
+): LedgerIntegrityFailure[] {
+  const last = entries[entries.length - 1];
+  const lastDigest = digests[digests.length - 1];
+
+  if (head === null) {
+    return last === undefined
+      ? []
+      : [
+          {
+            entry_id: last.id,
+            kind: "head_mismatch",
+            message: `Ledger has ${entries.length} entries but no Ledger Head (ledger.head.json); the tail cannot be verified`,
+          },
+        ];
+  }
+
+  if (last === undefined) {
+    return [
+      {
+        entry_id: head.last_id,
+        kind: "head_mismatch",
+        message: `Ledger Head records entry ${head.last_id} but the ledger is empty: entries were removed`,
+      },
+    ];
+  }
+
+  if (head.last_id > last.id) {
+    return [
+      {
+        entry_id: head.last_id,
+        kind: "head_mismatch",
+        message: `Ledger Head records entry ${head.last_id} but the ledger's last entry is ${last.id}: trailing entries were removed or reordered`,
+      },
+    ];
+  }
+
+  if (head.last_id < last.id) {
+    return [
+      {
+        entry_id: last.id,
+        kind: "head_mismatch",
+        message: `Ledger ends at entry ${last.id} but the Ledger Head records entry ${head.last_id}: entries were added without the ledger writer, or an append was interrupted`,
+      },
+    ];
+  }
+
+  if (head.last_digest !== lastDigest) {
+    return [
+      {
+        entry_id: last.id,
+        kind: "head_mismatch",
+        message: `Entry ${last.id}'s content differs from the digest the Ledger Head records: the last entry was edited`,
+      },
+    ];
+  }
+
+  return [];
 }
 
 /**

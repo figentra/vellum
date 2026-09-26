@@ -372,8 +372,6 @@ export interface LedgerEntryHeader {
   readonly id: number;
   readonly predecessor_digest: string | null;
   readonly timestamp: string;
-  /** SHA-256 hash of entry (for integrity) */
-  readonly hash?: Checksum;
 }
 
 /** Full ledger entry */

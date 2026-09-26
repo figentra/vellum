@@ -6,13 +6,14 @@
  */
 
 import { open, readFile, rename, rm } from "node:fs/promises";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { basename, dirname, join } from "node:path";
-import type { LedgerEntry, Checksum } from "@vellum/protocol";
-import { brand, canonicalSerialize } from "@vellum/protocol";
+import type { LedgerEntry, LedgerHead, LedgerIntegrityFailure } from "@vellum/protocol";
+import { computeLedgerEntryDigest } from "@vellum/protocol";
+import { checkLedgerIntegrity, detectForks } from "@vellum/engine";
 
 /**
- * A ledger entry before the ledger assigns its predecessor digest and hash.
+ * A ledger entry before the ledger assigns its predecessor digest.
  *
  * `Omit` over the LedgerEntry union keeps only the keys common to every
  * member (the header), which would forbid every payload field; distributing
@@ -20,10 +21,15 @@ import { brand, canonicalSerialize } from "@vellum/protocol";
  */
 export type NewLedgerEntry = WithoutChainFields<LedgerEntry>;
 
-type WithoutChainFields<E> = E extends unknown ? Omit<E, "predecessor_digest" | "hash"> : never;
+type WithoutChainFields<E> = E extends unknown ? Omit<E, "predecessor_digest"> : never;
 
-/** Initial hash for first entry (all zeros) */
-const INITIAL_HASH = "0000000000000000000000000000000000000000000000000000000000000000";
+/** File name of the Ledger Head, beside the ledger in the Machine Folder. */
+export const LEDGER_HEAD_FILE = "ledger.head.json";
+
+/** Path of the Ledger Head for the ledger at `ledgerPath`. */
+export function getLedgerHeadPath(ledgerPath: string): string {
+  return join(dirname(ledgerPath), LEDGER_HEAD_FILE);
+}
 
 /** Why the ledger refused an operation. */
 export type LedgerErrorCode =
@@ -177,6 +183,42 @@ export async function getLastEntry(ledgerPath: string): Promise<LedgerEntry | nu
   return entries.length > 0 ? entries[entries.length - 1]! : null;
 }
 
+/**
+ * Parse Ledger Head content. Anything but `{"last_id": <int>, "last_digest":
+ * <64 hex>}` is an integrity failure: a damaged head cannot vouch for a tail.
+ */
+export function parseLedgerHead(content: string, path = LEDGER_HEAD_FILE): LedgerHead {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(content);
+  } catch {
+    parsed = undefined;
+  }
+  const head = parsed as { last_id?: unknown; last_digest?: unknown } | undefined;
+  if (
+    typeof head !== "object" ||
+    head === null ||
+    typeof head.last_id !== "number" ||
+    !Number.isInteger(head.last_id) ||
+    head.last_id < 1 ||
+    typeof head.last_digest !== "string" ||
+    !/^[a-f0-9]{64}$/.test(head.last_digest)
+  ) {
+    throw new LedgerError("LEDGER_INTEGRITY_FAILURE", `${path} is not a valid Ledger Head`);
+  }
+  return { last_id: head.last_id, last_digest: head.last_digest };
+}
+
+/** Read the Ledger Head beside `ledgerPath`; null when the file does not exist. */
+export async function readLedgerHead(
+  ledgerPath: string,
+  fs: LedgerFileSystem = nodeLedgerFileSystem,
+): Promise<LedgerHead | null> {
+  const headPath = getLedgerHeadPath(ledgerPath);
+  const content = await fs.readFile(headPath);
+  return content === null ? null : parseLedgerHead(content, headPath);
+}
+
 /** Options for appendLedgerEntry. */
 export interface AppendLedgerEntryOptions {
   /** File operations; defaults to the real filesystem. */
@@ -186,18 +228,25 @@ export interface AppendLedgerEntryOptions {
 /**
  * Append an entry to the ledger.
  *
+ * The chain format is the protocol's: ids from 1, a null predecessor for the
+ * first entry, and `computeLedgerEntryDigest` of the preceding entry for every
+ * later one. The chain is checked by the engine's `checkLedgerIntegrity`, the
+ * same check `vellum verify` runs.
+ *
  * - Takes an exclusive lock (`<ledger>.lock`, created with O_EXCL). If another
  *   append holds it, refuses with LEDGER_CONCURRENT_APPEND rather than waiting
  *   or overwriting; a lock left by a crashed process names itself in the
  *   message for a human to remove.
- * - Verifies the whole existing chain first and refuses on any failure,
- *   naming the first bad entry (a fork is reported as LEDGER_FORK, naming both
- *   entries). A damaged ledger is never extended.
+ * - Verifies the whole existing chain, and its tail against the Ledger Head,
+ *   first and refuses on any failure, naming the first bad entry (a fork is
+ *   reported as LEDGER_FORK, naming both entries). A damaged ledger is never
+ *   extended.
  * - Writes the existing bytes plus the new line to a temp file in the same
  *   directory, fsyncs it, re-checks that the ledger did not change meanwhile,
- *   renames it over the ledger and fsyncs the directory. A failure at any step
- *   leaves the ledger file exactly as it was (requirement 4.12) and removes
- *   the temp file.
+ *   renames it over the ledger, then replaces the Ledger Head the same way
+ *   and fsyncs the directory. A failure before the ledger rename leaves both
+ *   files exactly as they were (requirement 4.12) and removes the temp files;
+ *   a failure replacing the head restores the previous ledger bytes.
  */
 export async function appendLedgerEntry(
   ledgerPath: string,
@@ -207,6 +256,7 @@ export async function appendLedgerEntry(
   const fs = options.fs ?? nodeLedgerFileSystem;
   const dir = dirname(ledgerPath);
   const lockPath = `${ledgerPath}.lock`;
+  const headPath = getLedgerHeadPath(ledgerPath);
 
   if (!(await fs.createExclusive(lockPath, `${process.pid}\n`))) {
     throw new LedgerError(
@@ -217,26 +267,34 @@ export async function appendLedgerEntry(
   }
 
   const tempPath = join(dir, `.${basename(ledgerPath)}.${randomUUID()}.tmp`);
+  const headTempPath = join(dir, `.${LEDGER_HEAD_FILE}.${randomUUID()}.tmp`);
   try {
     const original = (await fs.readFile(ledgerPath)) ?? "";
     const entries = parseLedger(original);
-    assertChainIntact(entries, ledgerPath);
+    const head = await readLedgerHead(ledgerPath, fs);
+    assertChainIntact(entries, head, ledgerPath);
 
     const last = entries[entries.length - 1];
-    if (entry.id !== entries.length) {
+    const expectedId = (last?.id ?? 0) + 1;
+    if (entry.id !== expectedId) {
       throw new LedgerError(
         "LEDGER_ENTRY_INVALID",
-        `Cannot append entry ${entry.id} to ${ledgerPath}: expected id ${entries.length}`,
+        `Cannot append entry ${entry.id} to ${ledgerPath}: expected id ${expectedId}`,
         { entryId: entry.id },
       );
     }
 
-    const predecessor_digest = last?.hash ?? brand<string, "Checksum">(INITIAL_HASH);
-    const unhashed = { ...entry, predecessor_digest } as LedgerEntry;
-    const completeEntry: LedgerEntry = { ...unhashed, hash: computeEntryHash(unhashed) };
+    const predecessor_digest = last === undefined ? null : computeLedgerEntryDigest(last);
+    const completeEntry = { ...entry, predecessor_digest } as LedgerEntry;
+    const line = JSON.stringify(completeEntry);
+    // The digest is of the entry as it will be read back, so a field that does
+    // not survive JSON (undefined, a function) cannot make the head disagree.
+    const written = JSON.parse(line) as LedgerEntry;
+    const newHead: LedgerHead = { last_id: written.id, last_digest: computeLedgerEntryDigest(written) };
 
     const separator = original === "" || original.endsWith("\n") ? "" : "\n";
-    await fs.writeFileDurably(tempPath, `${original}${separator}${JSON.stringify(completeEntry)}\n`);
+    await fs.writeFileDurably(tempPath, `${original}${separator}${line}\n`);
+    await fs.writeFileDurably(headTempPath, `${JSON.stringify(newHead)}\n`);
 
     // A writer that bypassed the lock (another tool, a git checkout) must not
     // be overwritten by the rename.
@@ -249,154 +307,104 @@ export async function appendLedgerEntry(
     }
 
     await fs.rename(tempPath, ledgerPath);
+    try {
+      await fs.rename(headTempPath, headPath);
+    } catch (error) {
+      await restoreLedger(fs, ledgerPath, original, dir);
+      throw error;
+    }
     await fs.syncDirectory(dir);
-    return completeEntry;
+    return written;
   } catch (error) {
     await fs.remove(tempPath).catch(() => undefined);
+    await fs.remove(headTempPath).catch(() => undefined);
     throw error;
   } finally {
     await fs.remove(lockPath);
   }
 }
 
-/** One problem found in a ledger chain. */
-interface ChainFailure {
-  readonly kind: "fork" | "integrity";
-  readonly id: number;
-  readonly otherId?: number;
-  readonly message: string;
-}
-
-/**
- * Check a chain: ids run 0, 1, 2…; each entry carries a hash matching its
- * content; each predecessor digest is the previous entry's hash (all zeros
- * for the first); no two entries share a predecessor.
- */
-function chainFailures(entries: readonly LedgerEntry[]): ChainFailure[] {
-  const failures: ChainFailure[] = [];
-  const seenPredecessors = new Map<string, { readonly id: number; readonly line: number }>();
-  let expectedPredecessor: string = INITIAL_HASH;
-
-  entries.forEach((entry, index) => {
-    const line = index + 1;
-    if (entry.id !== index) {
-      failures.push({
-        kind: "integrity",
-        id: entry.id,
-        message: `entry ${entry.id} (line ${line}): expected id ${index}, got ${entry.id} — an entry is missing or out of order`,
-      });
+/** Put the ledger back to `original` after the head could not be replaced. */
+async function restoreLedger(
+  fs: LedgerFileSystem,
+  ledgerPath: string,
+  original: string,
+  dir: string,
+): Promise<void> {
+  const restorePath = join(dir, `.${basename(ledgerPath)}.${randomUUID()}.restore.tmp`);
+  try {
+    if (original === "") {
+      await fs.remove(ledgerPath);
+    } else {
+      await fs.writeFileDurably(restorePath, original);
+      await fs.rename(restorePath, ledgerPath);
     }
-
-    const predecessor = entry.predecessor_digest ?? INITIAL_HASH;
-    const rival = seenPredecessors.get(predecessor);
-    if (rival !== undefined) {
-      failures.push({
-        kind: "fork",
-        id: rival.id,
-        otherId: entry.id,
-        message: `Ledger fork: entry ${rival.id} (line ${rival.line}) and entry ${entry.id} (line ${line}) record the same predecessor ${predecessor.slice(0, 12)}…; resolve it by a human Decision`,
-      });
-    } else if (predecessor !== expectedPredecessor) {
-      failures.push({
-        kind: "integrity",
-        id: entry.id,
-        message: `entry ${entry.id} (line ${line}): Predecessor digest ${predecessor.slice(0, 12)}… does not match the preceding entry's hash ${expectedPredecessor.slice(0, 12)}…`,
-      });
-    }
-    seenPredecessors.set(predecessor, { id: entry.id, line });
-
-    const computedHash = computeEntryHash(entry);
-    if (entry.hash !== computedHash) {
-      failures.push({
-        kind: "integrity",
-        id: entry.id,
-        message: entry.hash
-          ? `entry ${entry.id} (line ${line}): content does not match its hash — the entry was edited`
-          : `entry ${entry.id} (line ${line}): has no hash`,
-      });
-    }
-
-    expectedPredecessor = entry.hash ?? computedHash;
-  });
-
-  return failures;
+  } catch {
+    await fs.remove(restorePath).catch(() => undefined);
+  }
 }
 
 /** Throw the ledger's refusal for a damaged chain: a fork first, else the first failure. */
-function assertChainIntact(entries: readonly LedgerEntry[], ledgerPath: string): void {
-  const failures = chainFailures(entries);
+function assertChainIntact(
+  entries: readonly LedgerEntry[],
+  head: LedgerHead | null,
+  ledgerPath: string,
+): void {
+  const { failures } = checkLedgerIntegrity(entries, head);
   const fork = failures.find((f) => f.kind === "fork");
   if (fork) {
-    throw new LedgerError("LEDGER_FORK", `${ledgerPath}: ${fork.message}`, {
-      entryId: fork.id,
-      ...(fork.otherId === undefined ? {} : { otherEntryId: fork.otherId }),
+    throw new LedgerError("LEDGER_FORK", `${ledgerPath}: ${fork.message}; resolve it by a human Decision`, {
+      entryId: fork.other_entry_id ?? fork.entry_id,
+      otherEntryId: fork.entry_id,
     });
   }
   const first = failures[0];
   if (first) {
     throw new LedgerError(
       "LEDGER_INTEGRITY_FAILURE",
-      `${ledgerPath}: ledger integrity failure at ${first.message}; refusing to append`,
-      { entryId: first.id },
+      `${ledgerPath}: ledger integrity failure at entry ${first.entry_id}: ${first.message}; refusing to append`,
+      { entryId: first.entry_id },
     );
   }
 }
 
 /**
- * Compute SHA-256 hash of a ledger entry: every field except `hash`, in
- * canonical JSON (keys sorted at every depth), so a change to any field —
- * nested ones included — changes the hash.
- */
-export function computeEntryHash(entry: LedgerEntry): Checksum {
-  const { hash: _, ...rest } = entry;
-  const hash = createHash("sha256").update(canonicalSerialize(rest), "utf8").digest("hex");
-  return brand<string, "Checksum">(hash);
-}
-
-/**
- * Verify ledger integrity.
- * Returns { valid: true } or { valid: false, errors: [...] }, one error per
- * problem, in file order (a truncated line is reported as entry -1).
+ * Verify ledger integrity: the chain (engine `checkLedgerIntegrity`) and its
+ * tail against the Ledger Head. Returns { valid: true } or { valid: false,
+ * errors: [...] }, one error per problem (an unreadable line or head is
+ * reported as entry -1).
  */
 export async function verifyLedgerIntegrity(ledgerPath: string): Promise<{
   valid: boolean;
   errors: { seq: number; message: string }[];
 }> {
   let entries: readonly LedgerEntry[];
+  let head: LedgerHead | null;
   try {
     entries = await readLedger(ledgerPath);
+    head = await readLedgerHead(ledgerPath);
   } catch (error) {
     if (error instanceof LedgerError) {
       return { valid: false, errors: [{ seq: -1, message: error.message }] };
     }
     throw error;
   }
-  const errors = chainFailures(entries).map((f) => ({ seq: f.otherId ?? f.id, message: f.message }));
+  const errors = checkLedgerIntegrity(entries, head).failures.map((f: LedgerIntegrityFailure) => ({
+    seq: f.entry_id,
+    message: f.message,
+  }));
   return { valid: errors.length === 0, errors };
 }
 
 /**
  * Detect if ledger has a fork (two entries with same predecessor).
  */
-export function detectFork(ledgerPath: string): Promise<{
+export async function detectFork(ledgerPath: string): Promise<{
   hasFork: boolean;
   fork?: { entry1: number; entry2: number };
 }> {
-  return readLedger(ledgerPath).then((entries) => {
-    const predecessors = new Map<string, number>();
-
-    for (const entry of entries) {
-      const predecessor = entry.predecessor_digest ?? INITIAL_HASH;
-      const prev = predecessors.get(predecessor);
-      if (prev !== undefined) {
-        return {
-          hasFork: true,
-          fork: { entry1: prev, entry2: entry.id },
-        };
-      }
-      predecessors.set(predecessor, entry.id);
-    }
-
-    return { hasFork: false };
-  });
+  const [first] = detectForks(await readLedger(ledgerPath));
+  return first === undefined
+    ? { hasFork: false }
+    : { hasFork: true, fork: { entry1: first.entry1, entry2: first.entry2 } };
 }

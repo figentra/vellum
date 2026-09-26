@@ -109,7 +109,7 @@ export function validateMachineFolder(
   const findings: Finding[] = [];
 
   // Permitted files in .sdlc/
-  const permitted = ["ledger.jsonl", "metadata.json", "state.json"];
+  const permitted = ["ledger.jsonl", "ledger.head.json", "metadata.json", "state.json"];
 
   for (const entry of entries) {
     if (!permitted.includes(entry)) {

@@ -409,11 +409,36 @@ export interface LedgerIntegrityFailure {
   /** Entry identifier where the failure was detected */
   entry_id: number;
   /** Type of integrity failure */
-  kind: "predecessor_digest_mismatch" | "missing_entry" | "ordering_violation" | "fork";
+  kind:
+    | "predecessor_digest_mismatch"
+    | "missing_entry"
+    | "ordering_violation"
+    | "fork"
+    | "head_mismatch";
   /** Human-readable description */
   message: string;
   /** Additional entry identifier (for fork detection) */
   other_entry_id?: number;
+}
+
+/**
+ * Ledger Head - the last entry the ledger writer appended, recorded beside the
+ * ledger (`.sdlc/ledger.head.json`) and rewritten on every append.
+ *
+ * The hash chain proves each entry's predecessors, but nothing inside the
+ * ledger proves that entries were not removed from its end, or that its last
+ * entry was not edited. The head closes both gaps: verification compares the
+ * ledger's last entry id and digest with the head. A ledger with entries and
+ * no head fails verification. An attacker who truncates the ledger and
+ * rewrites the head in the same change is not detectable from the working
+ * tree alone; the git history of both files (and the signed commits that
+ * added approvals) is what records that.
+ */
+export interface LedgerHead {
+  /** Identifier of the last entry in the ledger */
+  last_id: number;
+  /** computeLedgerEntryDigest of the last entry */
+  last_digest: string;
 }
 
 /**

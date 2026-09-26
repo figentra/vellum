@@ -1,6 +1,9 @@
 /**
  * appendLedgerEntry refuses to extend a damaged ledger, never leaves the file
  * half-written, and reports concurrent appends (requirement 4.7-4.10, 4.12).
+ *
+ * Entry ids run from 1 (the protocol's chain format); the machine folder holds
+ * the ledger and its Ledger Head.
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -9,16 +12,18 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import type { LedgerEntry } from "@vellum/protocol";
-import { brand } from "@vellum/protocol";
+import { brand, computeLedgerEntryDigest } from "@vellum/protocol";
 import {
   appendLedgerEntry,
-  computeEntryHash,
   LedgerError,
+  LEDGER_HEAD_FILE,
   nodeLedgerFileSystem,
   verifyLedgerIntegrity,
   type LedgerFileSystem,
   type NewLedgerEntry,
 } from "../ledger.ts";
+
+const FILES = [LEDGER_HEAD_FILE, "ledger.jsonl"].sort();
 
 const claim = (id: number, spec = "test"): NewLedgerEntry => ({
   id,
@@ -43,12 +48,12 @@ describe("appendLedgerEntry integrity", () => {
   });
 
   async function seed(count: number): Promise<string[]> {
-    for (let id = 0; id < count; id++) await appendLedgerEntry(ledgerPath, claim(id, `s${id}`));
+    for (let id = 1; id <= count; id++) await appendLedgerEntry(ledgerPath, claim(id, `s${id}`));
     return (await readFile(ledgerPath, "utf8")).split("\n").filter((l) => l !== "");
   }
 
   /** Append must refuse with `code`, naming `entryId`, and leave the bytes alone. */
-  async function expectRefusal(code: string, entryId: number, next = 3): Promise<LedgerError> {
+  async function expectRefusal(code: string, entryId: number, next = 4): Promise<LedgerError> {
     const before = await readFile(ledgerPath, "utf8");
     const error = await appendLedgerEntry(ledgerPath, claim(next)).then(
       () => null,
@@ -60,7 +65,7 @@ describe("appendLedgerEntry integrity", () => {
     expect(ledgerError.entryId).toBe(entryId);
     expect(ledgerError.message).toContain(`entry ${entryId}`);
     expect(await readFile(ledgerPath, "utf8")).toBe(before);
-    expect(await readdir(dir)).toEqual(["ledger.jsonl"]);
+    expect((await readdir(dir)).sort()).toEqual(FILES);
     return ledgerError;
   }
 
@@ -68,44 +73,55 @@ describe("appendLedgerEntry integrity", () => {
     const lines = await seed(3);
     const before = await readFile(ledgerPath, "utf8");
 
-    await appendLedgerEntry(ledgerPath, claim(3));
+    await appendLedgerEntry(ledgerPath, claim(4));
 
     const after = await readFile(ledgerPath, "utf8");
     expect(after.startsWith(before)).toBe(true);
     expect(after.split("\n").filter((l) => l !== "")).toHaveLength(lines.length + 1);
     expect((await verifyLedgerIntegrity(ledgerPath)).valid).toBe(true);
-    expect(await readdir(dir)).toEqual(["ledger.jsonl"]);
+    expect((await readdir(dir)).sort()).toEqual(FILES);
   });
 
   it("refuses when an entry was edited, naming it", async () => {
     const lines = await seed(3);
-    lines[1] = lines[1]!.replace('"spec":"s1"', '"spec":"forged"');
-    await writeFile(ledgerPath, `${lines.join("\n")}\n`);
-
-    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 1);
-  });
-
-  it("refuses when an entry was edited and re-hashed, naming its successor", async () => {
-    const lines = await seed(3);
-    const forged = { ...(JSON.parse(lines[1]!) as LedgerEntry), spec: "forged" } as LedgerEntry;
-    lines[1] = JSON.stringify({ ...forged, hash: computeEntryHash(forged) });
+    lines[1] = lines[1]!.replace('"spec":"s2"', '"spec":"forged"');
     await writeFile(ledgerPath, `${lines.join("\n")}\n`);
 
     await expectRefusal("LEDGER_INTEGRITY_FAILURE", 2);
+  });
+
+  it("refuses when an entry was edited and its successor re-linked, naming the successor", async () => {
+    const lines = await seed(3);
+    const forged = { ...(JSON.parse(lines[1]!) as LedgerEntry), spec: "forged" } as LedgerEntry;
+    lines[1] = JSON.stringify(forged);
+    const successor = JSON.parse(lines[2]!) as LedgerEntry;
+    lines[2] = JSON.stringify({ ...successor, predecessor_digest: computeLedgerEntryDigest(forged) });
+    await writeFile(ledgerPath, `${lines.join("\n")}\n`);
+
+    // The re-linked chain is internally consistent; the Ledger Head still
+    // records the original last entry's digest.
+    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 3);
   });
 
   it("refuses when an entry was deleted, naming the entry after the gap", async () => {
     const lines = await seed(3);
     await writeFile(ledgerPath, `${[lines[0], lines[2]].join("\n")}\n`);
 
-    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 2);
+    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 3);
+  });
+
+  it("refuses when the last entries were removed, naming the missing entry", async () => {
+    const lines = await seed(3);
+    await writeFile(ledgerPath, `${[lines[0], lines[1]].join("\n")}\n`);
+
+    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 3);
   });
 
   it("refuses when entries were reordered, naming the first out of place", async () => {
     const lines = await seed(3);
     await writeFile(ledgerPath, `${[lines[0], lines[2], lines[1]].join("\n")}\n`);
 
-    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 2);
+    await expectRefusal("LEDGER_INTEGRITY_FAILURE", 3);
   });
 
   it("refuses when the file was truncated mid-entry, naming the line", async () => {
@@ -114,7 +130,7 @@ describe("appendLedgerEntry integrity", () => {
     await writeFile(ledgerPath, content.slice(0, content.length - 20));
 
     const before = await readFile(ledgerPath, "utf8");
-    const error = await appendLedgerEntry(ledgerPath, claim(3)).catch((e: unknown) => e);
+    const error = await appendLedgerEntry(ledgerPath, claim(4)).catch((e: unknown) => e);
     expect(error).toBeInstanceOf(LedgerError);
     expect((error as LedgerError).code).toBe("LEDGER_INTEGRITY_FAILURE");
     expect((error as LedgerError).message).toContain("line 3");
@@ -123,13 +139,12 @@ describe("appendLedgerEntry integrity", () => {
 
   it("reports a fork, naming both entries, instead of resolving it", async () => {
     const lines = await seed(2);
-    const first = JSON.parse(lines[1]!) as LedgerEntry;
-    const rival = { ...first, spec: "rival", hash: undefined } as unknown as LedgerEntry;
-    const rivalLine = JSON.stringify({ ...rival, hash: computeEntryHash(rival) });
+    const second = JSON.parse(lines[1]!) as LedgerEntry;
+    const rivalLine = JSON.stringify({ ...second, id: 3, spec: "rival" });
     await writeFile(ledgerPath, `${[...lines, rivalLine].join("\n")}\n`);
 
-    const error = await expectRefusal("LEDGER_FORK", 1);
-    expect(error.otherEntryId).toBe(1);
+    const error = await expectRefusal("LEDGER_FORK", 2);
+    expect(error.otherEntryId).toBe(3);
     expect(error.message).toMatch(/fork/i);
   });
 
@@ -137,7 +152,7 @@ describe("appendLedgerEntry integrity", () => {
     await seed(2);
     const before = await readFile(ledgerPath, "utf8");
 
-    await expect(appendLedgerEntry(ledgerPath, claim(5))).rejects.toThrow(/expected id 2/);
+    await expect(appendLedgerEntry(ledgerPath, claim(5))).rejects.toThrow(/expected id 3/);
     expect(await readFile(ledgerPath, "utf8")).toBe(before);
   });
 });
@@ -150,8 +165,8 @@ describe("appendLedgerEntry atomicity", () => {
     dir = join(tmpdir(), `vellum-atomic-${randomUUID()}`);
     await mkdir(dir, { recursive: true });
     ledgerPath = join(dir, "ledger.jsonl");
-    await appendLedgerEntry(ledgerPath, claim(0));
     await appendLedgerEntry(ledgerPath, claim(1));
+    await appendLedgerEntry(ledgerPath, claim(2));
   });
 
   afterEach(async () => {
@@ -169,14 +184,14 @@ describe("appendLedgerEntry atomicity", () => {
       },
     };
 
-    await expect(appendLedgerEntry(ledgerPath, claim(2), { fs: failingFs })).rejects.toThrow(
+    await expect(appendLedgerEntry(ledgerPath, claim(3), { fs: failingFs })).rejects.toThrow(
       /simulated write failure/,
     );
 
     expect(await readFile(ledgerPath, "utf8")).toBe(before);
-    expect(await readdir(dir)).toEqual(["ledger.jsonl"]);
+    expect((await readdir(dir)).sort()).toEqual(FILES);
     // The lock was released: a later append succeeds.
-    await appendLedgerEntry(ledgerPath, claim(2));
+    await appendLedgerEntry(ledgerPath, claim(3));
     expect((await verifyLedgerIntegrity(ledgerPath)).valid).toBe(true);
   });
 
@@ -189,12 +204,12 @@ describe("appendLedgerEntry atomicity", () => {
       },
     };
 
-    await expect(appendLedgerEntry(ledgerPath, claim(2), { fs: failingFs })).rejects.toThrow(
+    await expect(appendLedgerEntry(ledgerPath, claim(3), { fs: failingFs })).rejects.toThrow(
       /simulated rename failure/,
     );
 
     expect(await readFile(ledgerPath, "utf8")).toBe(before);
-    expect(await readdir(dir)).toEqual(["ledger.jsonl"]);
+    expect((await readdir(dir)).sort()).toEqual(FILES);
   });
 
   it("writes through a temp file in the same directory, fsynced, then renamed", async () => {
@@ -206,7 +221,9 @@ describe("appendLedgerEntry atomicity", () => {
         await nodeLedgerFileSystem.writeFileDurably(path, data);
       },
       async rename(from, to) {
-        calls.push(`rename -> ${to === ledgerPath ? "ledger" : to}`);
+        calls.push(
+          `rename -> ${to === ledgerPath ? "ledger" : to === join(dir, LEDGER_HEAD_FILE) ? "head" : to}`,
+        );
         await nodeLedgerFileSystem.rename(from, to);
       },
       async syncDirectory(path) {
@@ -215,9 +232,15 @@ describe("appendLedgerEntry atomicity", () => {
       },
     };
 
-    await appendLedgerEntry(ledgerPath, claim(2), { fs: tracingFs });
+    await appendLedgerEntry(ledgerPath, claim(3), { fs: tracingFs });
 
-    expect(calls).toEqual(["write same-dir", "rename -> ledger", "sync dir"]);
+    expect(calls).toEqual([
+      "write same-dir",
+      "write same-dir",
+      "rename -> ledger",
+      "rename -> head",
+      "sync dir",
+    ]);
   });
 });
 
@@ -229,7 +252,7 @@ describe("appendLedgerEntry concurrency", () => {
     dir = join(tmpdir(), `vellum-concurrent-${randomUUID()}`);
     await mkdir(dir, { recursive: true });
     ledgerPath = join(dir, "ledger.jsonl");
-    await appendLedgerEntry(ledgerPath, claim(0));
+    await appendLedgerEntry(ledgerPath, claim(1));
   });
 
   afterEach(async () => {
@@ -238,7 +261,7 @@ describe("appendLedgerEntry concurrency", () => {
 
   it("never forks or loses an entry when appends race", async () => {
     const results = await Promise.allSettled(
-      Array.from({ length: 8 }, (_, i) => appendLedgerEntry(ledgerPath, claim(1, `racer-${i}`))),
+      Array.from({ length: 8 }, (_, i) => appendLedgerEntry(ledgerPath, claim(2, `racer-${i}`))),
     );
 
     const fulfilled = results.filter((r) => r.status === "fulfilled");
@@ -254,16 +277,16 @@ describe("appendLedgerEntry concurrency", () => {
     const integrity = await verifyLedgerIntegrity(ledgerPath);
     expect(integrity).toEqual({ valid: true, errors: [] });
     const lines = (await readFile(ledgerPath, "utf8")).split("\n").filter((l) => l !== "");
-    // One entry 0 plus exactly the appends that reported success.
+    // Entry 1 plus exactly the appends that reported success.
     expect(lines).toHaveLength(1 + fulfilled.length);
-    expect(await readdir(dir)).toEqual(["ledger.jsonl"]);
+    expect((await readdir(dir)).sort()).toEqual(FILES);
   });
 
   it("reports an append already in progress instead of waiting or overwriting", async () => {
     await writeFile(`${ledgerPath}.lock`, "12345\n");
     const before = await readFile(ledgerPath, "utf8");
 
-    const error = await appendLedgerEntry(ledgerPath, claim(1)).catch((e: unknown) => e);
+    const error = await appendLedgerEntry(ledgerPath, claim(2)).catch((e: unknown) => e);
 
     expect(error).toBeInstanceOf(LedgerError);
     expect((error as LedgerError).code).toBe("LEDGER_CONCURRENT_APPEND");
@@ -283,7 +306,7 @@ describe("appendLedgerEntry concurrency", () => {
       },
     };
 
-    const error = await appendLedgerEntry(ledgerPath, claim(1), { fs: racingFs }).catch(
+    const error = await appendLedgerEntry(ledgerPath, claim(2), { fs: racingFs }).catch(
       (e: unknown) => e,
     );
 
@@ -291,6 +314,6 @@ describe("appendLedgerEntry concurrency", () => {
     expect((error as LedgerError).code).toBe("LEDGER_CONCURRENT_APPEND");
     // The other writer's bytes survive; ours were not renamed over them.
     expect(await readFile(ledgerPath, "utf8")).toContain(intruder);
-    expect(await readdir(dir)).toEqual(["ledger.jsonl"]);
+    expect((await readdir(dir)).sort()).toEqual(FILES);
   });
 });

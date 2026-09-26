@@ -1,22 +1,35 @@
 /**
  * @vellum/storage — Tests for Ledger Operations
+ *
+ * The chain format is the protocol's: ids from 1, a null predecessor for the
+ * first entry, then computeLedgerEntryDigest of the preceding entry.
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import {
   readLedger,
+  readLedgerHead,
   getLastEntry,
   appendLedgerEntry,
-  computeEntryHash,
   verifyLedgerIntegrity,
   detectFork,
+  getLedgerHeadPath,
+  type NewLedgerEntry,
 } from "../ledger.ts";
-import type { Checksum, LedgerEntry, LedgerPayload } from "@vellum/protocol";
-import { brand } from "@vellum/protocol";
+import type { LedgerEntry } from "@vellum/protocol";
+import { brand, computeLedgerEntryDigest } from "@vellum/protocol";
+
+const created = (id: number, spec = "test"): NewLedgerEntry => ({
+  id,
+  kind: "claim",
+  timestamp: "2026-09-26T10:00:00Z",
+  type: "created",
+  spec: brand<string, "SpecSlug">(spec),
+});
 
 describe("Ledger Operations", () => {
   let testDir: string;
@@ -39,26 +52,11 @@ describe("Ledger Operations", () => {
     });
 
     it("should read entries from ledger file", async () => {
-      const entry1 = createTestEntry(0, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-      const entry2 = createTestEntry(
-        1,
-        "approval",
-        {
-          approver: "alice",
-          artifact: "requirements",
-          artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
-          signalCommit: brand<string, "CommitSha">("b".repeat(40)),
-        },
-        entry1.hash,
-      );
-
-      await writeFile(ledgerPath, `${JSON.stringify(entry1)}\n${JSON.stringify(entry2)}\n`);
+      await appendLedgerEntry(ledgerPath, created(1));
+      await appendLedgerEntry(ledgerPath, created(2, "other"));
 
       const entries = await readLedger(ledgerPath);
-      expect(entries.map((e) => e.id)).toEqual([0, 1]);
+      expect(entries.map((e) => e.id)).toEqual([1, 2]);
     });
   });
 
@@ -69,181 +67,111 @@ describe("Ledger Operations", () => {
     });
 
     it("should return last entry", async () => {
-      const entry1 = createTestEntry(0, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-      await writeFile(ledgerPath, `${JSON.stringify(entry1)}\n`);
+      await appendLedgerEntry(ledgerPath, created(1));
+      await appendLedgerEntry(ledgerPath, created(2));
 
       const last = await getLastEntry(ledgerPath);
-      expect(last?.id).toBe(0);
+      expect(last?.id).toBe(2);
     });
   });
 
   describe("appendLedgerEntry", () => {
-    it("should append first entry with genesis predecessor", async () => {
-      const entry = await appendLedgerEntry(ledgerPath, {
-        id: 0,
-        kind: "claim",
-        timestamp: new Date().toISOString(),
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
+    it("should append the first entry with id 1 and a null predecessor", async () => {
+      const entry = await appendLedgerEntry(ledgerPath, created(1));
 
-      expect(entry.id).toBe(0);
-      expect(entry.predecessor_digest).toBe("0".repeat(64));
-      expect(entry.hash).toBeDefined();
+      expect(entry.id).toBe(1);
+      expect(entry.predecessor_digest).toBeNull();
+      expect("hash" in entry).toBe(false);
     });
 
-    it("should append subsequent entries with correct predecessor", async () => {
-      const entry1 = await appendLedgerEntry(ledgerPath, {
-        id: 0,
-        kind: "claim",
-        timestamp: new Date().toISOString(),
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-
+    it("should link each later entry to the digest of the entry before it", async () => {
+      const entry1 = await appendLedgerEntry(ledgerPath, created(1));
       const entry2 = await appendLedgerEntry(ledgerPath, {
-        id: 1,
+        id: 2,
         kind: "approval",
-        timestamp: new Date().toISOString(),
+        timestamp: "2026-09-26T10:00:00Z",
         approver: "alice",
         artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("b".repeat(40)),
       });
 
-      expect(entry2.predecessor_digest).toBe(entry1.hash);
-    });
-  });
-
-  describe("computeEntryHash", () => {
-    it("should produce valid SHA-256 hash", () => {
-      const entry = createTestEntry(0, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-      const hash = computeEntryHash(entry);
-
-      expect(hash).toMatch(/^[a-f0-9]{64}$/);
+      expect(entry2.predecessor_digest).toBe(computeLedgerEntryDigest(entry1));
     });
 
-    it("should be deterministic", () => {
-      const entry = createTestEntry(0, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-      expect(computeEntryHash(entry)).toBe(computeEntryHash(entry));
-    });
+    it("should record the last entry's id and digest in the Ledger Head", async () => {
+      await appendLedgerEntry(ledgerPath, created(1));
+      const entry2 = await appendLedgerEntry(ledgerPath, created(2));
 
-    it("should cover nested payload fields", () => {
-      const entry = createTestEntry(0, "evidence", {
-        taskIdentifier: brand<string, "TaskId">("1.1"),
-        commandText: "pnpm test",
-        exitStatus: 0,
-        startedAt: "2026-09-26T10:00:00Z",
-        finishedAt: "2026-09-26T10:01:00Z",
-        headCommit: brand<string, "CommitSha">("c".repeat(40)),
-        affectedPaths: ["src/a.ts"],
-        environmentVersions: { node: "22.0.0" },
+      expect(await readLedgerHead(ledgerPath)).toEqual({
+        last_id: 2,
+        last_digest: computeLedgerEntryDigest(entry2),
       });
-      const tampered = { ...entry, environmentVersions: { node: "18.0.0" } } as LedgerEntry;
-
-      expect(computeEntryHash(tampered)).not.toBe(computeEntryHash(entry));
-    });
-
-    it("should differ for different entries", () => {
-      const entry1 = createTestEntry(0, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-      const entry2 = createTestEntry(1, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-
-      expect(computeEntryHash(entry1)).not.toBe(computeEntryHash(entry2));
+      const lines = (await readFile(ledgerPath, "utf8")).split("\n").filter((l) => l !== "");
+      expect(computeLedgerEntryDigest(JSON.parse(lines[1]!) as LedgerEntry)).toBe(
+        computeLedgerEntryDigest(entry2),
+      );
     });
   });
 
   describe("verifyLedgerIntegrity", () => {
     it("should pass for valid chain", async () => {
-      await appendLedgerEntry(ledgerPath, {
-        id: 0,
-        kind: "claim",
-        timestamp: new Date().toISOString(),
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-
-      await appendLedgerEntry(ledgerPath, {
-        id: 1,
-        kind: "approval",
-        timestamp: new Date().toISOString(),
-        approver: "alice",
-        artifact: "requirements",
-        artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
-        signalCommit: brand<string, "CommitSha">("b".repeat(40)),
-      });
+      await appendLedgerEntry(ledgerPath, created(1));
+      await appendLedgerEntry(ledgerPath, created(2));
 
       const result = await verifyLedgerIntegrity(ledgerPath);
-      expect(result.valid).toBe(true);
-      expect(result.errors.length).toBe(0);
+      expect(result).toEqual({ valid: true, errors: [] });
+    });
+
+    it("should pass for a ledger that does not exist yet", async () => {
+      expect(await verifyLedgerIntegrity(ledgerPath)).toEqual({ valid: true, errors: [] });
     });
 
     it("should detect broken chain", async () => {
-      const entry1 = createTestEntry(0, "claim", {
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
-      const entry2 = createTestEntry(
-        1,
-        "claim",
-        { type: "created", spec: brand<string, "SpecSlug">("test") },
-        brand<string, "Checksum">("wrong".padEnd(64, "0")),
-      );
-
-      await writeFile(ledgerPath, `${JSON.stringify(entry1)}\n${JSON.stringify(entry2)}\n`);
+      await appendLedgerEntry(ledgerPath, created(1));
+      await appendLedgerEntry(ledgerPath, created(2));
+      const lines = (await readFile(ledgerPath, "utf8")).split("\n").filter((l) => l !== "");
+      const second = JSON.parse(lines[1]!) as Record<string, unknown>;
+      lines[1] = JSON.stringify({ ...second, predecessor_digest: "f".repeat(64) });
+      await writeFile(ledgerPath, `${lines.join("\n")}\n`);
 
       const result = await verifyLedgerIntegrity(ledgerPath);
       expect(result.valid).toBe(false);
-      expect(result.errors.some((e) => e.message.includes("Predecessor"))).toBe(true);
+      expect(result.errors.some((e) => e.seq === 1 && /edited/.test(e.message))).toBe(true);
+    });
+
+    it("should fail a ledger with entries but no Ledger Head", async () => {
+      await appendLedgerEntry(ledgerPath, created(1));
+      await rm(getLedgerHeadPath(ledgerPath));
+
+      const result = await verifyLedgerIntegrity(ledgerPath);
+      expect(result.valid).toBe(false);
+      expect(result.errors[0]?.message).toMatch(/no Ledger Head/);
     });
   });
 
   describe("detectFork", () => {
     it("should detect no fork in valid chain", async () => {
-      await appendLedgerEntry(ledgerPath, {
-        id: 0,
-        kind: "claim",
-        timestamp: new Date().toISOString(),
-        type: "created",
-        spec: brand<string, "SpecSlug">("test"),
-      });
+      await appendLedgerEntry(ledgerPath, created(1));
+      await appendLedgerEntry(ledgerPath, created(2));
 
       const result = await detectFork(ledgerPath);
       expect(result.hasFork).toBe(false);
     });
+
+    it("should name both entries of a fork", async () => {
+      await appendLedgerEntry(ledgerPath, created(1));
+      const second = await appendLedgerEntry(ledgerPath, created(2));
+      const rival = { ...second, id: 3, spec: "rival" };
+      await writeFile(
+        ledgerPath,
+        `${await readFile(ledgerPath, "utf8")}${JSON.stringify(rival)}\n`,
+      );
+
+      expect(await detectFork(ledgerPath)).toEqual({
+        hasFork: true,
+        fork: { entry1: 2, entry2: 3 },
+      });
+    });
   });
 });
-
-// Helper to create test entries
-function createTestEntry(
-  id: number,
-  kind: LedgerEntry["kind"],
-  payload: LedgerPayload,
-  predecessorHash?: Checksum,
-): LedgerEntry {
-  const unhashed: LedgerEntry = {
-    id,
-    kind,
-    timestamp: new Date().toISOString(),
-    predecessor_digest: predecessorHash ?? brand<string, "Checksum">("0".repeat(64)),
-    ...payload,
-  };
-
-  // With an explicit predecessor the hash is a placeholder; otherwise the real one.
-  const hash = predecessorHash ? brand<string, "Checksum">("a".repeat(64)) : computeEntryHash(unhashed);
-  return { ...unhashed, hash };
-}

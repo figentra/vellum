@@ -36,30 +36,18 @@ function sortedReplacer(_key: string, value: unknown): unknown {
 }
 
 /**
- * Compute SHA-256 digest of a Ledger Entry.
+ * Compute the Ledger Entry Digest: SHA-256 (hex) of the entry's canonical JSON.
  *
- * The digest is computed on the canonical JSON serialization of the entry,
- * EXCLUDING the `digest` field itself (since the digest is computed, not stored).
+ * This is the one hashing function of the ledger chain. For entry N (N > 1),
+ * `predecessor_digest` is `computeLedgerEntryDigest(entry N-1)`; the first
+ * entry's `predecessor_digest` is null. The digest covers every field of the
+ * entry, nested ones included, and does not depend on key order. Entries carry
+ * no self-hash field: the chain is anchored by each successor's predecessor
+ * digest and, for the last entry, by the Ledger Head (see LedgerHead).
  *
- * @param entry - The Ledger Entry (may or may not have a digest field)
+ * @param entry - The complete Ledger Entry as written to the ledger
  * @returns SHA-256 hex string (64 characters)
  */
-export function computeDigest(entry: Record<string, unknown>): string {
-  // Remove the digest field if present (it's computed, not part of the content)
-  const { digest: _omit, ...entryWithoutDigest } = entry;
-
-  const canonical = canonicalSerialize(entryWithoutDigest);
-  return createHash("sha256").update(canonical, "utf8").digest("hex");
-}
-
-/**
- * Compute the digest that should appear in the predecessor_digest field.
- *
- * For entry N, the predecessor_digest is the SHA-256 of entry N-1's canonical JSON.
- *
- * @param predecessorEntry - The preceding entry
- * @returns SHA-256 hex string (64 characters)
- */
-export function computePredecessorDigest(predecessorEntry: Record<string, unknown>): string {
-  return computeDigest(predecessorEntry);
+export function computeLedgerEntryDigest(entry: object): string {
+  return createHash("sha256").update(canonicalSerialize(entry), "utf8").digest("hex");
 }
