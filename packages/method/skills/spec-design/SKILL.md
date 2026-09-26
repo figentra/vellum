@@ -65,6 +65,18 @@ Below, `<specs-root>` means the root the detector reported.
    numbers wherever the underlying criteria are unchanged — `tasks.md` and any
    review comments reference those numbers.
 
+5. **If `requirements.md` still carries clarification markers, stop and ask.** Check:
+
+   ```bash
+   grep -n "NEEDS CLARIFICATION" <specs-root>/<NNN>-<slug>/requirements.md
+   ```
+
+   A criterion carrying `[NEEDS CLARIFICATION: …]` asks a question instead of stating a
+   behaviour, and a Property derived from it would encode a guess. Report every marker
+   and ask with `AskUserQuestion`: **Clarify first** (hand off to `spec-clarify`) ·
+   **Design anyway** (each marker becomes an entry in the design's Open Questions, and
+   no Property is derived from a criterion that carries one). Recommend the first.
+
 ## Step 1 — read the requirements completely
 
 Read the whole of `requirements.md`. Then produce, for your own use, an explicit

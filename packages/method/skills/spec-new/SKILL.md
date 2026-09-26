@@ -24,6 +24,34 @@ user can correct in one pass.
 A reviewer correcting a concrete draft is fast. A user answering eight questions
 before seeing anything is slow and produces a worse document.
 
+### An unknown you cannot responsibly guess gets a marker, not a guess
+
+Most gaps have a best-supported reading: take it, and record it as an assumption. A
+few do not — nothing in the request or the repository favours one answer, and a wrong
+guess changes what gets built: who may perform an action, what happens to personal
+data, how long something is kept, a numeric target, whether a capability is in scope.
+Guessing there writes a plausible-looking criterion that is wrong in the way nobody
+checks.
+
+For those, write the marker where the answer belongs — inside the criterion, Glossary
+entry, Introduction field or assumption it blocks:
+
+```markdown
+3. WHEN an export completes, THE Export Service SHALL retain the export file for [NEEDS CLARIFICATION: how long is a completed export kept?]
+```
+
+The form is exact: `[NEEDS CLARIFICATION: <the question, ending in ?>]`. The
+`spec-clarify` skill finds markers by that text and resolves them with the user, so a
+variant spelling is a marker nobody will find.
+
+- A marker does not excuse the rest of the draft. Write the whole criterion around it.
+- A marker is for what you **cannot** find out. Read the repository first; asking the
+  user what the code already says is a question you owed yourself.
+- Keep them few. A draft with more markers than `spec-clarify` asks in one session
+  (five) is a request that was not ready to specify — say so in Step 6 instead.
+- A criterion carrying a marker cannot be tested as written. That is the point: it
+  makes the gap impossible to approve by accident.
+
 ## Step 1 — intake: classify the work, then decide the mode
 
 Before choosing a mode, state three things. They take one line each and they are what
@@ -128,13 +156,13 @@ report a permanent conflict and fails the repository's verify gate.
    breaks every `<requirement>.<criterion>` back-reference. Instead, report which spec
    exists and use `AskUserQuestion` with the options for its stage:
 
-   | Existing stage | Offer                                                                                                                                                                  |
-   | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-   | `empty`        | **Write the requirements** (continue in this skill, into the existing directory) · **Delete the empty spec**                                                           |
-   | `requirements` | **Revise the requirements** (this skill) · **Proceed to design** (`spec-design`) · **Start a genuinely different spec** under a new slug                               |
-   | `design`       | **Proceed to tasks** (`spec-tasks`) · **Revise the requirements** (this skill — warn that design references criterion numbers) · **Revise the design** (`spec-design`) |
-   | `tasks`        | **Run the spec** (`spec-run`) · **Audit traceability** (`spec-verify`) · **Revise an earlier document**, naming which                                                  |
-   | `invalid`      | Stop. Report the missing document and let the user decide — never auto-repair a broken chain.                                                                          |
+   | Existing stage | Offer                                                                                                                                                                                    |
+   | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | `empty`        | **Write the requirements** (continue in this skill, into the existing directory) · **Delete the empty spec**                                                                             |
+   | `requirements` | **Revise the requirements** (this skill) · **Clarify the requirements** (`spec-clarify`) · **Proceed to design** (`spec-design`) · **Start a genuinely different spec** under a new slug |
+   | `design`       | **Proceed to tasks** (`spec-tasks`) · **Revise the requirements** (this skill — warn that design references criterion numbers) · **Revise the design** (`spec-design`)                   |
+   | `tasks`        | **Run the spec** (`spec-run`) · **Audit traceability** (`spec-verify`) · **Revise an earlier document**, naming which                                                                    |
+   | `invalid`      | Stop. Report the missing document and let the user decide — never auto-repair a broken chain.                                                                                            |
 
    Always include **"Start a genuinely different spec"** when the user may simply have
    reused a name. Only that answer creates a new `NNN`.
@@ -167,14 +195,14 @@ which until implementation.
 So: **read first, then require.** Record what you read in the `## Discovery` section of
 `requirements.md`, under these six headings:
 
-| Heading                 | What it records                                                                                   |
-| ----------------------- | ------------------------------------------------------------------------------------------------- |
-| **Current behaviour**   | What happens today without this change. "Nothing does this yet" is a finding, not a blank.        |
-| **Repository topology** | Which members, directories and files this lands in or beside. Real paths.                         |
-| **Dependencies**        | Members, catalog entries at the version actually pinned, external services, generated artefacts.  |
-| **Ownership**           | The roster agent (the method's `ROSTER.md` (`../../ROSTER.md` relative to this skill's directory)) or person who owns each thing named above.          |
-| **Constraints**         | The ADRs and rules already governing this area. Link them; never restate them.                    |
-| **Sources**             | Every file, document and command the statements above rest on, each with the fact it established. |
+| Heading                 | What it records                                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Current behaviour**   | What happens today without this change. "Nothing does this yet" is a finding, not a blank.                                                    |
+| **Repository topology** | Which members, directories and files this lands in or beside. Real paths.                                                                     |
+| **Dependencies**        | Members, catalog entries at the version actually pinned, external services, generated artefacts.                                              |
+| **Ownership**           | The roster agent (the method's `ROSTER.md` (`../../ROSTER.md` relative to this skill's directory)) or person who owns each thing named above. |
+| **Constraints**         | The ADRs and rules already governing this area. Link them; never restate them.                                                                |
+| **Sources**             | Every file, document and command the statements above rest on, each with the fact it established.                                             |
 
 ### Depth follows the risk class, and nothing else
 
@@ -423,11 +451,17 @@ End your turn with:
 3. **Every assumption you made**, as a numbered list, each phrased so the user can
    answer it with one word or one correction. These are the questions you did not
    ask, surfaced after the draft instead of before it.
-4. **Ask the user how to proceed**, with `AskUserQuestion`. Offer exactly these
+4. **Every `[NEEDS CLARIFICATION: …]` marker you wrote**, with its location — the
+   criterion number, Glossary term or field. Say "none" when there are none.
+5. **Ask the user how to proceed**, with `AskUserQuestion`. Offer exactly these
    options, in this order:
 
    - **Revise the requirements** — the user has corrections to the draft, or answers to
      the assumptions above. Apply them, rewrite `requirements.md`, and ask again.
+   - **Clarify the requirements** — run the `spec-clarify` skill: at most five
+     questions, highest impact first, each answer written into `requirements.md`.
+     **Recommend this option whenever the draft carries a marker**; design cannot test
+     a criterion that still asks a question.
    - **Proceed to design** — run the `spec-design` skill to produce `design.md`, then
      stop for review before tasks.
    - **Proceed to design and tasks** — run `spec-design` and then `spec-tasks` without
@@ -440,8 +474,8 @@ End your turn with:
    forbids a questionnaire **before** the draft; this is one routing question **after**
    it, which the user answers having read something concrete.
 
-**Then act on the answer.** On _revise_, stay in this skill. On either _proceed_ option,
-hand off to the named skill in the same turn. Until the user answers, do not create
+**Then act on the answer.** On _revise_, stay in this skill. On _clarify_ or either
+_proceed_ option, hand off to the named skill in the same turn. Until the user answers, do not create
 `design.md` or `tasks.md`, do not start implementing, and do not write placeholder
 documents — the user's approval of the requirements is the gate, and only the user can
 pass it.
@@ -449,6 +483,9 @@ pass it.
 ## Never
 
 - Never ask clarifying questions before producing a draft.
+- Never guess where the answer changes permissions, personal data, retention, a numeric
+  target or scope and nothing supports a reading — write a `[NEEDS CLARIFICATION: …]`
+  marker instead.
 - Never write a criterion whose subject is absent from the Glossary.
 - Never mix EARS patterns in one criterion or reorder the complex-pattern clauses.
 - Never put implementation detail, file paths, or library names in a criterion.

@@ -232,6 +232,9 @@ test("spec-clarify caps a session at five questions and resolves clarification m
   // The approval is bound to the checksum; a clarified document needs a human to re-approve it.
   assert.match(clarify, /`vellum approve <NNN> requirements`/);
   assert.match(clarify, /Never run `vellum approve`/);
+  // spec-new is the producer of the marker spec-clarify resolves; spec-design stops on one.
+  assert.match(skill("spec-new"), /\[NEEDS CLARIFICATION: /);
+  assert.match(skill("spec-design"), /NEEDS CLARIFICATION/);
 });
 
 test("spec-converge treats [x] without evidence as a gap and never marks a task done", () => {
