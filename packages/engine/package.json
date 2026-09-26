@@ -29,7 +29,6 @@
   },
   "devDependencies": {
     "@vellum/tsconfig": "workspace:*",
-    "@vellum/testing": "workspace:*",
     "fast-check": "^3.22.0"
   }
 }
