@@ -9,6 +9,11 @@ import {
   aggregateContextMetrics,
   anonymizeContextMetrics,
 } from "../context-metrics";
+import type { AggregatedContextMetrics } from "../context-metrics";
+import type { MetricsScope } from "../scope.types";
+
+const specScope: MetricsScope = { kind: "spec", specId: "test-spec" };
+const repositoryScope: MetricsScope = { kind: "repository" };
 
 describe("computeTaskMetrics", () => {
   it("computes metrics for task", () => {
@@ -53,9 +58,9 @@ describe("aggregateContextMetrics", () => {
       computeTaskMetrics("1.3", "spec-1", null, "uncomputed content"),
     ];
 
-    const aggregated = aggregateContextMetrics(taskMetrics, "test-scope", 0);
+    const aggregated = aggregateContextMetrics(taskMetrics, specScope, 0);
 
-    expect(aggregated.scope).toBe("test-scope");
+    expect(aggregated.scope).toEqual(specScope);
     expect(aggregated.total_tasks).toBe(3);
     expect(aggregated.tasks_with_bundles).toBe(2);
     expect(aggregated.average_bundle_size_bytes).toBeGreaterThan(0);
@@ -65,7 +70,7 @@ describe("aggregateContextMetrics", () => {
   it("counts full artifact fallbacks", () => {
     const taskMetrics = [computeTaskMetrics("1.1", "spec-1", "bundle", "original")];
 
-    const aggregated = aggregateContextMetrics(taskMetrics, "scope", 5);
+    const aggregated = aggregateContextMetrics(taskMetrics, repositoryScope, 5);
 
     expect(aggregated.full_artifact_fallbacks).toBe(5);
   });
@@ -76,7 +81,7 @@ describe("aggregateContextMetrics", () => {
       computeTaskMetrics("1.2", "spec-1", null, "original"),
     ];
 
-    const aggregated = aggregateContextMetrics(taskMetrics, "scope", 2);
+    const aggregated = aggregateContextMetrics(taskMetrics, repositoryScope, 2);
 
     expect(aggregated.tasks_with_bundles).toBe(0);
     expect(aggregated.size_ratio).toBe(0);
@@ -85,21 +90,21 @@ describe("aggregateContextMetrics", () => {
 
 describe("anonymizeContextMetrics", () => {
   it("removes no identity (already anonymous)", () => {
-    const metrics = {
-      scope: "test-scope",
+    const metrics: AggregatedContextMetrics = {
+      scope: specScope,
       total_tasks: 10,
       tasks_with_bundles: 8,
       average_bundle_size_bytes: 1024,
       average_original_size_bytes: 5120,
       size_ratio: 0.2,
       full_artifact_fallbacks: 2,
-      timestamp: new Date().toISOString(),
+      timestamp: "2026-09-26T00:00:00.000Z",
     };
 
     const anonymized = anonymizeContextMetrics(metrics);
 
     // Context metrics by design contain no PII
-    expect(anonymized.scope).toBe("test-scope");
+    expect(anonymized.scope).toEqual(specScope);
     expect(anonymized.total_tasks).toBe(10);
     expect(anonymized.timestamp).toBeDefined();
   });
