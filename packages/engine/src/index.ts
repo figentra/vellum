@@ -1,20 +1,20 @@
 /**
- * @vellum/engine — Pure logic implementation
+ * @vellum/engine — Pure logic implementation (no I/O)
  *
- * This package implements the Vellum specification lifecycle enforcement.
- * It is pure logic with NO I/O dependencies (no fs, no child_process, no network).
+ * This package contains the stateless engine functions that compute
+ * lifecycle state, approvals, evidence, and verification.
  *
- * All dependencies are injected as data, making it:
- * - Deterministic
- * - Fast to test
- * - Safe to property-test
+ * ## Design Principles
+ *
+ * - No filesystem access
+ * - No git operations
+ * - No network calls
+ * - No clock dependency
+ * - Pure functions only
+ * - Deterministic output
+ *
+ * All decisions are computed from repository content and the pinned version alone.
  */
 
-// Lifecycle state machine
-export * from "./lifecycle/state-machine.js";
-
-// Approval verification
-export * from "./approval/verify.js";
-
-// Version
+// Placeholder — will be populated during Slice 1 Wave 2 implementation
 export const VERSION = "0.0.0" as const;
