@@ -26,7 +26,7 @@ import {
 } from "../approval/records.js";
 import { computeCoverage } from "../coverage/validate.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
-import { verifyApproval } from "../approval/verify.js";
+import { hasRequiredApprovals, verifyApproval } from "../approval/verify.js";
 import { createFinding } from "../validate/finding.js";
 
 /**
@@ -116,7 +116,12 @@ export function strictVerify(
   for (const { record, problem } of records) {
     if (problem !== undefined) {
       findings.push(
-        createFinding(".sdlc/ledger.jsonl", record.entryId, "APPROVAL_INVALID", `Approval invalid: ${problem}`),
+        createFinding(
+          ".sdlc/ledger.jsonl",
+          record.entryId,
+          "APPROVAL_INVALID",
+          `Approval invalid: ${problem}`,
+        ),
       );
       continue;
     }
@@ -149,6 +154,37 @@ export function strictVerify(
           record.entryId,
           "APPROVAL_INVALID",
           `Approval invalid: ${result.reason}`,
+        ),
+      );
+    }
+  }
+
+  // Each present artifact holds the approvals the policy requires (criterion
+  // 12.5): checking only the approvals that were recorded would pass a spec
+  // that recorded none.
+  const validRecords = records.flatMap((resolved) =>
+    resolved.problem === undefined ? [resolved.record] : [],
+  );
+  for (const [kind, current] of byKind) {
+    const required = hasRequiredApprovals(
+      validRecords,
+      policy,
+      riskClass,
+      kind,
+      computeChecksum(current.body),
+      gitCommits,
+    );
+    if (!required.met) {
+      findings.push(
+        createFinding(
+          `${kind}.md`,
+          0,
+          "APPROVAL_REQUIRED",
+          policy === null
+            ? `${kind}.md cannot hold a valid approval: the Approval Policy is missing`
+            : required.required === 0
+              ? `The Approval Policy names no required approvals for ${kind} at risk class ${riskClass}`
+              : `${kind}.md has ${required.count} of the ${required.required} valid approvals the policy requires`,
         ),
       );
     }
@@ -231,12 +267,22 @@ export function strictVerify(
     };
     if (coverage.examined.criteria === 0) {
       findings.push(
-        createFinding("requirements.md", 0, "CRITERIA_NOT_COVERED", "requirements.md defines no criteria"),
+        createFinding(
+          "requirements.md",
+          0,
+          "CRITERIA_NOT_COVERED",
+          "requirements.md defines no criteria",
+        ),
       );
     }
     for (const id of coverage.uncoveredCriteria) {
       findings.push(
-        createFinding("tasks.md", 0, "CRITERIA_NOT_COVERED", `Criterion ${id} is covered by no task`),
+        createFinding(
+          "tasks.md",
+          0,
+          "CRITERIA_NOT_COVERED",
+          `Criterion ${id} is covered by no task`,
+        ),
       );
     }
     for (const id of coverage.uncitedProperties) {
