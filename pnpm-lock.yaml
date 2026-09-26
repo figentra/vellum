@@ -198,14 +198,13 @@ importers:
         version: 3.23.2
 
   packages/vellum:
-    dependencies:
+    devDependencies:
       '@vellum/cli':
         specifier: workspace:*
         version: link:../cli
       '@vellum/mcp':
         specifier: workspace:*
         version: link:../mcp
-    devDependencies:
       '@vellum/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig

@@ -1,4 +1,10 @@
 {
   "extends": ["//"],
-  "tags": ["vellum"]
+  "tags": ["vellum"],
+  "tasks": {
+    "test": {
+      "dependsOn": ["^build", "build"],
+      "cache": false
+    }
+  }
 }

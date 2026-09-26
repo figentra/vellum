@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * @figentra/vellum — CLI entry point
- *
- * Thin wrapper that invokes @vellum/cli
+ * @figentra/vellum — the `vellum` bin: runs the bundled @vellum/cli.
  */
 
-import "@vellum/cli";
+import { main } from "@vellum/cli";
+
+void main();
