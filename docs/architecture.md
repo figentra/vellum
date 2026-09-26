@@ -4,35 +4,16 @@ Vellum implements a layered architecture with strict dependency boundaries enfor
 
 ## Dependency Graph
 
-```
-+------------------+
-|   @vellum/cli    |
-|   @vellum/mcp    |
-+--------+---------+
-         |
-         v
-+------------------+
-| @vellum/vellum   |  <-- Bundle package
-+--------+---------+
-         |
-         v
-+--------+---------+
-|  @vellum/engine  |  <-- Pure logic (no I/O)
-+--------+---------+
-         |
-         v
-+--------+---------+
-| @vellum/protocol |  <-- Types & schemas
-+------------------+
+Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 
-+------------------+
-| @vellum/storage  |
-+--------+---------+
-         |
-         v
-+--------+---------+
-| @vellum/renderers|
-+------------------+
+```
+@figentra/vellum  ->  @vellum/cli, @vellum/mcp
+@vellum/cli       ->  protocol, engine, storage, renderers
+@vellum/mcp       ->  protocol, engine, storage, renderers
+@vellum/storage   ->  protocol, engine
+@vellum/renderers ->  protocol, engine
+@vellum/engine    ->  protocol            (pure: no I/O)
+@vellum/protocol  ->  (nothing)           (types, schemas, canonical hashing)
 ```
 
 ## Package Boundaries
@@ -125,17 +106,15 @@ Vellum implements a layered architecture with strict dependency boundaries enfor
 
 **Dependencies**: @vellum/protocol, @vellum/engine, @vellum/storage, @vellum/renderers
 
-**Commands**:
+**Commands** (see [CLI reference](cli/README.md)):
 - `vellum lint` - Validate spec artifacts
-- `vellum status` - Show spec state
-- `vellum check` - CI-safe verification
+- `vellum status` - Show spec state (the Effective state is not computed yet)
 - `vellum verify` - Strict verification
-- `vellum approve` - Record approval (human-only)
+- `vellum approve` - Write an approval record for the approver's signed commit (human-only)
 - `vellum doctor` - Diagnose environment
-- `vellum adopt` - Bring legacy spec under management
-- `vellum task start` - Record task binding
-- `vellum task complete` - Record evidence
-- `vellum sync` - Project to assistant directories
+- `vellum task start` - Pre-execution check; record task binding
+- `vellum task complete` - Run the verification command; record evidence
+- `vellum check`, `vellum adopt`, `vellum sync` - not implemented; exit 2
 
 ### @vellum/mcp
 
@@ -165,11 +144,12 @@ Vellum implements a layered architecture with strict dependency boundaries enfor
 
 **Dependencies**: @vellum/cli, @vellum/mcp
 
-**Rules**:
+**Intended** (not yet verified by any check in this repository):
 - Single version number
 - Bundle all internal dependencies
 - Zero external runtime dependencies
-- < 500KB bundle size
+
+Its `vellum` bin does not invoke the CLI yet.
 
 ## Specification Lifecycle
 
@@ -198,29 +178,34 @@ Each transition has preconditions:
 
 ## Ledger System
 
-The ledger (`.sdlc/ledger.jsonl`) is an append-only log:
+The ledger (`.sdlc/ledger.jsonl`) is an append-only log in the protocol's format:
 
 ```
-Entry 1: ApprovalRecord (no predecessor)
-Entry 2: EvidenceEntry (predecessor = SHA-256 of Entry 1)
-Entry 3: TaskBindingEntry (predecessor = SHA-256 of Entry 2)
+Entry 1: ApprovalRecord   (predecessor_digest = null)
+Entry 2: TaskBinding      (predecessor_digest = SHA-256 of Entry 1's canonical JSON)
+Entry 3: EvidenceEntry    (predecessor_digest = SHA-256 of Entry 2's canonical JSON)
 ...
 ```
 
-**Properties**:
-- Every entry after the first has a predecessor digest
-- Entries are immutable
-- Tampering detected via digest chain
-- Forks detected (duplicate predecessor)
+`computeLedgerEntryDigest` in `@vellum/protocol` is the one hashing function; storage's writer
+and the engine's `checkLedgerIntegrity` both use it. `.sdlc/ledger.head.json` records the last
+entry's id and digest.
+
+**Detected**: an edited entry, a removed or reordered entry, a fork (duplicate predecessor),
+and — through the head — a truncated tail or an edited last entry. Truncating the ledger and
+rewriting the head in one change is visible only in git history.
 
 ## Approval System
 
-Approvals must:
+An Approval Record counts when the commit that added it to the ledger:
 
-1. Come from a human (not AI assistant)
-2. Have a verified git signature
-3. Match the policy (approvers per artifact)
-4. Be bound to exact artifact version and checksum
+1. changes only the spec's ledger files,
+2. carries a signature that verifies against a public key the Approval Policy lists for the
+   approving identity (not merely a key the verifying host trusts),
+3. is not marked as an assistant session,
+
+and the record names an approver the policy authorises for the artifact at the spec's risk
+class, bound to the artifact's current checksum.
 
 Invalidations cascade:
 - Requirements invalidation → design + plan invalidations
@@ -229,12 +214,13 @@ Invalidations cascade:
 
 ## Testing Strategy
 
-1. **Unit Tests**: Vitest for all packages
-2. **Property Tests**: fast-check for engine package
-3. **Integration Tests**: CLI end-to-end tests
-4. **Conformance Tests**: Negative/near-miss fixtures
-5. **Mutation Testing**: Stryker for engine package (≥85% threshold)
-6. **Coverage**: ≥90% for engine package
+1. **Unit Tests**: Vitest in each package
+2. **Property Tests**: fast-check (engine, protocol)
+3. **Integration Tests**: `packages/cli` runs the CLI against a temporary git repository per
+   test, with throwaway signing keys
+4. **Conformance Tests**: negative/near-miss fixtures under `conformance/`
+5. **Mutation Testing**: `pnpm test:mutation` runs Stryker; no score threshold is configured
+6. **Coverage**: collected in CI for the engine; no threshold is enforced
 
 ## CI/CD Pipeline
 
@@ -252,11 +238,13 @@ Release
 
 ## Security Model
 
-1. **Human-Only Approvals**: AI assistants cannot approve
-2. **Signature Verification**: Git commits must be signed
-3. **Checksum Binding**: Approvals bound to exact artifact state
-4. **Tamper Detection**: Ledger integrity prevents modification
-5. **No Bypass**: All checks run in CI, no shortcuts
+1. **Human-Only Approvals**: an approval counts only with a signature by the approver's policy
+   key; an assistant without that key cannot produce one
+2. **Signature Verification**: against the policy's public keys only
+3. **Checksum Binding**: approvals bound to the artifact's canonical text
+4. **Tamper Detection**: the ledger chain and head make edits, removals, reorders and forks
+   detectable; git history is the final record
+5. **CI**: these guarantees hold where `vellum verify` runs in CI on the full history
 
 ## Performance Characteristics
 

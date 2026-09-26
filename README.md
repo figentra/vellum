@@ -1,125 +1,73 @@
 # Vellum — Specification Lifecycle Enforcement
 
-**Vellum** is a specification lifecycle enforcement tool for AI-assisted development. It ensures that specifications (requirements, design, tasks) progress through defined lifecycle states with proper approvals, evidence, and integrity checks.
+**Vellum** keeps a specification's requirements, design and tasks honest while AI assistants
+help implement them: an approval counts only when a human's signing key made it, task
+completion is recorded from a command Vellum ran itself, and the record of both is a
+hash-chained ledger in git beside the spec.
 
-## Why Vellum?
+The monorepo is pre-release. Nothing is published to npm yet (`@figentra/vellum` is
+`private`), and several capabilities the specs describe are not built. This README lists what
+works today; any other command exits 2 with `not implemented`.
 
-When AI assistants help write code, specifications can drift from reality. Vellum enforces a structured workflow that:
+## What works
 
-- ✅ Tracks specification lifecycle (DRAFT → RELEASED)
-- ✅ Validates approvals are from authorized humans (not AI bots)
-- ✅ Verifies task completion with evidence
-- ✅ Detects and prevents specification tampering
-- ✅ Integrates with your existing git workflow
-- ✅ Works with Claude, Kiro, OpenCode, and other AI assistants
+- **Signed approvals.** `vellum approve` writes an Approval Record bound to the artifact's
+  current checksum. It counts only once the commit that adds it to the ledger changes nothing
+  but the ledger and is signed by a key the Approval Policy (`.sdlc/policy.json`) lists for the
+  approver. SSH and GPG signatures are verified against the policy's own public keys, not the
+  host's keyring. Editing the artifact afterwards voids the approval.
+- **Evidence Vellum records itself.** `vellum task complete <spec> <task> --command=<cmd>` runs
+  the command, records its real exit status, timestamps, duration, HEAD commit and an output
+  digest (never the output), and marks the task `[x]` only on exit 0 at a clean HEAD.
+- **A tamper-evident ledger.** `.sdlc/ledger.jsonl` is hash-chained (ids from 1, each entry
+  carrying the SHA-256 of its predecessor's canonical JSON); `.sdlc/ledger.head.json` records
+  the last entry, so truncating the tail or editing the last entry is detected too.
+- **Strict verification.** `vellum verify` fails on a broken ledger; an approval that is
+  unsigned, signed by a key the policy does not list for the approver, or bound to changed
+  text; an uncovered criterion; an uncited property; or a required task without passing
+  evidence.
 
-## Quick Start
-
-### Installation
-
-```bash
-npm install @figentra/vellum
-# or
-pnpm add @figentra/vellum
-# or
-yarn add @figentra/vellum
-```
-
-### Initialize a Specification
-
-```bash
-# Create a new spec
-mkdir -p .agents/specs/001-my-feature
-cd .agents/specs/001-my-feature
-
-# Write requirements, design, and tasks
-echo "---\nstate: DRAFT\nversion: 1\n---" > requirements.md
-echo "---\nstate: DRAFT\nversion: 1\n---" > design.md
-echo "---\nstate: DRAFT\nversion: 1\n---" > tasks.md
-```
-
-### Check Status
-
-```bash
-vellum status 001
-```
-
-### Validate Specifications
-
-```bash
-# Lint all specs
-vellum lint
-
-# Verify integrity
-vellum verify
-
-# CI-ready check (no file modifications)
-vellum check
-```
+Not implemented: `vellum check` (Check Mode), `vellum adopt`, `vellum sync`, the Effective
+Lifecycle State and next-transition computation, and the doctor categories reported as
+`NOT_CHECKED`. See the [CLI reference](docs/cli/README.md).
 
 ## Architecture
 
-Vellum is structured as a monorepo with clear boundaries:
-
 ```
-@figentra/vellum        # The published bundle (ONE version)
+@figentra/vellum        # The bundle to be published (one version)
 ├── @vellum/cli         # Command-line interface
 ├── @vellum/mcp         # MCP server for AI assistants
 ├── @vellum/engine      # Pure logic engine (no I/O)
-├── @vellum/protocol    # Type definitions and schemas
-├── @vellum/storage     # File system and git adapters
-└── @vellum/renderers   # Output formatters (JSON, Markdown, etc.)
+├── @vellum/protocol    # Type definitions, schemas, canonical hashing
+├── @vellum/storage     # File system, git, ledger and signature adapters
+└── @vellum/renderers   # Output formatters
 ```
 
-### Key Principles
-
-1. **Single Version**: One npm package (`@figentra/vellum`) with a single pinned version
-2. **Pure Engine**: Business logic has zero I/O, making it easy to test
-3. **Deterministic Output**: Same input → same output (byte-identical)
-4. **Offline Capable**: Zero runtime dependencies after installation
-5. **Git-Native**: Uses git for integrity, approvals, and verification
+Principles: one version for the bundle; the engine is pure (it imports only
+`@vellum/protocol`); deterministic output; git is the database.
 
 ## Documentation
 
-- [Getting Started Guide](docs/guides/getting-started.md)
-- [CLI Reference](docs/cli/README.md)
-- [API Documentation](docs/api.md)
-- [Architecture Overview](docs/architecture.md)
-- [Integration Guides](docs/integration/README.md)
+- [Getting started](docs/guides/getting-started.md) — the approve, start, complete, verify loop
+- [CLI reference](docs/cli/README.md)
+- [Architecture overview](docs/architecture.md)
 - [Troubleshooting](docs/troubleshooting.md)
 
 ## Development
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Run tests
-pnpm test
-
-# Build all packages
 pnpm build
-
-# Run linter
+pnpm test
 pnpm lint
-
-# Type check
 pnpm typecheck
 ```
 
 ## Requirements
 
 - Node.js >= 22.0.0
-- Git >= 2.28 (for gpg signatures)
+- Git >= 2.34 (to verify SSH-signed commits); `ssh-keygen` for SSH keys, `gpg` for GPG keys
 
 ## License
 
 MIT
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
----
-
-Built with ❤️ by [Figentra](https://figentra.com)

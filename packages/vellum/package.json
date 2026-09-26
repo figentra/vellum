@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Vellum — The ONE published npm package bundling everything",
+  "description": "Vellum — the single npm package meant to bundle everything (not yet published)",
   "bin": {
     "vellum": "./dist/cli.js"
   },

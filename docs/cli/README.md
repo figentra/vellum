@@ -1,400 +1,160 @@
 # CLI Reference
 
-## Installation
+`vellum <command> [arguments] [options]`. `vellum --help` prints the same list.
 
-```bash
-npm install -g @figentra/vellum
-# or use npx
-npx @figentra/vellum <command>
+Exit status: **0** PASS or done, **1** FAIL or refused, **2** INCONCLUSIVE (nothing to examine,
+an input that could not be read), a usage error, or a command that is not implemented. An
+option a command does not declare is a usage error, never ignored.
+
+Every command runs inside a git work tree and reads specs from `.agents/specs/<NNN>-<slug>/`.
+A spec is _managed_ when it has a `.sdlc/` machine folder or artifacts with Lifecycle
+Frontmatter; otherwise it is _legacy_: listed, not validated.
+
+## Files Vellum reads and writes
+
+| Path                                              | Written by  | Contents                                                                                      |
+| ------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------------- |
+| `.sdlc/policy.json` (repository root)             | a human     | The Approval Policy: approvers, their signing keys, required counts per risk class            |
+| `<spec>/requirements.md`, `design.md`, `tasks.md` | authors     | Lifecycle Frontmatter (`version`, `checksum`, `state`, `createdAt`, `updatedAt`) and the body |
+| `<spec>/.sdlc/ledger.jsonl`                       | Vellum only | Hash-chained ledger entries                                                                   |
+| `<spec>/.sdlc/ledger.head.json`                   | Vellum only | The last entry's id and digest                                                                |
+
+The Artifact Checksum is the SHA-256 of the body's canonical form: frontmatter, line endings,
+trailing whitespace, table padding and Task Markers do not change it; any word does.
+
+### Approval Policy
+
+```json
+{
+  "schema_version": "1.0",
+  "repository": "my-repo",
+  "approval": {
+    "schema_version": "1.0",
+    "approvers": [
+      {
+        "email": "alice@example.com",
+        "authorised_for": ["standard"],
+        "keys": [
+          {
+            "type": "ssh",
+            "fingerprint": "SHA256:…",
+            "public_key": "ssh-ed25519 AAAA… alice"
+          }
+        ]
+      }
+    ],
+    "requirements": { "standard": { "count": 1 } },
+    "spec_risk_classes": { "016-payments": "high" }
+  }
+}
 ```
 
-## Global Options
-
-```bash
-vellum [options] <command>
-
-Options:
-  --json           Output as JSON
-  --no-color       Disable colors
-  -v, --version    Show version
-  -h, --help       Show help
-```
+Every key needs its `public_key` (an OpenSSH public key line, or an ASCII-armored GPG key);
+an SSH key's `fingerprint` must be the one `ssh-keygen -lf` prints for that key, or the policy
+is refused. A spec not listed in `spec_risk_classes` is `standard`.
 
 ## Commands
 
-### vellum lint
+### `vellum status [spec] [--json]`
 
-Validate specification artifacts against protocol rules.
+Per spec: the Recorded Lifecycle State (from `requirements.md`), each artifact's version and
+whether its frontmatter checksum is current, valid approvals against the policy, required tasks
+with passing evidence and failed attempts, and ledger integrity. The Effective Lifecycle State
+is reported as _not computed_: this version does not compute it. Exit 0; 2 when a spec cannot
+be read or the fragment matches no spec or several.
 
-```bash
-vellum lint [spec]
-vellum lint 001           # Lint spec 001
-vellum lint --type requirements  # Only lint requirements
-```
+### `vellum lint [spec] [--type=requirements|design|tasks] [--json]`
 
-**Options**:
-- `--type <artifact>` - Filter by artifact type (requirements, design, tasks)
+The Protocol Validator: the spec folder holds only the three artifacts and `.sdlc/`; each
+artifact's frontmatter parses and its checksum matches its body; task markers are one of
+`[ ]`, `[~]`, `[-]`, `[x]`; a task's `<!-- criteria: … -->` references exist in
+`requirements.md`; and, without `--type`, every ledger entry passes its schema and the chain
+and head are intact. Output ends with what was examined. Exit 1 on any finding; 2 when no
+managed artifact was examined.
 
-**Exit Status**:
-- `0` - All artifacts valid
-- `1` - Violations found
-- `2` - Could not evaluate (unknown command, invalid spec)
+Not checked yet: the Markdown Protocol rules of criteria 11.2, 11.5 and 11.6.
 
-**Output** (JSON):
-```json
-{
-  "findings": [
-    {
-      "file": "requirements.md",
-      "line": 42,
-      "rule": "V001",
-      "message": "Invalid criterion reference"
-    }
-  ]
-}
-```
+### `vellum verify [spec] [--strict] [--json]`
 
-### vellum status
+The Strict Verifier. `--strict` is accepted; there is no lenient mode. Per spec:
 
-Show the current state of a specification.
+- the ledger chain and the Ledger Head;
+- each approval: the commit that added its ledger line must change only the spec's ledger
+  files and carry a signature that verifies against a key the policy lists for the approving
+  identity, from a human session, and the approval must bind the artifact's current checksum;
+- every criterion is covered by a task and every property is cited by one;
+- every required (non-optional) task has an Evidence Entry with exit status 0 at HEAD or an
+  ancestor of it.
 
-```bash
-vellum status [spec]
-vellum status 001
-vellum status --json
-```
+Without a spec argument it verifies each managed spec whose Recorded state is `IN_PROGRESS` or
+later. Exit 0 PASS, 1 FAIL, 2 INCONCLUSIVE (nothing to verify, or an unreadable input or
+invalid policy).
 
-**Options**:
-- `--json` - Output as JSON
+### `vellum doctor [--json]`
 
-**Exit Status**:
-- `0` - Valid spec
-- `1` - Invalid state
-- `2` - Spec not found
+Evaluates Node.js (>= 22), git (>= 2.34), the repository, the Approval Policy and the signing
+tools its keys need, each managed spec's ledger integrity, and untracked documents under
+`.agents/specs/`. Reports _Assistant plugin version_, _Repository hooks_, _Stale markers_,
+_ADR supersession_ and _Disposable cache_ as `NOT_CHECKED` — not implemented, never PASS.
+Exit 1 when an evaluated diagnostic fails.
 
-**Output** (JSON):
-```json
-{
-  "specId": "001-feature-x",
-  "recordedState": "IN_PROGRESS",
-  "effectiveState": "IN_PROGRESS",
-  "artifacts": {
-    "requirements": { "version": 3, "checksum": "abc123..." },
-    "design": { "version": 2, "checksum": "def456..." },
-    "tasks": { "version": 5, "checksum": "789xyz..." }
-  },
-  "approvals": {
-    "requirements": { "approved": true, "approvedBy": "alice" },
-    "design": { "approved": true, "approvedBy": "bob" },
-    "tasks": { "approved": false }
-  },
-  "nextTransition": "VERIFICATION",
-  "unmetPreconditions": []
-}
-```
+### `vellum approve <spec> <requirements|design|tasks> [--reject --rationale=<text>]`
 
-### vellum check
+Writes an Approval Record (or a Rejection Record) for the artifact's current version and
+checksum under `git config user.email`. It refuses outside an interactive terminal, in CI, in
+a detected assistant session, without a policy, for an identity the policy does not authorise
+or lists no key for, and on a damaged ledger.
 
-CI-safe verification that doesn't modify files.
+The record is **not valid when the command finishes**. It becomes valid when the approver
+commits it — a commit changing only `.sdlc/ledger.jsonl` and `.sdlc/ledger.head.json`, signed
+with their policy key:
 
 ```bash
-vellum check [spec]
-vellum check            # Check all specs
-vellum check 001
+git add .agents/specs/016-x/.sdlc/ledger.jsonl .agents/specs/016-x/.sdlc/ledger.head.json
+git commit -S -m "approve: 016-x requirements" -- .agents/specs/016-x/.sdlc/
 ```
 
-**Options**:
-- (same as status)
+The terminal and assistant checks are a courtesy. The guarantee is `vellum verify`'s signature
+check, which nobody without the approver's signing key can satisfy.
 
-**Exit Status**:
-- `0` - All checks pass
-- `1` - Violations found
-- `2` - Could not evaluate
+### `vellum task start <spec> <task-id>`
 
-**Use Case**: Run in CI pipelines to verify specs without side effects.
+The pre-execution check: the three artifacts exist and hold the approvals the policy requires,
+bound to their current checksums, and the task's criterion and property references resolve.
+On success it appends a Task Binding to the ledger and sets the task's marker to `[-]`; on
+failure it writes nothing. Exit 0 started, 1 refused.
 
-### vellum verify
+### `vellum task complete <spec> <task-id> --command=<cmd> [--timeout=<seconds>]`
 
-Run strict verification including coverage and ledger integrity.
+Requires a Task Binding for the task whose checksums still match the artifacts (otherwise the
+marker is reset to `[ ]` and the command refuses). Refuses a command text that matches a secret
+pattern. Then it runs `<cmd>` through `/bin/sh -c` at the repository root — Vellum runs it; the
+caller reports nothing — stopping it after `--timeout` seconds (default 600). It appends an
+Evidence Entry with the real exit status (124 on timeout), start and finish timestamps,
+duration, HEAD commit, a SHA-256 of the output and whether the working tree differed from HEAD
+outside the spec directory. The output's tail is shown on stderr and never stored.
+
+The marker becomes `[x]` only when the command exited 0 and the tree was clean. Exit 0 then;
+exit 1 when the command failed (a failed attempt is recorded, the marker unchanged) or the
+evidence was recorded as uncommitted.
+
+There is no `--exit` option.
+
+### Not implemented
+
+`vellum check`, `vellum adopt` and `vellum sync` exit 2 with `not implemented: …`.
+
+## Running the CLI
+
+Nothing is published yet. In this repository, build and run the CLI package's entry:
 
 ```bash
-vellum verify [spec]
-vellum verify           # Verify all IN_PROGRESS+ specs
-vellum verify 001
+pnpm build
+node packages/cli/dist/cli.js status
 ```
 
-**Checks**:
-- All criteria covered by tests/properties
-- All properties cited by tasks
-- Required task evidence present
-- Valid approvals present
-- Ledger integrity verified
-
-**Exit Status**:
-- `0` - Verification passed
-- `1` - Verification failed
-- `2` - Could not verify
-
-**Output**:
-```
-Verification Results for spec 001:
-  
-  Criteria Coverage:  47/47 (100%)
-  Property Coverage:  23/23 (100%)
-  Task Evidence:      15/15 (100%)
-  Approvals:          3/3 valid
-  Ledger Integrity:   ✅ Pass
-  
-  Result: PASS
-```
-
-### vellum approve
-
-Record an approval (human-only).
-
-```bash
-vellum approve <spec> <stage>
-vellum approve 001 requirements
-vellum approve 001 design
-vellum approve 001 tasks
-```
-
-**Requirements**:
-- Must run in an interactive terminal
-- Cannot run from AI assistant session
-- Git must be configured with signing key
-
-**Exit Status**:
-- `0` - Approval recorded
-- `1` - Approval refused
-- `2` - Invalid request
-
-**Error Cases**:
-- "Approval refused: Running in non-interactive session"
-- "Approval refused: Detected AI assistant session"
-- "Approval refused: Git signature verification failed"
-
-### vellum doctor
-
-Diagnose environment and configuration issues.
-
-```bash
-vellum doctor
-```
-
-**Checks**:
-- Git version and configuration
-- GPG signing setup
-- Node.js version
-- Spec directory structure
-- Permissions
-
-**Output**:
-```
-Running diagnostics...
-
-✅ Git version: 2.43.0
-✅ Git configured: user.name, user.email
-✅ GPG signing: enabled
-✅ Node.js: 22.0.0
-✅ .agents/specs/ directory exists
-⚠️  No specs found
-
-Status: 5/6 checks passed
-```
-
-### vellum adopt
-
-Bring a legacy spec under Vellum management.
-
-```bash
-vellum adopt <spec>
-vellum adopt 001
-```
-
-**What it does**:
-- Adds frontmatter to artifacts
-- Sets initial state to IN_REVIEW
-- Creates `.sdlc/` directory
-- Preserves original content
-
-**Exit Status**:
-- `0` - Adoption successful
-- `1` - Adoption refused
-- `2` - Invalid spec
-
-### vellum task start
-
-Record a task binding before execution.
-
-```bash
-vellum task start <spec> <task>
-vellum task start 001 T2.3
-```
-
-**Prerequisites**:
-- Spec must be in IN_PROGRESS state
-- All artifacts exist with valid approvals
-- Checksums match approval records
-- Task exists in tasks.md
-
-**Exit Status**:
-- `0` - Task binding recorded
-- `1` - Preconditions not met
-- `2` - Invalid task
-
-### vellum task complete
-
-Record evidence after task completion.
-
-```bash
-vellum task complete <spec> <task>
-vellum task complete 001 T2.3
-```
-
-**What it validates**:
-- Exit status was 0
-- Commit exists and is uncommitted check passed
-- No secret patterns in command text
-- Timestamps are valid
-- Checksum matches binding
-
-**Exit Status**:
-- `0` - Evidence recorded
-- `1` - Evidence invalid
-- `2` - No task binding found
-
-### vellum sync
-
-Project .agents/ to assistant directories.
-
-```bash
-vellum sync [options]
-vellum sync --target claude
-vellum sync --target kiro
-vellum sync --target opencode
-vellum sync --check    # Check mode (no modifications)
-```
-
-**Options**:
-- `--target <assistant>` - Target assistant (claude, kiro, opencode)
-- `--check` - Check for drift without modifying
-
-**What it syncs**:
-- Skills, agents, templates, rules, hooks
-- Adds provenance markers
-- Removes orphaned entries
-- Converts frontmatter to assistant format
-
-## Exit Status Convention
-
-Vellum follows the exit status convention:
-
-| Status | Meaning |
-|--------|---------|
-| `0` | Success |
-| `1` | Failure (validation, verification, approval refusal) |
-| `2` | Could not evaluate (unknown command, invalid spec, not found) |
-
-Use these in CI:
-
-```yaml
-- name: Check specs
-  run: vellum check
-  # Exits 0 = pass, 1 = fail, 2 = error
-```
-
-## JSON Output
-
-All commands support `--json` for machine-readable output:
-
-```bash
-vellum status 001 --json | jq '.effectiveState'
-vellum lint --json | jq '.findings | length'
-vellum verify --json > results.json
-```
-
-## Configuration
-
-No configuration file needed. Vellum uses:
-
-- `.agents/specs/` - Specification directory
-- `.sdlc/` - Machine folder (ledger, cache)
-- Git configuration (user, signing)
-
-## Environment Variables
-
-- `VELLUM_NO_COLOR=1` - Disable colors
-- `VELLUM_LOG_LEVEL=debug` - Set log level
-
-## Examples
-
-### CI Pipeline
-
-```yaml
-name: Specification Checks
-
-on: [push, pull_request]
-
-jobs:
-  check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-      
-      - name: Install
-        run: pnpm install --frozen-lockfile
-      
-      - name: Check specs
-        run: pnpm vellum check
-      
-      - name: Verify specs
-        run: pnpm vellum verify
-```
-
-### Pre-commit Hook
-
-```bash
-#!/bin/bash
-# .git/hooks/pre-commit
-
-pnpm vellum check || {
-  echo "Spec validation failed. Fix issues before committing."
-  exit 1
-}
-```
-
-### Daily Workflow
-
-```bash
-# Morning: Check status
-vellum status
-
-# Start a task
-vellum task start 001 T2.4
-
-# ... write code, run tests ...
-
-# Complete task
-vellum task complete 001 T2.4
-
-# Check progress
-vellum verify 001
-
-# Ready for approval
-vellum approve 001 requirements
-```
-
-## Getting Help
-
-```bash
-vellum --help
-vellum <command> --help
-```
-
-For more details, see the [Getting Started Guide](../guides/getting-started.md).
+The `@figentra/vellum` bundle's `vellum` bin does not invoke the CLI yet (its entry imports
+`@vellum/cli`'s library index, which runs nothing).
+
+In CI, run `lint` and `verify`. `verify` needs the full history (`fetch-depth: 0`) to resolve
+approval commits and evidence ancestry, and the signing tools the policy's keys use.

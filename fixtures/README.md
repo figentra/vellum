@@ -1,20 +1,11 @@
 # Fixtures
 
-Test fixture repositories used by every release:
+What this directory holds today:
 
-- `minimal/` — Smallest valid spec repository
-- `complete/` — Full spec lifecycle example
-- `invalid/` — Invalid spec cases for testing diagnostics
-- `concurrent/` — Concurrent update scenarios
-- `amendment/` — Amendment and approval invalidation cases
-- `critical/` — Critical risk class examples
-- `release/` — Release workflow scenarios
-- `kiro/` — Kiro-specific fixtures
-- `claude/` — Claude Code-specific fixtures
-- `opencode/` — OpenCode-specific fixtures
-- `basalt-parity/` — Basalt's specs at the pinned parity commit
+- `basalt-parity/` — the pinned parity commit (`PARITY_COMMIT`) and a status snapshot of
+  Basalt's specs at that commit.
 
-These fixtures are used for:
-- Conformance testing (one negative case per diagnostic)
-- Integration testing across all packages
-- Mutation testing
+Planned but not present: fixture repositories for a minimal spec, a full lifecycle,
+invalid specs, concurrent updates, amendments, the critical risk class, releases, and each
+assistant. The CLI's integration tests build their fixture repository in a temporary
+directory per test instead (`packages/cli/src/__tests__/fixture.ts`).

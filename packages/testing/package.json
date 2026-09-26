@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Vellum testing utilities — fixture-repo builder, conformance harness, property tests, parity tests, benchmarks",
+  "description": "Vellum testing utilities — fixture builder, assertion helpers, an e2e workflow test, benchmarks",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
