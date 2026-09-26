@@ -18,7 +18,11 @@ import type {
 } from "@vellum/protocol";
 import { canonicalArtifactBody, computeChecksum, parseTaskLine } from "@vellum/protocol";
 import { hasRequiredApprovals } from "../approval/verify.js";
-import { approvalRecords } from "../approval/records.js";
+import {
+  approvalRecords,
+  resolveApprovalSignals,
+  type ApprovalCommitResolution,
+} from "../approval/records.js";
 import { extractCriteria, extractProperties } from "../coverage/validate.js";
 
 /**
@@ -51,6 +55,11 @@ export interface PreCheckApprovalContext {
   readonly policy: ApprovalPolicy | null;
   readonly riskClass: RiskClass;
   readonly gitCommits: ReadonlyMap<string, GitCommit>;
+  /**
+   * The commit that added each approval entry, resolved from git. When given,
+   * it is the Approval Signal (see resolveApprovalSignals).
+   */
+  readonly approvalCommits?: ReadonlyMap<number, ApprovalCommitResolution>;
 }
 
 const ARTIFACT_LABEL: Record<ArtifactKind, string> = {
@@ -96,7 +105,9 @@ export function preExecutionCheck(
   }
 
   // Criteria 18.2 and 18.3: valid approvals bound to the current checksums
-  const records = approvalRecords(ledger);
+  const records = resolveApprovalSignals(approvalRecords(ledger), approval.approvalCommits).map(
+    (resolved) => resolved.record,
+  );
   const checksums = {
     requirements: computeChecksum(requirements.body),
     design: computeChecksum(design.body),

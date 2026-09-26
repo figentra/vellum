@@ -59,3 +59,54 @@ export function approvalRecords(ledger: readonly LedgerEntry[]): ApprovalRecordV
   }
   return records;
 }
+
+/**
+ * How the commit that added an approval entry to the ledger was resolved
+ * from git history: that commit, or why none qualifies (the line is not
+ * committed yet, or the commit changed more than the ledger).
+ */
+export type ApprovalCommitResolution =
+  | { readonly commit: string }
+  | { readonly problem: string };
+
+/** An approval record with its Approval Signal settled, or the reason it has none. */
+export type ResolvedApproval =
+  | { readonly record: ApprovalRecordView; readonly problem?: undefined }
+  | { readonly record: ApprovalRecordView; readonly problem: string };
+
+/**
+ * Settle each approval's Approval Signal.
+ *
+ * Without `addedBy`, the signal is the commit the entry records. With it —
+ * the commit that added each entry to the ledger, resolved by the storage
+ * layer — the signal IS that adding commit: an approval counts only when the
+ * commit that put it in the ledger is signed by the approver. An entry that
+ * records a different commit, or whose adding commit could not be resolved,
+ * has no signal. This stops an entry written by anyone from borrowing some
+ * other commit the approver once signed.
+ */
+export function resolveApprovalSignals(
+  records: readonly ApprovalRecordView[],
+  addedBy?: ReadonlyMap<number, ApprovalCommitResolution>,
+): ResolvedApproval[] {
+  if (addedBy === undefined) return records.map((record) => ({ record }));
+  return records.map((record) => {
+    const resolution = addedBy.get(record.entryId);
+    if (resolution === undefined) {
+      return {
+        record: { ...record, signalCommit: "" },
+        problem: `approval entry ${record.entryId} is not committed; it counts only once a commit signed by the approver adds it`,
+      };
+    }
+    if ("problem" in resolution) {
+      return { record: { ...record, signalCommit: "" }, problem: resolution.problem };
+    }
+    if (record.signalCommit !== "" && record.signalCommit !== resolution.commit) {
+      return {
+        record: { ...record, signalCommit: "" },
+        problem: `approval entry ${record.entryId} names signal commit ${record.signalCommit.slice(0, 12)} but was added by commit ${resolution.commit.slice(0, 12)}`,
+      };
+    }
+    return { record: { ...record, signalCommit: resolution.commit } };
+  });
+}

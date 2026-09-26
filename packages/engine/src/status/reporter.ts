@@ -7,35 +7,52 @@
  * @see design.md Criterion 6
  */
 
-import type { Artifact, LedgerEntry, LifecycleState, ApprovalPolicy } from "@vellum/protocol";
+import type {
+  ApprovalPolicy,
+  Artifact,
+  ArtifactKind,
+  GitCommit,
+  LedgerEntry,
+  LedgerHead,
+  LedgerIntegrityFailure,
+  LifecycleState,
+  RiskClass,
+} from "@vellum/protocol";
+import { canonicalArtifactBody, computeChecksum, parseTaskLine } from "@vellum/protocol";
+import {
+  approvalRecords,
+  resolveApprovalSignals,
+  type ApprovalCommitResolution,
+} from "../approval/records.js";
+import { countValidApprovals, getRequiredApprovalCount } from "../approval/verify.js";
+import { checkLedgerIntegrity } from "../ledger/integrity.js";
 
 /**
  * Status report for a spec.
+ *
+ * The Effective Lifecycle State (criteria 5.10, 6.1) and the next permitted
+ * transition (criterion 6.5) are not computed by this engine version; the
+ * report says so with `null` rather than repeating the recorded state.
  */
 export interface StatusReport {
   /** Spec ID */
   readonly specId: string;
-  /** Recorded lifecycle state */
+  /** Recorded lifecycle state (requirements.md frontmatter) */
   readonly recordedState: LifecycleState;
-  /** Effective lifecycle state (may differ if preconditions fail) */
-  readonly effectiveState: LifecycleState;
-  /** Whether recorded and effective match */
-  readonly stateMismatch: boolean;
+  /** Effective lifecycle state: null — not computed by this engine version */
+  readonly effectiveState: null;
   /** Artifact versions */
   readonly artifacts: {
     readonly requirements?: ArtifactStatus;
     readonly design?: ArtifactStatus;
     readonly tasks?: ArtifactStatus;
   };
-  /** Approval status */
+  /** Valid approvals per artifact, verified as strict verification does */
   readonly approvals: ApprovalStatusReport;
-  /** Verification status */
+  /** Required tasks and their evidence */
   readonly verification: VerificationStatus;
-  /** Next permitted transition */
-  readonly nextTransition?: {
-    readonly target: LifecycleState;
-    readonly unmetPreconditions: readonly string[];
-  };
+  /** Ledger integrity, tail included when the head was supplied */
+  readonly ledger: LedgerStatus;
 }
 
 /**
@@ -44,7 +61,10 @@ export interface StatusReport {
 export interface ArtifactStatus {
   readonly version: number;
   readonly state: LifecycleState;
+  /** The Artifact Checksum of the body as it is now */
   readonly checksum: string;
+  /** Whether the frontmatter's recorded checksum equals the current one */
+  readonly checksumCurrent: boolean;
 }
 
 /**
@@ -60,7 +80,9 @@ export interface ApprovalStatusReport {
  * Approval count.
  */
 export interface ApprovalCount {
+  /** Valid approvals (signed by a policy key of an authorised approver, bound to the current checksum) */
   readonly current: number;
+  /** Approvals the policy requires at the spec's risk class (0: none configured) */
   readonly required: number;
   readonly complete: boolean;
 }
@@ -69,145 +91,138 @@ export interface ApprovalCount {
  * Verification status.
  */
 export interface VerificationStatus {
+  /** Required (non-optional) tasks in tasks.md */
   readonly required: number;
+  /** Required tasks with an Evidence Entry that exited 0 */
   readonly completed: number;
+  /** Evidence Entries that exited non-zero (failed attempts) */
   readonly failed: number;
   readonly complete: boolean;
 }
 
+/** Ledger status. */
+export interface LedgerStatus {
+  readonly entries: number;
+  readonly valid: boolean;
+  readonly failures: readonly LedgerIntegrityFailure[];
+}
+
+/** Everything the status of one spec is computed from. */
+export interface StatusInput {
+  readonly specId: string;
+  readonly artifacts: readonly Artifact[];
+  readonly ledger: readonly LedgerEntry[];
+  readonly recordedState: LifecycleState;
+  readonly policy: ApprovalPolicy | null;
+  readonly riskClass: RiskClass;
+  readonly gitCommits: ReadonlyMap<string, GitCommit>;
+  readonly ledgerHead?: LedgerHead | null;
+  readonly approvalCommits?: ReadonlyMap<number, ApprovalCommitResolution>;
+}
+
 /**
  * Compute status report for a spec.
- * Pure function consuming artifacts and ledger.
+ * Pure function consuming artifacts, ledger and what storage read from git.
  */
-export function computeStatusReport(
-  specId: string,
-  artifacts: readonly Artifact[],
-  ledger: readonly LedgerEntry[],
-  state: LifecycleState,
-  policy: ApprovalPolicy | null,
-): StatusReport {
-  // Get artifact status
-  const requirements = artifacts.find((a) => a.kind === "requirements");
-  const design = artifacts.find((a) => a.kind === "design");
-  const tasks = artifacts.find((a) => a.kind === "tasks");
+export function computeStatusReport(input: StatusInput): StatusReport {
+  const byKind = new Map(input.artifacts.map((a) => [a.kind, a] as const));
 
-  // Compute approval status
-  const approvals = computeApprovalStatus(ledger, policy);
-
-  // Compute verification status
-  const verification = computeVerificationStatus(ledger);
-
-  // For now, recorded and effective are the same
-  // (effective state computation requires complex precondition checking)
-  const effectiveState = state;
-  const stateMismatch = false;
-
-  const artfs: { requirements?: ArtifactStatus; design?: ArtifactStatus; tasks?: ArtifactStatus } =
+  const artifacts: { requirements?: ArtifactStatus; design?: ArtifactStatus; tasks?: ArtifactStatus } =
     {};
-  if (requirements) artfs.requirements = getArtifactStatus(requirements);
-  if (design) artfs.design = getArtifactStatus(design);
-  if (tasks) artfs.tasks = getArtifactStatus(tasks);
+  for (const kind of KINDS) {
+    const artifact = byKind.get(kind);
+    if (artifact) artifacts[kind] = getArtifactStatus(artifact);
+  }
+
+  const records = resolveApprovalSignals(approvalRecords(input.ledger), input.approvalCommits).map(
+    (resolved) => resolved.record,
+  );
+  const approvalFor = (kind: ArtifactKind): ApprovalCount => {
+    const artifact = byKind.get(kind);
+    const required = getRequiredApprovalCount(input.policy, input.riskClass, kind);
+    const current = artifact
+      ? countValidApprovals(
+          records,
+          input.policy,
+          input.riskClass,
+          kind,
+          computeChecksum(artifact.body),
+          input.gitCommits,
+        )
+      : 0;
+    return { current, required, complete: required > 0 && current >= required };
+  };
+
+  const integrity = checkLedgerIntegrity(input.ledger, input.ledgerHead);
 
   return {
-    specId,
-    recordedState: state,
-    effectiveState,
-    stateMismatch,
-    artifacts: artfs,
-    approvals,
-    verification,
+    specId: input.specId,
+    recordedState: input.recordedState,
+    effectiveState: null,
+    artifacts,
+    approvals: {
+      requirements: approvalFor("requirements"),
+      design: approvalFor("design"),
+      tasks: approvalFor("tasks"),
+    },
+    verification: computeVerificationStatus(input.ledger, byKind.get("tasks")),
+    ledger: {
+      entries: input.ledger.length,
+      valid: integrity.valid,
+      failures: integrity.failures,
+    },
   };
 }
+
+const KINDS: readonly ArtifactKind[] = ["requirements", "design", "tasks"];
 
 /**
  * Get artifact status.
  */
 function getArtifactStatus(artifact: Artifact): ArtifactStatus {
+  const checksum = computeChecksum(artifact.body);
   return {
     version: artifact.frontmatter.version,
     state: artifact.frontmatter.state,
-    checksum: artifact.frontmatter.checksum,
+    checksum,
+    checksumCurrent: artifact.frontmatter.checksum === checksum,
   };
 }
 
 /**
- * Compute approval status from ledger.
+ * Compute verification status: required tasks from tasks.md against the
+ * ledger's evidence.
  */
-function computeApprovalStatus(
+function computeVerificationStatus(
   ledger: readonly LedgerEntry[],
-  policy: ApprovalPolicy | null,
-): ApprovalStatusReport {
-  // Count approvals for each artifact
-  const requirementsApprovals = countApprovals(ledger, "requirements");
-  const designApprovals = countApprovals(ledger, "design");
-  const tasksApprovals = countApprovals(ledger, "tasks");
-
-  // Get required counts from policy
-  const requirementsRequired = policy?.requiredCount.get("standard")?.get("requirements") ?? 1;
-  const designRequired = policy?.requiredCount.get("standard")?.get("design") ?? 1;
-  const tasksRequired = policy?.requiredCount.get("standard")?.get("tasks") ?? 1;
-
-  return {
-    requirements: {
-      current: requirementsApprovals,
-      required: requirementsRequired,
-      complete: requirementsApprovals >= requirementsRequired,
-    },
-    design: {
-      current: designApprovals,
-      required: designRequired,
-      complete: designApprovals >= designRequired,
-    },
-    tasks: {
-      current: tasksApprovals,
-      required: tasksRequired,
-      complete: tasksApprovals >= tasksRequired,
-    },
-  };
-}
-
-/**
- * Count approvals for an artifact.
- */
-function countApprovals(ledger: readonly LedgerEntry[], artifact: string): number {
-  let count = 0;
-  for (const entry of ledger) {
-    if (entry.kind === "approval") {
-      const payload = entry as { artifact?: string };
-      if (payload.artifact?.includes(artifact)) {
-        count++;
-      }
-    }
-  }
-  return count;
-}
-
-/**
- * Compute verification status from ledger.
- */
-function computeVerificationStatus(ledger: readonly LedgerEntry[]): VerificationStatus {
-  let completed = 0;
+  tasks: Artifact | undefined,
+): VerificationStatus {
+  const passed = new Set<string>();
   let failed = 0;
-
   for (const entry of ledger) {
-    if (entry.kind === "evidence") {
-      const payload = entry as { exit_status?: number };
-      if (payload.exit_status === 0) {
-        completed++;
-      } else {
-        failed++;
-      }
+    if (entry.kind !== "evidence") continue;
+    const evidence = entry as unknown as { readonly task_id?: unknown; readonly exit_status?: unknown };
+    if (evidence.exit_status === 0 && typeof evidence.task_id === "string") {
+      passed.add(evidence.task_id);
+    } else if (evidence.exit_status !== 0) {
+      failed++;
     }
   }
 
-  // Total required would come from tasks.md parsing
-  const required = completed + failed;
+  const required = tasks
+    ? canonicalArtifactBody(tasks.body)
+        .split("\n")
+        .map((line) => parseTaskLine(line))
+        .filter((line) => line !== null && !line.isOptional)
+        .map((line) => line!.identifier as string)
+    : [];
+  const completed = required.filter((id) => passed.has(id)).length;
 
   return {
-    required,
+    required: required.length,
     completed,
     failed,
-    complete: failed === 0 && required > 0,
+    complete: required.length > 0 && completed === required.length,
   };
 }
 
@@ -225,40 +240,38 @@ export function formatStatusHuman(report: StatusReport): string {
   const lines: string[] = [];
 
   lines.push(`Spec: ${report.specId}`);
-  lines.push(`State: ${report.recordedState}`);
-
-  if (report.stateMismatch) {
-    lines.push(`  ⚠️  Recorded state does not match effective state (${report.effectiveState})`);
-  }
+  lines.push(`Recorded state: ${report.recordedState}`);
+  lines.push(`Effective state: not computed (not implemented in this version)`);
 
   lines.push(``);
   lines.push(`Artifacts:`);
-
-  for (const [kind, status] of Object.entries(report.artifacts)) {
-    if (status) {
-      lines.push(
-        `  ${kind}: v${(status as ArtifactStatus).version} (${(status as ArtifactStatus).state})`,
-      );
-    }
+  for (const kind of KINDS) {
+    const status = report.artifacts[kind];
+    lines.push(
+      status
+        ? `  ${kind}: v${status.version} (${status.state})${status.checksumCurrent ? "" : " — frontmatter checksum is stale"}`
+        : `  ${kind}: missing`,
+    );
   }
 
   lines.push(``);
-  lines.push(`Approvals:`);
-  lines.push(
-    `  Requirements: ${report.approvals.requirements.current}/${report.approvals.requirements.required}`,
-  );
-  lines.push(`  Design: ${report.approvals.design.current}/${report.approvals.design.required}`);
-  lines.push(`  Tasks: ${report.approvals.tasks.current}/${report.approvals.tasks.required}`);
+  lines.push(`Valid approvals:`);
+  for (const kind of KINDS) {
+    const count = report.approvals[kind];
+    lines.push(
+      `  ${kind}: ${count.current}/${count.required}${count.required === 0 ? " (policy requires none configured)" : ""}`,
+    );
+  }
 
-  if (report.nextTransition) {
-    lines.push(``);
-    lines.push(`Next: ${report.nextTransition.target}`);
-    if (report.nextTransition.unmetPreconditions.length > 0) {
-      lines.push(`  Unmet preconditions:`);
-      for (const pre of report.nextTransition.unmetPreconditions) {
-        lines.push(`    - ${pre}`);
-      }
-    }
+  lines.push(``);
+  lines.push(
+    `Tasks verified: ${report.verification.completed}/${report.verification.required} (failed attempts: ${report.verification.failed})`,
+  );
+  lines.push(
+    `Ledger: ${report.ledger.entries} entries, ${report.ledger.valid ? "intact" : "INTEGRITY FAILURE"}`,
+  );
+  for (const failure of report.ledger.failures) {
+    lines.push(`  entry ${failure.entry_id}: ${failure.message}`);
   }
 
   return lines.join("\n");

@@ -91,13 +91,30 @@ export { computeStatusReport, formatStatusJson, formatStatusHuman } from "./stat
 // ============================================================================
 
 export {
+  approvalRecords,
+  resolveApprovalSignals,
+  type ApprovalRecordView,
+  type ApprovalCommitResolution,
+  type ResolvedApproval,
+} from "./approval/records.js";
+
+export {
   strictVerify,
+  type StrictVerifyOptions,
+  type StrictVerificationResult,
   getVerificationExitStatus,
   formatVerificationJson,
   formatVerificationHuman,
 } from "./verify/strict.js";
 
-export { preExecutionCheck, checkTaskBinding, validateTaskBinding } from "./verify/precheck.js";
+export {
+  preExecutionCheck,
+  checkTaskBinding,
+  validateTaskBinding,
+  type PreCheckResult,
+  type TaskBinding,
+  type PreCheckApprovalContext,
+} from "./verify/precheck.js";
 
 export {
   verifyDeterminism,

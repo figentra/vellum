@@ -10,6 +10,7 @@
 import type {
   Artifact,
   LedgerEntry,
+  LedgerHead,
   ApprovalPolicy,
   Finding,
   CheckResult,
@@ -18,7 +19,11 @@ import type {
   TaskLine,
 } from "@vellum/protocol";
 import { canonicalArtifactBody, computeChecksum, parseTaskLine } from "@vellum/protocol";
-import { approvalRecords } from "../approval/records.js";
+import {
+  approvalRecords,
+  resolveApprovalSignals,
+  type ApprovalCommitResolution,
+} from "../approval/records.js";
 import { computeCoverage } from "../coverage/validate.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
 import { verifyApproval } from "../approval/verify.js";
@@ -44,6 +49,27 @@ export interface StrictVerificationResult {
   readonly findings: readonly Finding[];
 }
 
+/** What the storage layer read from git for strict verification. */
+export interface StrictVerifyOptions {
+  /**
+   * The Ledger Head beside the ledger; null when its file is absent. When
+   * given, the ledger's tail is checked against it (truncation, last-entry
+   * edits). Omitted: the tail is not checked.
+   */
+  readonly ledgerHead?: LedgerHead | null;
+  /**
+   * The commit that added each approval entry (by entry id). When given, that
+   * commit is the Approval Signal, and an approval whose adding commit is
+   * unknown or unsuitable does not count (see resolveApprovalSignals).
+   */
+  readonly approvalCommits?: ReadonlyMap<number, ApprovalCommitResolution>;
+  /**
+   * The verified commit and its ancestors. When given, an Evidence Entry
+   * counts only if its commit is one of them (criteria 12.4, 9.9).
+   */
+  readonly verifiedHistory?: ReadonlySet<string>;
+}
+
 /**
  * Run strict verification on a spec.
  * Pure function - all data passed in.
@@ -53,6 +79,7 @@ export interface StrictVerificationResult {
  * @param policy - Approval policy
  * @param gitCommits - Git commits referenced in approvals
  * @param riskClass - The spec's risk class, which selects the policy's approvers
+ * @param options - Ledger head, approval adding commits and verified history read from git
  * @returns Verification result
  */
 export function strictVerify(
@@ -61,11 +88,12 @@ export function strictVerify(
   policy: ApprovalPolicy | null,
   gitCommits: ReadonlyMap<string, GitCommit>,
   riskClass: RiskClass,
+  options: StrictVerifyOptions = {},
 ): StrictVerificationResult {
   const findings: Finding[] = [];
 
   // Check ledger integrity (criterion 12.6)
-  const ledgerResult = checkLedgerIntegrity(ledger);
+  const ledgerResult = checkLedgerIntegrity(ledger, options.ledgerHead);
   if (!ledgerResult.valid) {
     for (const failure of ledgerResult.failures) {
       findings.push(
@@ -83,9 +111,15 @@ export function strictVerify(
   }
 
   // Verify each approval against the current artifact checksum (criterion 12.5)
-  const records = approvalRecords(ledger);
+  const records = resolveApprovalSignals(approvalRecords(ledger), options.approvalCommits);
   let validApprovals = 0;
-  for (const record of records) {
+  for (const { record, problem } of records) {
+    if (problem !== undefined) {
+      findings.push(
+        createFinding(".sdlc/ledger.jsonl", record.entryId, "APPROVAL_INVALID", `Approval invalid: ${problem}`),
+      );
+      continue;
+    }
     const current = byKind.get(record.artifact);
     if (!current) {
       findings.push(
@@ -120,26 +154,55 @@ export function strictVerify(
     }
   }
 
-  // Count evidence entries (criterion 12.4)
+  // Evidence (criteria 12.4, 9.9): an entry counts when it exited 0 and,
+  // when the verified history is known, was recorded at the verified commit
+  // or an ancestor. A failed attempt is not itself a finding; a Required Task
+  // with no counting entry is.
+  const passedTasks = new Set<string>();
   let validEvidence = 0;
   let totalEvidence = 0;
-
   for (const entry of ledger) {
-    if (entry.kind === "evidence") {
-      totalEvidence++;
-      const exitStatus = (entry as unknown as { readonly exit_status?: unknown }).exit_status;
-      if (exitStatus === 0) {
-        validEvidence++;
-      } else {
-        findings.push(
-          createFinding(
-            ".sdlc/ledger.jsonl",
-            entry.id,
-            "EVIDENCE_FAILED",
-            `Evidence entry has non-zero exit status: ${String(exitStatus)}`,
-          ),
-        );
-      }
+    if (entry.kind !== "evidence") continue;
+    totalEvidence++;
+    const evidence = entry as unknown as {
+      readonly task_id?: unknown;
+      readonly exit_status?: unknown;
+      readonly commit?: unknown;
+    };
+    if (evidence.exit_status !== 0) continue;
+    const commit = typeof evidence.commit === "string" ? evidence.commit : "";
+    if (options.verifiedHistory !== undefined && !options.verifiedHistory.has(commit)) {
+      findings.push(
+        createFinding(
+          ".sdlc/ledger.jsonl",
+          entry.id,
+          "EVIDENCE_COMMIT_UNKNOWN",
+          `Evidence entry ${entry.id} records commit ${commit.slice(0, 12) || "(none)"}, which is not the verified commit or an ancestor of it`,
+        ),
+      );
+      continue;
+    }
+    validEvidence++;
+    if (typeof evidence.task_id === "string") passedTasks.add(evidence.task_id);
+  }
+
+  const tasksArtifactForEvidence = byKind.get("tasks");
+  const requiredTasks = tasksArtifactForEvidence
+    ? taskLines(canonicalArtifactBody(tasksArtifactForEvidence.body)).filter((t) => !t.isOptional)
+    : [];
+  let verifiedTasks = 0;
+  for (const task of requiredTasks) {
+    if (passedTasks.has(task.identifier)) {
+      verifiedTasks++;
+    } else {
+      findings.push(
+        createFinding(
+          "tasks.md",
+          task.lineNumber,
+          "TASK_NOT_VERIFIED",
+          `Task ${task.identifier} has no Evidence Entry with exit status 0`,
+        ),
+      );
     }
   }
 
@@ -183,7 +246,7 @@ export function strictVerify(
     }
   }
 
-  const tasks = { satisfied: validEvidence, total: totalEvidence };
+  const tasks = { satisfied: verifiedTasks, total: requiredTasks.length };
   const evidence = { satisfied: validEvidence, total: totalEvidence };
   const approvals = { satisfied: validApprovals, total: records.length };
 
