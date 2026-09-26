@@ -8,7 +8,7 @@ import {
   countValidApprovals,
   hasRequiredApprovals,
   getApprovers,
-  getRequiredCount,
+  getRequiredApprovalCount,
   matchesApprover,
   diagnoseInvalidApproval,
 } from "../src/approval/verify.js";
@@ -17,7 +17,6 @@ import type {
   ApprovalPayload,
   GitCommit,
   RiskClass,
-  ArtifactKind,
 } from "@vellum/protocol";
 import { brand } from "@vellum/protocol";
 
@@ -89,7 +88,7 @@ describe("Approval Verification", () => {
     it("should accept valid approval", () => {
       const approval: ApprovalPayload = {
         approver: "alice@example.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
@@ -101,7 +100,7 @@ describe("Approval Verification", () => {
     it("should reject unsigned commit", () => {
       const approval: ApprovalPayload = {
         approver: "eve@example.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("d".repeat(40)),
       };
@@ -116,7 +115,7 @@ describe("Approval Verification", () => {
     it("should reject approval from assistant", () => {
       const approval: ApprovalPayload = {
         approver: "assistant@ai.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("c".repeat(40)),
       };
@@ -131,7 +130,7 @@ describe("Approval Verification", () => {
     it("should reject unauthorized approver", () => {
       const approval: ApprovalPayload = {
         approver: "eve@example.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
@@ -146,7 +145,7 @@ describe("Approval Verification", () => {
     it("should reject with missing policy", () => {
       const approval: ApprovalPayload = {
         approver: "alice@example.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
@@ -161,7 +160,7 @@ describe("Approval Verification", () => {
     it("should reject with invalid signal commit", () => {
       const approval: ApprovalPayload = {
         approver: "alice@example.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("z".repeat(40)),
       };
@@ -179,13 +178,13 @@ describe("Approval Verification", () => {
       const approvals: ApprovalPayload[] = [
         {
           approver: "alice@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("a".repeat(40)),
         },
         {
           approver: "bob@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("b".repeat(40)),
         },
@@ -207,7 +206,7 @@ describe("Approval Verification", () => {
       const approvals: ApprovalPayload[] = [
         {
           approver: "alice@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("old".padEnd(64, "0")),
           signalCommit: brand<string, "CommitSha">("a".repeat(40)),
         },
@@ -229,13 +228,13 @@ describe("Approval Verification", () => {
       const approvals: ApprovalPayload[] = [
         {
           approver: "alice@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("a".repeat(40)),
         },
         {
           approver: "alice@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("a".repeat(40)),
         },
@@ -259,13 +258,13 @@ describe("Approval Verification", () => {
       const approvals: ApprovalPayload[] = [
         {
           approver: "alice@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("a".repeat(40)),
         },
         {
           approver: "bob@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("b".repeat(40)),
         },
@@ -289,7 +288,7 @@ describe("Approval Verification", () => {
       const approvals: ApprovalPayload[] = [
         {
           approver: "alice@example.com",
-          artifactKind: "requirements",
+          artifact: "requirements",
           artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
           signalCommit: brand<string, "CommitSha">("a".repeat(40)),
         },
@@ -323,10 +322,10 @@ describe("Approval Verification", () => {
     });
   });
 
-  describe("getRequiredCount", () => {
+  describe("getRequiredApprovalCount", () => {
     it("should return required count for risk class and artifact", () => {
-      expect(getRequiredCount(mockPolicy, "standard", "requirements")).toBe(2);
-      expect(getRequiredCount(mockPolicy, "standard", "design")).toBe(1);
+      expect(getRequiredApprovalCount(mockPolicy, "standard", "requirements")).toBe(2);
+      expect(getRequiredApprovalCount(mockPolicy, "standard", "design")).toBe(1);
     });
   });
 
@@ -344,7 +343,7 @@ describe("Approval Verification", () => {
     it("should generate diagnostic for NOT_AUTHORIZED", () => {
       const approval: ApprovalPayload = {
         approver: "eve@example.com",
-        artifactKind: "requirements",
+        artifact: "requirements",
         artifactChecksum: brand<string, "Checksum">("a".repeat(64)),
         signalCommit: brand<string, "CommitSha">("a".repeat(40)),
       };
