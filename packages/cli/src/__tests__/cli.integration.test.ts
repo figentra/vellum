@@ -100,6 +100,14 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       expect(started.status).toBe(0);
     });
 
+    it("is INCONCLUSIVE (exit 2) when there is no spec to check, rather than a PASS that examined nothing", async () => {
+      fx.git(["rm", "-rq", ".agents/specs"]);
+      const result = await fx.cli(["check"]);
+      expect(result.status).toBe(2);
+      expect(result.stdout).toBe("");
+      expect(result.stderr).toContain("no spec to check");
+    });
+
     it("fails a spec whose ledger was edited, naming the entry", async () => {
       await fx.approve(["requirements"], "alice");
       writeFileSync(fx.ledgerPath, readFileSync(fx.ledgerPath, "utf8").replace("alice@", "mallory@"));

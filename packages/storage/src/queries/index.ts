@@ -45,6 +45,7 @@ export {
 export {
   queryCheck,
   checkDocument,
+  NOTHING_TO_CHECK,
   type CheckQuery,
   type UnreadableSpec,
 } from "./check.js";

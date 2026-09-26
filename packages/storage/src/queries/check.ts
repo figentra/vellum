@@ -21,6 +21,9 @@ import {
 } from "./repository.js";
 import type { QueryResult } from "./result.js";
 
+/** Why Check Mode examined nothing. */
+export const NOTHING_TO_CHECK = "no spec to check (.agents/specs/ holds no spec directory)";
+
 /** A spec whose artifacts or ledger could not be read. */
 export interface UnreadableSpec {
   readonly spec: string;
@@ -41,7 +44,9 @@ export interface CheckQuery {
  * INVALID, whose ledger has an integrity failure or fork, or whose Recorded
  * Lifecycle State differs from its Effective Lifecycle State; a legacy spec
  * passes unless its legacy stage is invalid. INCONCLUSIVE before examining
- * anything when the Approval Policy is invalid.
+ * anything when the Approval Policy is invalid, or when there is no spec to
+ * check — a PASS must name what it examined, and a check that read nothing
+ * must not look like one that found nothing wrong (criteria 19.2, 19.3).
  */
 export function queryCheck(
   repo: Repository,
@@ -52,6 +57,9 @@ export function queryCheck(
       kind: "inconclusive",
       message: `Approval Policy ${repo.policy.path} is invalid: ${repo.policy.message}`,
     };
+  }
+  if (specs.length === 0) {
+    return { kind: "inconclusive", message: NOTHING_TO_CHECK };
   }
   const policy = enginePolicy(repo.policy);
 

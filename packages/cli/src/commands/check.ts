@@ -22,9 +22,9 @@ interface CheckArgs {
  * from its Effective Lifecycle State; a legacy spec passes unless its legacy
  * stage is invalid.
  *
- * Exit: 0 when every spec passes; 1 when any fails; 2 when a spec, the
- * policy or a spec's effective state could not be read or decided, or a spec
- * fragment matched none or several specs.
+ * Exit: 0 when every spec passes; 1 when any fails; 2 when there is no spec
+ * to check, when a spec, the policy or a spec's effective state could not be
+ * read or decided, or a spec fragment matched none or several specs.
  */
 export async function check(args: CheckArgs, ctx: CliContext): Promise<number> {
   const repo = await openRepo(ctx);
