@@ -29,10 +29,11 @@ change a document a human may already have approved, so the human re-approves it
 
 - **Tiers, not models.** An agent names `tier: economy | standard | frontier`; `models.json`
   resolves it per assistant.
-- **No assistant-specific paths.** Skills call the `vellum` CLI (`status`, `lint`, `check`,
-  `verify`, `approve`, `task`, `adopt`, `sync`, `doctor`) instead of plugin-relative scripts,
-  and read a template from the consumer's `.agents/templates/` first, falling back to
-  `../../templates/` relative to the skill's own directory.
+- **No assistant-specific paths.** Skills call the `vellum` CLI (`status`, `lint`, `verify`,
+  `doctor`, `task start`, `task complete`) instead of plugin-relative scripts, and read a
+  template from the consumer's `.agents/templates/` first, falling back to `../../templates/`
+  relative to the skill's own directory. `approve` appears only as the human's step; no skill
+  or agent runs it.
 - **Product-neutral.** No product names, no ADR numbers, no paths from any one repository.
 
 ## Tests
