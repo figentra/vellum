@@ -62,6 +62,11 @@ export function isValidPropertyId(value: string): boolean {
   return /^P\d+$/.test(value);
 }
 
+/** Check if a string is a valid spec ID (e.g., "016") */
+export function isValidSpecId(value: string): boolean {
+  return /^\d{3,}$/.test(value);
+}
+
 /** Check if a spec number is valid (positive integer) */
 export function isValidSpecNumber(value: number): boolean {
   return Number.isInteger(value) && value > 0;
@@ -101,14 +106,14 @@ export function parsePropertyId(value: string): Branded<string, "PropertyId"> | 
   return isValidPropertyId(value) ? brand<string, "PropertyId">(value) : null;
 }
 
+/** Parse a spec ID from string, returning null if invalid */
+export function parseSpecId(value: string): Branded<string, "SpecId"> | null {
+  return isValidSpecId(value) ? brand<string, "SpecId">(value) : null;
+}
+
 /** Parse a sequence number from number, returning null if invalid */
 export function parseEntrySeq(value: number): Branded<number, "EntrySeq"> | null {
   return isValidEntrySeq(value) ? brand<number, "EntrySeq">(value) : null;
-}
-
-/** Parse a spec number from number, returning null if invalid */
-export function parseSpecNumber(value: number): Branded<number, "SpecNumber"> | null {
-  return isValidSpecNumber(value) ? brand<number, "SpecNumber">(value) : null;
 }
 
 // ============================================================================
@@ -140,12 +145,34 @@ export function formatPropertyId(propertyId: Branded<string, "PropertyId">): str
   return unbrand(propertyId);
 }
 
-/** Format sequence number as number */
-export function formatEntrySeq(seq: Branded<number, "EntrySeq">): number {
-  return unbrand(seq);
+/** Format spec ID as string */
+export function formatSpecId(specId: Branded<string, "SpecId">): string {
+  return unbrand(specId);
 }
 
-/** Format spec number as number */
-export function formatSpecNumber(num: Branded<number, "SpecNumber">): number {
-  return unbrand(num);
+/** Create entry ID from number */
+export function createEntryId(id: number): Branded<number, "EntrySeq"> {
+  if (!isValidEntrySeq(id)) {
+    throw new Error(`Invalid entry ID: ${id}`);
+  }
+  return brand<number, "EntrySeq">(id);
+}
+
+/** Get numeric value from entry ID */
+export function getEntryIdValue(id: Branded<number, "EntrySeq">): number {
+  return unbrand(id);
+}
+
+/** Parse rule identifier */
+export function parseRuleIdentifier(value: string): string | null {
+  // Rule identifier format: package/category/rule_name
+  if (/^[a-z]+\/[a-z]+\/[A-Z_]+$/.test(value)) {
+    return value;
+  }
+  return null;
+}
+
+/** Format rule identifier */
+export function formatRuleIdentifier(rule: string): string {
+  return rule;
 }

@@ -1,270 +1,99 @@
 /**
- * @vellum/protocol — Core domain types
+ * @vellum/protocol — Core Domain Types
  *
- * Defines the foundational types, branded types, and domain identifiers
- * used throughout the Vellum platform.
+ * This module defines the foundational types for the Vellum specification lifecycle.
+ * All types are immutable (readonly) and follow the contract defined in design.md.
  */
 
-// ============================================================================
-// Branded Types
-// ============================================================================
-
-/**
- * Branded type helper - creates a nominal type from a primitive
- */
-declare const brand: unique symbol;
-
-export type Branded<T, B> = T & { readonly [brand]: B };
+import type { Branded } from "./branded.js";
 
 // ============================================================================
-// Domain Identifiers (Branded Types)
+// Branded Types for Domain Identifiers
 // ============================================================================
 
-/**
- * Spec ID — the numeric identifier from the spec folder path
- * Format: three-digit number (e.g., "001", "016")
- */
+/** A spec directory slug (e.g., "016-queue-capability") */
+export type SpecSlug = Branded<string, "SpecSlug">;
+
+/** A spec ID (e.g., "016") */
 export type SpecId = Branded<string, "SpecId">;
 
-/**
- * Artifact Path — absolute or relative path to an artifact file
- */
-export type ArtifactPath = Branded<string, "ArtifactPath">;
+/** A spec number (e.g., 16) */
+export type SpecNumber = Branded<number, "SpecNumber">;
 
-/**
- * Checksum — SHA-256 hash in hexadecimal format (64 chars)
- */
+/** A checksum (SHA-256 hex string) */
 export type Checksum = Branded<string, "Checksum">;
 
-/**
- * Commit SHA — Git commit hash (40 chars)
- */
+/** A Git commit SHA (40-hex-char string) */
 export type CommitSha = Branded<string, "CommitSha">;
 
-/**
- * Task ID — hierarchical task identifier (e.g., "1", "2.3", "5.1.4")
- */
+/** A task identifier (e.g., "1", "2.3") */
 export type TaskId = Branded<string, "TaskId">;
 
-/**
- * Criterion ID — criterion identifier from requirements.md (e.g., "1.2", "3.4")
- */
+/** A criterion identifier (e.g., "1.2") */
 export type CriterionId = Branded<string, "CriterionId">;
 
-/**
- * Property ID — property identifier from design.md (e.g., "P1", "P2")
- */
+/** A property identifier (e.g., "P1") */
 export type PropertyId = Branded<string, "PropertyId">;
 
-/**
- * Ledger Entry ID — sequence number in the ledger
- */
-export type EntryId = Branded<number, "EntryId">;
+/** An artifact path (relative to spec directory) */
+export type ArtifactPath = Branded<string, "ArtifactPath">;
 
-/**
- * Rule Identifier — unique string for each diagnostic rule
- * Format: <package>/<category>/<snake_case>
- * Example: "vellum/protocol/CRITERIA_NOT_COVERED"
- */
-export type RuleIdentifier = Branded<string, "RuleIdentifier">;
+/** A ledger entry sequence number */
+export type EntrySeq = Branded<number, "EntrySeq">;
 
-// ============================================================================
-// Type Guards and Validators
-// ============================================================================
+/** Entry ID (alias for compatibility) */
+export type EntryId = EntrySeq;
 
-/**
- * Parse and validate a SpecId from a string
- */
-export function parseSpecId(value: string): SpecId | null {
-  // Must be a three-digit number
-  if (!/^\d{3}$/.test(value)) {
-    return null;
-  }
-  return value as SpecId;
-}
-
-/**
- * Format a SpecId to string
- */
-export function formatSpecId(id: SpecId): string {
-  return id;
-}
-
-/**
- * Parse and validate a Checksum from a string
- */
-export function parseChecksum(value: string): Checksum | null {
-  // Must be 64 hex characters
-  if (!/^[a-f0-9]{64}$/.test(value)) {
-    return null;
-  }
-  return value as Checksum;
-}
-
-/**
- * Format a Checksum to string
- */
-export function formatChecksum(checksum: Checksum): string {
-  return checksum;
-}
-
-/**
- * Parse and validate a CommitSha from a string
- */
-export function parseCommitSha(value: string): CommitSha | null {
-  // Must be 40 hex characters
-  if (!/^[a-f0-9]{40}$/.test(value)) {
-    return null;
-  }
-  return value as CommitSha;
-}
-
-/**
- * Format a CommitSha to string
- */
-export function formatCommitSha(sha: CommitSha): string {
-  return sha;
-}
-
-/**
- * Parse and validate a TaskId from a string
- */
-export function parseTaskId(value: string): TaskId | null {
-  // Must match pattern: N(.N)* where N is a positive integer
-  if (!/^\d+(\.\d+)*$/.test(value)) {
-    return null;
-  }
-  return value as TaskId;
-}
-
-/**
- * Format a TaskId to string
- */
-export function formatTaskId(id: TaskId): string {
-  return id;
-}
-
-/**
- * Parse and validate a CriterionId from a string
- */
-export function parseCriterionId(value: string): CriterionId | null {
-  // Must match pattern: N.N where N is a positive integer
-  if (!/^\d+\.\d+$/.test(value)) {
-    return null;
-  }
-  return value as CriterionId;
-}
-
-/**
- * Format a CriterionId to string
- */
-export function formatCriterionId(id: CriterionId): string {
-  return id;
-}
-
-/**
- * Parse and validate a PropertyId from a string
- */
-export function parsePropertyId(value: string): PropertyId | null {
-  // Must match pattern: PN where N is a positive integer
-  if (!/^P\d+$/.test(value)) {
-    return null;
-  }
-  return value as PropertyId;
-}
-
-/**
- * Format a PropertyId to string
- */
-export function formatPropertyId(id: PropertyId): string {
-  return id;
-}
-
-/**
- * Create an EntryId from a number
- */
-export function createEntryId(seq: number): EntryId | null {
-  if (!Number.isInteger(seq) || seq < 0) {
-    return null;
-  }
-  return seq as EntryId;
-}
-
-/**
- * Get the numeric value of an EntryId
- */
-export function getEntryIdValue(id: EntryId): number {
-  return id;
-}
-
-/**
- * Parse and validate a RuleIdentifier from a string
- */
-export function parseRuleIdentifier(value: string): RuleIdentifier | null {
-  // Must match pattern: <package>/<category>/<snake_case>
-  if (!/^[a-z]+\/[a-z]+\/[A-Z_]+$/.test(value)) {
-    return null;
-  }
-  return value as RuleIdentifier;
-}
-
-/**
- * Format a RuleIdentifier to string
- */
-export function formatRuleIdentifier(rule: RuleIdentifier): string {
-  return rule;
-}
+/** Rule identifier */
+export type RuleIdentifier = string;
 
 // ============================================================================
-// Spec Directory Types
+// Spec Directory
 // ============================================================================
 
-/**
- * A spec directory in `.agents/specs/<slug>/`.
- */
+/** A spec directory in `.agents/specs/<slug>/`. */
 export interface SpecDirectory {
+  /** Absolute path to spec directory */
   readonly path: string;
-  readonly slug: string;
-  readonly number: number;
+  /** Spec ID (e.g., "016") */
+  readonly id: SpecId;
+  /** Spec slug (e.g., "016-queue-capability") */
+  readonly slug: SpecSlug;
+  /** Spec number (e.g., 16) */
+  readonly number: SpecNumber;
+  /** Path to .sdlc machine folder */
+  readonly machineFolder: string;
+  /** Path to ledger.jsonl */
+  readonly ledgerPath: string;
 }
 
 // ============================================================================
 // Artifact Types
 // ============================================================================
 
-/**
- * One of the three protocol artifacts.
- */
+/** One of the three protocol artifacts. */
 export type ArtifactKind = "requirements" | "design" | "tasks";
 
-/**
- * An artifact file with parsed content.
- */
+/** One of the three artifact filenames. */
+export type ArtifactFilename = "requirements.md" | "design.md" | "tasks.md";
+
+/** An artifact file with parsed content. */
 export interface Artifact {
+  /** Artifact kind */
   readonly kind: ArtifactKind;
-  readonly path: ArtifactPath;
+  /** Absolute path to artifact file */
+  readonly path: string;
+  /** Artifact body (excluding frontmatter) */
   readonly body: string;
+  /** Parsed lifecycle frontmatter */
   readonly frontmatter: LifecycleFrontmatter;
 }
 
-/**
- * Lifecycle frontmatter at the top of each artifact.
- */
-export interface LifecycleFrontmatter {
-  readonly version: number;
-  readonly checksum: Checksum;
-  readonly state: LifecycleState;
-  readonly createdAt: string; // ISO 8601
-  readonly updatedAt: string; // ISO 8601
-}
-
 // ============================================================================
-// Lifecycle State Types
+// Lifecycle State
 // ============================================================================
 
-/**
- * Lifecycle states from Table 5.A.
- */
+/** Lifecycle states from Table 5.A. */
 export type LifecycleState =
   | "DRAFT"
   | "IN_REVIEW"
@@ -276,23 +105,19 @@ export type LifecycleState =
   | "IN_PROGRESS"
   | "VERIFICATION"
   | "VERIFIED"
-  | "MERGED" // Slice 3
-  | "RELEASED" // Slice 3
-  | "DONE" // Slice 3
+  | "MERGED"
+  | "RELEASED"
+  | "DONE"
   | "BLOCKED"
   | "REJECTED"
   | "SUPERSEDED"
   | "ABANDONED"
   | "INVALID";
 
-/**
- * Terminal states cannot transition.
- */
+/** Terminal states cannot transition. */
 export type TerminalState = "VERIFIED" | "REJECTED" | "SUPERSEDED" | "ABANDONED" | "INVALID";
 
-/**
- * Check if a state is terminal
- */
+/** Check if a state is terminal (no outgoing transitions). */
 export function isTerminalState(state: LifecycleState): state is TerminalState {
   return (
     state === "VERIFIED" ||
@@ -303,76 +128,82 @@ export function isTerminalState(state: LifecycleState): state is TerminalState {
   );
 }
 
+/** Lifecycle frontmatter at the top of each artifact. */
+export interface LifecycleFrontmatter {
+  /** Artifact version (incremented on body change) */
+  readonly version: number;
+  /** SHA-256 checksum of body (excluding frontmatter) */
+  readonly checksum: Checksum;
+  /** Recorded lifecycle state */
+  readonly state: LifecycleState;
+  /** ISO 8601 UTC timestamp when created */
+  readonly createdAt: string;
+  /** ISO 8601 UTC timestamp when last updated */
+  readonly updatedAt: string;
+}
+
 // ============================================================================
 // Task Types
 // ============================================================================
 
-/**
- * Task marker: [ ] not started, [~] queued, [-] in progress, [x] complete
- */
+/** Task marker characters */
 export type TaskMarker = " " | "~" | "-" | "x";
 
-/**
- * A task line parsed from tasks.md.
- */
+/** A task line parsed from tasks.md */
 export interface TaskLine {
+  /** Line number in tasks.md (1-indexed) */
   readonly lineNumber: number;
+  /** Task marker */
   readonly marker: TaskMarker;
+  /** Task identifier (e.g., "1", "2.3") */
   readonly identifier: TaskId;
+  /** Task text (after marker) */
   readonly text: string;
+  /** Criterion refs from trailer (e.g., ["1.2", "3.4"]) */
   readonly requirementsTrailer?: readonly CriterionId[];
+  /** Property refs from trailer (e.g., ["P1", "P2"]) */
   readonly propertiesTrailer?: readonly PropertyId[];
+  /** Whether task is marked optional */
   readonly isOptional: boolean;
 }
 
-// ============================================================================
-// Ledger Entry Types
-// ============================================================================
-
-/**
- * A ledger entry.
- */
-export interface LedgerEntry {
-  readonly seq: EntryId;
-  readonly kind: LedgerEntryKind;
-  readonly timestamp: string; // ISO 8601
-  readonly predecessorHash:
-    | Checksum
-    | "0000000000000000000000000000000000000000000000000000000000000000";
-  readonly payload: LedgerPayload;
-  readonly hash?: Checksum; // computed on write
+/** Task dependency graph */
+export interface TaskGraph {
+  /** All task identifiers */
+  readonly nodes: readonly TaskId[];
+  /** Edges: task ID -> set of dependency task IDs */
+  readonly edges: ReadonlyMap<TaskId, readonly TaskId[]>;
 }
 
-/**
- * Ledger entry kinds
- */
-export type LedgerEntryKind =
-  | "CREATED"
-  | "AMENDED"
-  | "APPROVAL"
-  | "REJECTION"
-  | "DECISION"
-  | "EVIDENCE"
-  | "CLAIM"
-  | "FAILURE"
-  | "TASK_BINDING"
-  | "GATE_RESULT"
-  | "MERGE"
-  | "RELEASE"
-  | "BLOCK"
-  | "UNBLOCK"
-  | "ADOPTION";
+// ============================================================================
+// Ledger Types
+// ============================================================================
 
-/**
- * Ledger payload discriminated union
- */
+/** Kinds of ledger entries */
+export type LedgerEntryKind =
+  | "approval"
+  | "rejection"
+  | "evidence"
+  | "decision"
+  | "amendment"
+  | "gate_result"
+  | "merge"
+  | "release"
+  | "claim"
+  | "failure"
+  | "task_binding"
+  | "block"
+  | "unblock"
+  | "adoption";
+
+/** Ledger entry (unsigned, payload-only) */
 export type LedgerPayload =
   | CreatedPayload
   | AmendedPayload
   | ApprovalPayload
   | RejectionPayload
-  | DecisionPayload
   | EvidencePayload
+  | DecisionPayload
   | ClaimPayload
   | FailurePayload
   | TaskBindingPayload
@@ -383,56 +214,36 @@ export type LedgerPayload =
   | UnblockPayload
   | AdoptionPayload;
 
-/**
- * Created payload — spec directory created
- */
+/** Created payload (spec creation) */
 export interface CreatedPayload {
-  readonly specId: SpecId;
+  readonly type: "created";
+  readonly spec: SpecSlug;
 }
 
-/**
- * Amended payload — artifact amended
- */
+/** Amended payload */
 export interface AmendedPayload {
-  readonly artifactKind: ArtifactKind;
-  readonly previousVersion: number;
-  readonly previousChecksum: Checksum;
-  readonly newVersion: number;
-  readonly newChecksum: Checksum;
+  readonly type: "amended";
+  readonly artifact: ArtifactKind;
+  readonly fromVersion: number;
+  readonly toVersion: number;
 }
 
-/**
- * Approval payload
- */
+/** Approval payload */
 export interface ApprovalPayload {
   readonly approver: string;
-  readonly artifactKind: ArtifactKind;
+  readonly artifact: ArtifactKind;
   readonly artifactChecksum: Checksum;
   readonly signalCommit: CommitSha;
 }
 
-/**
- * Rejection payload
- */
+/** Rejection payload */
 export interface RejectionPayload {
-  readonly rejector: string;
-  readonly artifactKind: ArtifactKind;
-  readonly artifactChecksum: Checksum;
+  readonly artifact: ArtifactKind;
   readonly rationale: string;
-  readonly signalCommit: CommitSha;
+  readonly rejectedBy: string;
 }
 
-/**
- * Decision payload
- */
-export interface DecisionPayload {
-  readonly decision: string;
-  readonly rationale: string;
-}
-
-/**
- * Evidence payload
- */
+/** Evidence payload */
 export interface EvidencePayload {
   readonly taskIdentifier: TaskId;
   readonly commandText: string;
@@ -444,26 +255,28 @@ export interface EvidencePayload {
   readonly environmentVersions: Record<string, string>;
 }
 
-/**
- * Claim payload
- */
-export interface ClaimPayload {
-  readonly claim: string;
-  readonly evidence: string;
+/** Decision payload */
+export interface DecisionPayload {
+  readonly decision: string;
+  readonly rationale: string;
+  readonly blocking: boolean;
 }
 
-/**
- * Failure payload
- */
+/** Claim payload */
+export interface ClaimPayload {
+  readonly claim: string;
+  readonly provenance: "human" | "agent";
+  readonly verified: boolean;
+}
+
+/** Failure payload */
 export interface FailurePayload {
   readonly taskIdentifier: TaskId;
   readonly reason: string;
   readonly exitStatus: number;
 }
 
-/**
- * Task binding payload
- */
+/** Task binding payload (criterion 18.5) */
 export interface TaskBindingPayload {
   readonly taskIdentifier: TaskId;
   readonly requirementsVersion: number;
@@ -474,62 +287,87 @@ export interface TaskBindingPayload {
   readonly planChecksum: Checksum;
 }
 
-/**
- * Gate result payload
- */
+/** Gate result payload */
 export interface GateResultPayload {
-  readonly gate: string;
+  readonly gateName: string;
   readonly result: CheckResult;
   readonly findings: readonly Finding[];
 }
 
-/**
- * Merge payload (Slice 3)
- */
+/** Merge payload */
 export interface MergePayload {
   readonly mergeCommit: CommitSha;
-  readonly targetBranch: string;
+  readonly platformRef: string;
 }
 
-/**
- * Release payload (Slice 3)
- */
+/** Release payload */
 export interface ReleasePayload {
-  readonly releaseTag: string;
-  readonly releaseCommit: CommitSha;
+  readonly releaseId: string;
+  readonly platformRef: string;
 }
 
-/**
- * Block payload
- */
+/** Block payload */
 export interface BlockPayload {
   readonly reason: string;
-  readonly blockedBy: string;
 }
 
-/**
- * Unblock payload
- */
+/** Unblock payload */
 export interface UnblockPayload {
-  readonly reason: string;
-  readonly unblockedBy: string;
+  readonly rationale: string;
 }
 
-/**
- * Adoption payload — legacy spec adopted
- */
+/** Adoption payload */
 export interface AdoptionPayload {
-  readonly specId: SpecId;
-  readonly adoptedAt: string;
+  readonly from: "legacy";
+  readonly to: "managed";
+}
+
+/** Ledger entry header */
+export interface LedgerEntryHeader {
+  readonly kind: LedgerEntryKind;
+  readonly id: number;
+  readonly predecessor_digest: string | null;
+  readonly timestamp: string;
+}
+
+/** Full ledger entry */
+export type LedgerEntry = LedgerEntryHeader & LedgerPayload;
+
+// ============================================================================
+// Approval Types
+// ============================================================================
+
+/** Risk class for approval policy */
+export type RiskClass = "low" | "standard" | "high" | "critical";
+
+/** Approval policy structure */
+export interface ApprovalPolicy {
+  readonly approvers: ReadonlyMap<RiskClass, ReadonlyMap<ArtifactKind, readonly string[]>>;
+  readonly requiredCount: ReadonlyMap<RiskClass, ReadonlyMap<ArtifactKind, number>>;
+}
+
+/** Git commit with metadata */
+export interface GitCommit {
+  readonly sha: CommitSha;
+  readonly author: { readonly name: string; readonly email: string };
+  readonly committer: { readonly name: string; readonly email: string };
+  readonly message: string;
+  readonly timestamp: string;
+  readonly signature?: string;
+  readonly sessionMetadata?: {
+    readonly isAssistant: boolean;
+    readonly assistantName?: string;
+  };
 }
 
 // ============================================================================
-// Finding and Diagnostic Types
+// Validation Types
 // ============================================================================
 
-/**
- * A finding from a validator.
- */
+/** Check result */
+export type CheckResult = "PASS" | "FAIL" | "INCONCLUSIVE";
+
+/** A finding from a validator */
 export interface Finding {
   readonly file: string;
   readonly line: number;
@@ -537,50 +375,34 @@ export interface Finding {
   readonly message: string;
 }
 
-/**
- * Check result: PASS, FAIL, or INCONCLUSIVE.
- */
-export type CheckResult = "PASS" | "FAIL" | "INCONCLUSIVE";
-
-/**
- * Examination summary for a PASS result.
- */
+/** Examination summary for PASS results */
 export interface ExaminationSummary {
   readonly kind: string;
   readonly count: number;
 }
 
 // ============================================================================
-// Git Types
+// Parsing and Formatting Functions
 // ============================================================================
 
-/**
- * Git commit metadata.
- * Immutable record from git history.
- */
-export interface GitCommit {
-  /** Commit SHA (full 40-char hex) */
-  readonly oid: string;
-  /** Tree SHA */
-  readonly tree: string;
-  /** Parent commit SHAs */
-  readonly parent: readonly string[];
-  /** Author name */
-  readonly author: {
-    readonly name: string;
-    readonly email: string;
-    readonly timestamp: number;
-    readonly timezoneOffset: number;
-  };
-  /** Committer name */
-  readonly committer: {
-    readonly name: string;
-    readonly email: string;
-    readonly timestamp: number;
-    readonly timezoneOffset: number;
-  };
-  /** Commit message */
-  readonly message: string;
-  /** GPG signature (if signed) */
-  readonly gpgsig?: string;
-}
+// Re-export from branded module
+export {
+  brand,
+  unbrand,
+  parseSpecId,
+  formatSpecId,
+  parseChecksum,
+  formatChecksum,
+  parseCommitSha,
+  formatCommitSha,
+  parseTaskId,
+  formatTaskId,
+  parseCriterionId,
+  formatCriterionId,
+  parsePropertyId,
+  formatPropertyId,
+  createEntryId,
+  getEntryIdValue,
+  parseRuleIdentifier,
+  formatRuleIdentifier,
+} from "./branded.js";

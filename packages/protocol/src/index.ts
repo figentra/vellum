@@ -3,163 +3,72 @@
  *
  * This package defines the types and schemas for the Vellum specification lifecycle.
  * It is the single source of truth for all data structures used across Vellum.
- *
- * ## Features
- *
- * - Core domain types (Spec, Artifact, Task, Ledger, etc.)
- * - Branded types for domain identifiers (SpecId, TaskId, Checksum, etc.)
- * - Lifecycle state machine types
- * - Ledger entry types and hash computation
- * - Diagnostic codes and severity levels
- * - Frontmatter parsing and validation
- * - Task marker grammar and parsing
- * - JSON Schema generation support
- *
- * ## Zero Dependencies
- *
- * This package has zero runtime dependencies. It uses only TypeScript
- * type annotations and Node.js built-in modules (crypto for hashing).
  */
 
 // ============================================================================
 // Core Types
 // ============================================================================
 
-export {
-  // Branded types
-  type SpecId,
-  type ArtifactPath,
-  type Checksum,
-  type CommitSha,
-  type TaskId,
-  type CriterionId,
-  type PropertyId,
-  type EntryId,
-  type RuleIdentifier,
-
-  // Spec types
-  type SpecDirectory,
-
-  // Artifact types
-  type Artifact,
-  type ArtifactKind,
-  type LifecycleFrontmatter,
-
-  // Lifecycle types
-  type LifecycleState,
-  type TerminalState,
-  isTerminalState,
-
-  // Task types
-  type TaskMarker,
-  type TaskLine,
-
-  // Ledger types
-  type LedgerEntry,
-  type LedgerEntryKind,
-  type LedgerPayload,
-  type CreatedPayload,
-  type AmendedPayload,
-  type ApprovalPayload,
-  type RejectionPayload,
-  type DecisionPayload,
-  type EvidencePayload,
-  type ClaimPayload,
-  type FailurePayload,
-  type TaskBindingPayload,
-  type GateResultPayload,
-  type MergePayload,
-  type ReleasePayload,
-  type BlockPayload,
-  type UnblockPayload,
-  type AdoptionPayload,
-
-  // Finding types
-  type Finding,
-  type CheckResult,
-  type ExaminationSummary,
-
-  // Type guards and validators
-  parseSpecId,
-  formatSpecId,
-  parseChecksum,
-  formatChecksum,
-  parseCommitSha,
-  formatCommitSha,
-  parseTaskId,
-  formatTaskId,
-  parseCriterionId,
-  formatCriterionId,
-  parsePropertyId,
-  formatPropertyId,
-  createEntryId,
-  getEntryIdValue,
-  parseRuleIdentifier,
-  formatRuleIdentifier,
-} from "./types";
+export * from "./types.js";
 
 // ============================================================================
 // Diagnostics
 // ============================================================================
 
-export {
-  // Severity
-  type DiagnosticSeverity,
-  EXIT_STATUS,
-
-  // Diagnostic codes
-  DiagnosticCodes,
-  type DiagnosticCode,
-  getRuleIdentifier,
-  getSeverity,
-  getDiagnosticMessage,
-  ALL_DIAGNOSTIC_CODES,
-} from "./diagnostics";
+export * from "./diagnostics.js";
 
 // ============================================================================
 // Frontmatter
 // ============================================================================
 
 export {
-  // Constants
   INITIAL_PREDECESSOR_HASH,
-
-  // Checksum
   computeChecksum,
   computeLedgerEntryHash,
-
-  // Parsing
   parseFrontmatter,
-
-  // Serialization
   serializeFrontmatter,
-
-  // Validation
   validateFrontmatterChecksum,
   createInitialFrontmatter,
   amendFrontmatter,
-} from "./frontmatter";
+} from "./frontmatter.js";
 
 // ============================================================================
 // Markers and Grammar
 // ============================================================================
 
 export {
-  // Marker constants
   MARKER_DISPLAY,
   MARKER_DESCRIPTIONS,
-
-  // Marker operations
   parseMarker,
   formatMarker,
-
-  // Task line grammar
   parseTaskLine,
   serializeTaskLine,
   updateTaskMarker,
   isTaskLine,
   extractTaskIdentifiers,
-} from "./markers";
+} from "./markers.js";
+
+// ============================================================================
+// Ledger Types (re-export from ledger subfolder)
+// ============================================================================
+
+export type {
+  LedgerEntry as LedgerEntryFull,
+  LedgerEntryHeader as LedgerEntryHeaderFull,
+  LedgerEntryKind as LedgerEntryKindFull,
+  LedgerIntegrityFailure,
+  LedgerFork,
+  LedgerMetadata,
+  ApprovalPayload as ApprovalPayloadFull,
+  RejectionPayload as RejectionPayloadFull,
+  EvidencePayload as EvidencePayloadFull,
+  DecisionPayload as DecisionPayloadFull,
+  AmendmentPayload,
+  GateResultPayload as GateResultPayloadFull,
+  QualityFinding,
+  CheckDefinition,
+  CheckResult as CheckResultFull,
+} from "./ledger/types.js";
 
 // ============================================================================
 // Version
