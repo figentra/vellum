@@ -76,6 +76,52 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     });
   });
 
+  describe("check", () => {
+    it("fails a spec recorded ahead of its content, then passes once the content supports it, writing nothing", async () => {
+      const tree = () => fx.git(["status", "--porcelain", "--untracked-files=all"]);
+
+      const before = tree();
+      const unapproved = await fx.cli(["check"]);
+      expect(unapproved.status).toBe(1);
+      expect(unapproved.stdout).toContain("[STATE_MISMATCH]");
+      expect(unapproved.stdout).toContain("records IN_PROGRESS but its effective state is IN_REVIEW");
+      expect(tree()).toBe(before);
+
+      await fx.approve(ALL, "alice");
+      const approved = JSON.parse((await fx.cli(["check", SLUG, "--json"])).stdout);
+      expect(approved.exitStatus).toBe(1);
+      expect(approved.specs[0].effective.state).toBe("PLAN_APPROVED");
+
+      expect((await fx.cli(["task", "start", SLUG, "1"])).status).toBe(0);
+      fx.commit("start task 1");
+      const started = await fx.cli(["check", SLUG]);
+      expect(started.stderr).toBe("");
+      expect(started.stdout).toContain("Check mode: PASS");
+      expect(started.status).toBe(0);
+    });
+
+    it("fails a spec whose ledger was edited, naming the entry", async () => {
+      await fx.approve(["requirements"], "alice");
+      writeFileSync(fx.ledgerPath, readFileSync(fx.ledgerPath, "utf8").replace("alice@", "mallory@"));
+
+      const result = await fx.cli(["check", SLUG, "--json"]);
+      expect(result.status).toBe(1);
+      const report = JSON.parse(result.stdout);
+      expect(report.summary.ledgerFailures).toBe(1);
+      expect(report.findings.some((f: { rule: string }) => f.rule === "LEDGER_INTEGRITY")).toBe(true);
+    });
+
+    it("passes a legacy spec and exits 2 naming a fragment that matches nothing", async () => {
+      fx.write(".agents/specs/002-legacy/requirements.md", "# Legacy\n");
+      const legacy = JSON.parse((await fx.cli(["check", "002", "--json"])).stdout);
+      expect(legacy.specs[0]).toMatchObject({ id: "002-legacy", legacy: true, outcome: "pass" });
+
+      const none = await fx.cli(["check", "999"]);
+      expect(none.status).toBe(2);
+      expect(none.stderr).toContain("no spec matches '999'");
+    });
+  });
+
   describe("lint", () => {
     it("passes a well-formed spec and says what it examined", async () => {
       const result = await fx.cli(["lint", SLUG]);
@@ -344,8 +390,8 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
   });
 
   describe("command surface", () => {
-    it("exits 2 with 'not implemented' for check, adopt and sync", async () => {
-      for (const command of ["check", "adopt", "sync"]) {
+    it("exits 2 with 'not implemented' for adopt and sync", async () => {
+      for (const command of ["adopt", "sync"]) {
         const result = await fx.cli([command]);
         expect(result.status).toBe(2);
         expect(result.stderr).toContain("not implemented");
@@ -368,8 +414,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     it("lists in help only commands that exist, and names the ones that do not", async () => {
       const result = await fx.cli(["--help"]);
       expect(result.status).toBe(0);
-      expect(result.stdout).not.toMatch(/^\s+(check|adopt|sync)\b/m);
-      expect(result.stdout).toContain("Not implemented in this version (exit 2): check, adopt, sync.");
+      expect(result.stdout).not.toMatch(/^\s+(adopt|sync)\b/m);
+      expect(result.stdout).toMatch(/^\s+check \[spec\]/m);
+      expect(result.stdout).toContain("Not implemented in this version (exit 2): adopt, sync.");
     });
   });
 });

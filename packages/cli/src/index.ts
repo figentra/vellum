@@ -1,8 +1,8 @@
 /**
  * @vellum/cli — Vellum command-line interface
  *
- * Implemented: status, lint, verify, doctor, approve, task start,
- * task complete. check, adopt and sync exit 2 as not implemented.
+ * Implemented: status, check, lint, verify, doctor, approve, task start,
+ * task complete. adopt and sync exit 2 as not implemented.
  *
  * Commands read through @vellum/storage and decide through @vellum/engine.
  */
