@@ -175,8 +175,6 @@ export type DiagnosticCode = keyof typeof DiagnosticCodes;
  */
 export function getRuleIdentifier(code: DiagnosticCode): RuleIdentifier {
   const name = DiagnosticCodes[code];
-  const category = code.startsWith("E00") ? "error" : "warning";
-  const prefix = code.startsWith("E") ? "E" : "W";
 
   // Map code ranges to categories
   let categoryPath: string;

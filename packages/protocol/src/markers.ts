@@ -91,7 +91,15 @@ export function parseTaskLine(line: string): {
     return null;
   }
 
-  const [, , markerChar, identifierStr, text, trailers] = baseMatch;
+  const markerChar = baseMatch[2];
+  const identifierStr = baseMatch[3];
+  const text = baseMatch[4];
+  const trailers = baseMatch[5];
+
+  // Validate required groups exist
+  if (!markerChar || !identifierStr || text === undefined) {
+    return null;
+  }
 
   // Parse marker
   const marker = parseMarker(`[${markerChar}]`);
@@ -119,7 +127,7 @@ export function parseTaskLine(line: string): {
   if (trailers) {
     // Parse criteria trailer: <!-- criteria: 1.2, 3.4 -->
     const criteriaMatch = trailers.match(/<!--\s*criteria:\s*([\d.,\s]+)\s*-->/);
-    if (criteriaMatch) {
+    if (criteriaMatch && criteriaMatch[1]) {
       const criteriaStr = criteriaMatch[1];
       const criteria = criteriaStr
         .split(",")
@@ -135,7 +143,7 @@ export function parseTaskLine(line: string): {
 
     // Parse properties trailer: <!-- properties: P1, P2 -->
     const propertiesMatch = trailers.match(/<!--\s*properties:\s*([A-Z\d,\s]+)\s*-->/);
-    if (propertiesMatch) {
+    if (propertiesMatch && propertiesMatch[1]) {
       const propertiesStr = propertiesMatch[1];
       const properties = propertiesStr
         .split(",")
@@ -150,14 +158,28 @@ export function parseTaskLine(line: string): {
     }
   }
 
-  return {
+  const result: {
+    marker: TaskMarker;
+    identifier: TaskId;
+    text: string;
+    requirementsTrailer?: CriterionId[];
+    propertiesTrailer?: PropertyId[];
+    isOptional: boolean;
+  } = {
     marker,
     identifier,
     text: taskText,
-    requirementsTrailer,
-    propertiesTrailer,
     isOptional,
   };
+
+  if (requirementsTrailer) {
+    result.requirementsTrailer = requirementsTrailer;
+  }
+  if (propertiesTrailer) {
+    result.propertiesTrailer = propertiesTrailer;
+  }
+
+  return result;
 }
 
 /**

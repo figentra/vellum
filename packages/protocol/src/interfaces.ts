@@ -9,13 +9,11 @@
 import type {
   Artifact,
   ArtifactKind,
-  Checksum,
   CommitSha,
-
+  GitCommit,
   LedgerEntry,
   SpecDirectory,
 } from "./types.js";
-  GitCommit,
 
 // ============================================================================
 // Git Operations Interface
@@ -101,202 +99,100 @@ export interface FileSystem {
   /** List files in a directory (non-recursive) */
   readdir(path: string): Promise<readonly string[]>;
 
-  /** Delete a file */
-  delete(path: string): Promise<void>;
-
-  /** Get file stats */
-  stat(path: string): Promise<{ readonly mtime: Date; readonly size: number }>;
+  /**
+   * Create a directory (recursive).
+   * No-op if directory already exists.
+   */
+  mkdir(path: string): Promise<void>;
 
   /**
-   * Create directory (including parents) if it doesn't exist.
-   * Idempotent - does not error if directory exists.
+   * Delete a file.
+   * No-op if file doesn't exist.
    */
-  mkdirp(path: string): Promise<void>;
-
-  /**
-   * Update a specific section of a file.
-   * Used for design.md section updates.
-   * Atomic (temp file + rename).
-   */
-  updateSection(
-    path: string,
-    options: {
-      readonly startMarker: string;
-      readonly endMarker: string;
-      readonly content: string;
-    },
-  ): Promise<void>;
+  unlink(path: string): Promise<void>;
 }
 
 // ============================================================================
-// Spec Discovery Interface
+// Ledger Storage Interface
 // ============================================================================
 
 /**
- * Spec directory discovery and management.
- */
-export interface SpecDiscovery {
-  /** Discover all spec directories under .agents/specs/ */
-  discoverSpecDirs(): Promise<readonly SpecDirectory[]>;
-
-  /** Get a single spec directory by slug or number */
-  getSpecDir(spec: string): Promise<SpecDirectory | null>;
-
-  /** Check if a path is inside a spec directory */
-  isSpecPath(path: string): boolean;
-
-  /** Check if a spec directory exists */
-  specDirExists(slug: string): Promise<boolean>;
-}
-
-// ============================================================================
-// Ledger Operations Interface
-// ============================================================================
-
-/**
- * Ledger read/append operations.
- * Ledger is append-only and hash-chained.
+ * Ledger read operations.
+ * The ledger is an append-only JSONL file.
  */
 export interface LedgerReader {
-  /** Read all entries from ledger */
-  readLedger(ledgerPath: string): Promise<readonly LedgerEntry[]>;
+  /** Read the ledger from disk */
+  read(path: string): Promise<LedgerReadResult>;
 
   /**
-   * Get the last entry in the ledger.
-   * Returns null if ledger is empty.
+   * Verify the hash chain.
+   * Returns true if valid, throws on corruption.
    */
-  getLastEntry(ledgerPath: string): Promise<LedgerEntry | null>;
-
-  /** Get entry by sequence number */
-  getEntry(ledgerPath: string, seq: number): Promise<LedgerEntry | null>;
+  verify(path: string): Promise<boolean>;
 }
 
-/** Ledger write operations */
-export interface LedgerWriter {
-  /**
-   * Append an entry to the ledger.
-   * Computes predecessor hash automatically.
-   * Atomic (temp file + append + rename).
-   */
-  appendEntry(
-    ledgerPath: string,
-    entry: Omit<LedgerEntry, "predecessorHash" | "hash">,
-  ): Promise<LedgerEntry>;
+/** Result of reading a ledger */
+export interface LedgerReadResult {
+  /** Array of parsed entries */
+  readonly entries: readonly LedgerEntry[];
+  /** Number of entries */
+  readonly count: number;
+  /** File size in bytes */
+  readonly size: number;
+  /** Whether the hash chain validates */
+  readonly isValid: boolean;
 }
 
 // ============================================================================
-// Artifact Operations Interface
+// Artifact Storage Interface
 // ============================================================================
 
 /**
- * Artifact read/write operations.
+ * Artifact storage operations.
+ * Reads and writes spec artifacts with frontmatter.
  */
-export interface ArtifactReader {
-  /** Read an artifact from a spec directory */
-  readArtifact(specPath: string, kind: ArtifactKind): Promise<Artifact>;
-
-  /** Read all three artifacts from a spec directory */
-  readAllArtifacts(specPath: string): Promise<readonly Artifact[]>;
-
-  /** Check if an artifact exists */
-  artifactExists(specPath: string, kind: ArtifactKind): Promise<boolean>;
-}
-
-/** Artifact write operations */
-export interface ArtifactWriter {
-  /**
-   * Write an artifact (with frontmatter).
-   * Computes checksum automatically.
-   * Atomic (temp file + rename).
-   */
-  writeArtifact(artifact: Artifact): Promise<void>;
+export interface ArtifactStorage {
+  /** Read an artifact from disk */
+  read(path: string): Promise<Artifact>;
 
   /**
-   * Update artifact frontmatter without changing body.
-   * Used for state transitions.
+   * Write an artifact to disk.
+   * Atomic write with temp file + rename.
    */
-  updateFrontmatter(
-    path: string,
-    updates: Partial<{
-      readonly state: Artifact["frontmatter"]["state"];
-      readonly version: number;
-      readonly updatedAt: string;
-    }>,
-  ): Promise<void>;
+  write(path: string, artifact: Artifact): Promise<void>;
 
   /**
-   * Update task marker in tasks.md.
-   * Preserves rest of line byte-for-byte.
+   * Compute the checksum of an artifact body.
+   * Excludes frontmatter from the hash.
    */
-  updateTaskMarker(path: string, taskId: string, marker: " " | "~" | "-" | "x"): Promise<void>;
+  computeChecksum(body: string): Promise<string>;
+
+  /**
+   * Discover all spec directories in the repository.
+   * Walks up from cwd to find .agents/specs/
+   */
+  discoverSpecs(startPath?: string): Promise<readonly SpecDirectory[]>;
 }
 
 // ============================================================================
-// State File Operations Interface
+// Concurrency Interface
 // ============================================================================
 
 /**
- * Machine folder state file operations.
+ * Concurrency control for ledger writes.
+ * Prevents forks when multiple processes write simultaneously.
  */
-export interface StateFileOps {
-  /** Read spec state from machine folder */
-  readState(machineFolder: string): Promise<SpecState>;
+export interface ConcurrencyControl {
+  /**
+   * Acquire a lock for the ledger.
+   * Returns a release function.
+   * Throws if lock cannot be acquired within timeout.
+   */
+  acquireLock(path: string, timeout?: number): Promise<() => void>;
 
-  /** Write state update to machine folder */
-  writeState(machineFolder: string, state: Partial<SpecState>): Promise<void>;
-
-  /** Initialize machine folder for a spec */
-  initMachineFolder(specPath: string): Promise<string>;
-}
-
-/** Spec state stored in machine folder */
-export interface SpecState {
-  readonly effectiveState: import("./types.js").LifecycleState;
-  readonly recordedState: import("./types.js").LifecycleState;
-  readonly lastTransition?: {
-    readonly from: import("./types.js").LifecycleState;
-    readonly to: import("./types.js").LifecycleState;
-    readonly timestamp: string;
-    readonly commit: CommitSha;
-  };
-}
-
-// ============================================================================
-// Cache Operations Interface
-// ============================================================================
-
-/**
- * Disposable cache for computed results.
- * Stored outside version control.
- */
-export interface DisposedCache {
-  /** Get cached result */
-  get<T = unknown>(key: string): Promise<T | null>;
-
-  /** Set cached result */
-  set<T>(key: string, value: T): Promise<void>;
-
-  /** Clear all cache entries */
-  clear(): Promise<void>;
-
-  /** Check if cache is outside VCS */
-  isOutsideVcs(): Promise<boolean>;
-}
-
-// ============================================================================
-// Composition Interface (Storage Layer)
-// ============================================================================
-
-/**
- * Complete storage layer.
- * Composes all storage interfaces.
- */
-export interface StorageLayer {
-  readonly git: GitReader & GitWriter;
-  readonly fs: FileSystem;
-  readonly specs: SpecDiscovery;
-  readonly ledger: LedgerReader & LedgerWriter;
-  readonly artifacts: ArtifactReader & ArtifactWriter;
-  readonly state: StateFileOps;
-  readonly cache: DisposedCache;
+  /**
+   * Check if a lock exists.
+   * Returns true if locked, false otherwise.
+   */
+  isLocked(path: string): Promise<boolean>;
 }

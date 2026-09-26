@@ -67,7 +67,13 @@ export function parseFrontmatter(
     return null;
   }
 
-  const [, yamlContent, body] = match;
+  const yamlContent = match[1];
+  const body = match[2];
+
+  // Validate required groups exist
+  if (!yamlContent || body === undefined) {
+    return null;
+  }
 
   try {
     // Parse YAML content (simple parser for now)
@@ -152,7 +158,13 @@ function parseYamlFrontmatter(yaml: string): Record<string, unknown> | null {
       return null; // Invalid YAML
     }
 
-    const [, key, value] = match;
+    const key = match[1];
+    const value = match[2];
+
+    // Validate required groups exist
+    if (!key || value === undefined) {
+      return null;
+    }
 
     // Parse value
     let parsedValue: unknown;
