@@ -63,10 +63,10 @@ builds. Needs `git`, `ssh-keygen`, `script` and `npm` on `PATH` (all present on
 macOS and `ubuntu-latest`). Scenario files run in parallel, one forked process
 each; the tests inside a file run in order and share that file's repository.
 
-Wall-clock time of `vitest run` for the whole suite in this repository's
-session that added it: about 10 s on an unloaded laptop; each scenario file
-takes 1–10 s. Timeouts (`vitest.config.ts`) are budgets for a heavily loaded
-machine, not expectations.
+Measured when the suite was added: vitest reported a Duration of 9.9 s to
+12.0 s for the whole suite across runs (each scenario file 0.5 s to 8 s,
+files in parallel). Timeouts (`vitest.config.ts`) are budgets for a heavily
+loaded machine, not expectations.
 
 ## Not covered here
 
