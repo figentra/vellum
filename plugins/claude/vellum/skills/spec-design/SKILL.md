@@ -279,6 +279,22 @@ checked, not a task list — task ordering belongs to `spec-tasks`.
 blocks, and what the design assumes meanwhile. A question you could have answered
 by reading the code is a defect, not a question.
 
+### Stamp the design
+
+`design.md` is written as bare Markdown. Right after writing it — and after every later
+rewrite — record its Lifecycle Frontmatter with the CLI:
+
+```bash
+npx vellum stamp <NNN>
+```
+
+It adds the frontmatter block without changing your text, records the next version and
+checksum of a changed document, and raises the spec's recorded state to
+`DESIGN_IN_REVIEW`. Never write frontmatter by hand. If it exits 1, report its message and
+stop. Approval is the human's (`npx vellum approve <NNN> design`); if `npx vellum approve` refuses because the frontmatter checksum of the document is
+stale (the body changed after its last stamp), the human runs `npx vellum stamp <NNN>`
+first, reviews the result, then approves.
+
 ## Step 5 — self-check, then stop
 
 Before ending your turn, verify all of these and state the result:
