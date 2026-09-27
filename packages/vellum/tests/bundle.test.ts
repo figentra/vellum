@@ -255,5 +255,35 @@ describe("Bundle Verification", () => {
       // Should have source maps for main entry points
       expect(mapFiles.length).toBeGreaterThan(0);
     });
+
+    it("maps name their sources without embedding the sources' text", () => {
+      expect(existsSync(distDir)).toBe(true);
+      const maps = readdirSync(distDir).filter((f) => f.endsWith(".js.map"));
+      expect(maps.length).toBeGreaterThan(0);
+      for (const file of maps) {
+        const map = JSON.parse(readFileSync(join(distDir, file), "utf8")) as {
+          sources: string[];
+          sourcesContent?: unknown;
+        };
+        expect(map.sourcesContent, file).toBeUndefined();
+        expect(map.sources.length, file).toBeGreaterThan(0);
+      }
+    });
+  });
+
+  // The size budget CI enforced as a shell step, now a test so it runs
+  // wherever the suite runs: all of dist/ (JS and maps) within 500 KiB, and no
+  // single JS file over 200 KiB.
+  describe("Size budget", () => {
+    it("keeps dist/ within 500 KiB and each JS file within 200 KiB", () => {
+      expect(existsSync(distDir)).toBe(true);
+      let total = 0;
+      for (const file of readdirSync(distDir)) {
+        const size = statSync(join(distDir, file)).size;
+        total += size;
+        if (file.endsWith(".js")) expect(size, file).toBeLessThanOrEqual(200 * 1024);
+      }
+      expect(total).toBeLessThanOrEqual(500 * 1024);
+    });
   });
 });

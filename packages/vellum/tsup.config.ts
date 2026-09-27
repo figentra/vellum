@@ -15,7 +15,13 @@ export default defineConfig({
   target: "node22",
   noExternal: [/^@vellum\//],
   splitting: true,
+  // Maps ship so stack traces (node --enable-source-maps) name the file and
+  // line they came from; they omit the sources' text, which only a debugger
+  // showing code needs and which was over half of the published bytes.
   sourcemap: true,
+  esbuildOptions(options) {
+    options.sourcesContent = false;
+  },
   dts: { entry: "src/index.ts", resolve: [/^@vellum\//] },
   clean: true,
   // One version everywhere: `vellum --version`, the MCP serverInfo and Evidence Entries.
