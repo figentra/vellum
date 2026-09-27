@@ -95,17 +95,22 @@ sub-task). If no line matches, stop and report: "Task <id> does not exist in
 
 **Parent task.** If the matched line has sub-tasks beneath it in the file,
 refuse: parent tasks are containers, never units of work. Report which
-sub-tasks exist — one of those is the actual unit to implement.
+sub-tasks exist — one of those is the actual unit to implement. `vellum task
+start` refuses a parent the same way, and `vellum verify` requires no evidence
+for one: a parent is complete when its required sub-tasks are.
 
 **Checkpoint.** If the matched line reads `Checkpoint: …`, refuse as a unit of
-implementation. Instead run `pnpm verify` (or the narrowest `turbo run` that
-covers everything built so far), report the result, and only mark it `[x]` if
-that run is actually green — marking it under the same re-read rule as any
-other checkbox edit (Step 3). A checkpoint is the only verification in the run
-that crosses package boundaries, so a green one is the claim that the tasks
-before it work together; do not narrow the command to make it pass. If the run
-is red, that is a failure: go to Step 7, restore the checkpoint's `[ ]`, and
-log it like any other.
+implementation. Instead record the workspace-wide verification through Vellum,
+exactly as Steps 3 and 6 do for a task — `vellum task start <NNN> <id>`, then
+`vellum task complete <NNN> <id> --command="pnpm verify"` (or the narrowest
+`turbo run` that covers everything built so far) — and report the result.
+Vellum runs the command, records the Evidence Entry and sets `[x]` only if the
+run is green; do not set it yourself. A checkpoint is a Required Task:
+`vellum verify` fails with `TASK_NOT_VERIFIED` for one with no passing
+evidence. It is the only verification in the run that crosses package
+boundaries, so a green one is the claim that the tasks before it work
+together; do not narrow the command to make it pass. If the run is red, that
+is a failure: go to Step 7 and log it like any other.
 
 **Optional (`*`) gate.** The `*` may sit **after the closing bracket**
 (`- [ ]* 3.2 …`) or **after the task id** (`- [ ] 3.2* …`). `spec-tasks`

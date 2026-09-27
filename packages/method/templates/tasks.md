@@ -171,7 +171,10 @@ Property `design.md` does not define as `TASK_PROPERTY_UNDEFINED`.
 A `Checkpoint` task appears every few top-level tasks, and always before a task
 that builds on a large batch of prior work. Its body is `Ensure all tests pass`
 or a similarly concrete verification. Checkpoints have no sub-tasks, no
-`_Requirements:_` trailer, and no entry in the dependency graph.
+`_Requirements:_` trailer, and no entry in the dependency graph. A checkpoint
+is still a Required Task: its verification run is recorded with
+`vellum task complete`, and `vellum verify` requires that evidence. A parent task
+needs none of its own; it is complete when its required sub-tasks are.
 
 ### What is NOT in this plan
 

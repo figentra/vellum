@@ -49,6 +49,7 @@ import { hasRequiredApprovals } from "../approval/verify.js";
 import { validateProtocol } from "../validate/protocol-validator.js";
 import { buildTaskGraph, validateTaskGraph } from "../validate/task-graph.js";
 import { strictVerify } from "../verify/strict.js";
+import { requiredTasks } from "./required-tasks.js";
 
 /** Everything the Effective Lifecycle State is computed from. */
 export interface EffectiveStateInput {
@@ -442,7 +443,7 @@ class Context {
       passed.set(task, position);
     });
 
-    for (const task of this.tasks.filter((t) => !t.isOptional)) {
+    for (const task of requiredTasks(this.tasks)) {
       if (!passed.has(task.identifier)) {
         return {
           status: "unmet",

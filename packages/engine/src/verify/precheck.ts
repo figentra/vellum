@@ -24,6 +24,7 @@ import {
   type ApprovalCommitResolution,
 } from "../approval/records.js";
 import { extractCriteria, extractProperties } from "../coverage/validate.js";
+import { parentTaskIds } from "../lifecycle/required-tasks.js";
 
 /**
  * Pre-execution check result.
@@ -142,12 +143,21 @@ export function preExecutionCheck(
   }
 
   // Criterion 18.4: the task exists and its references resolve
-  const task = canonicalArtifactBody(tasks.body)
+  const lines = canonicalArtifactBody(tasks.body)
     .split("\n")
-    .map((line) => parseTaskLine(line))
-    .find((line) => line !== null && line.identifier === taskIdentifier);
+    .flatMap((line) => parseTaskLine(line) ?? []);
+  const task = lines.find((line) => line.identifier === taskIdentifier);
   if (!task) {
     errors.push(`Task ${taskIdentifier} not found in tasks.md`);
+  } else if (parentTaskIds(lines).has(taskIdentifier)) {
+    // A parent is a container: its sub-tasks are the units of work, and it is
+    // complete when they are (see lifecycle/required-tasks).
+    const subTasks = lines
+      .filter((line) => (line.identifier as string).startsWith(`${taskIdentifier}.`))
+      .map((line) => line.identifier);
+    errors.push(
+      `Task ${taskIdentifier} is a parent task; start one of its sub-tasks instead (${subTasks.join(", ")})`,
+    );
   } else {
     const criteria = new Set(extractCriteria(canonicalArtifactBody(requirements.body)));
     const properties = new Set(extractProperties(canonicalArtifactBody(design.body)));

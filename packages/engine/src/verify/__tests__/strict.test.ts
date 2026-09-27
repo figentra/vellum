@@ -8,6 +8,7 @@ import type { LedgerEntry } from "@vellum/protocol";
 import { strictVerify } from "../strict.js";
 import {
   allArtifacts,
+  approvalEntry,
   approvals,
   artifact,
   chain,
@@ -241,5 +242,43 @@ describe("strictVerify — approvals the policy requires (criterion 12.5)", () =
 
     expect(result.result).toBe("FAIL");
     expect(result.findings.some((f) => f.rule === "APPROVAL_REQUIRED")).toBe(true);
+  });
+
+  describe("Required Tasks: parents need no evidence of their own, checkpoints do", () => {
+    const nested = `# Tasks
+
+- [ ] 1. Build it
+  - [ ] 1.1 Build the first thing <!-- criteria: 1.1 --> <!-- properties: P1 -->
+  - [ ] 1.2 Build the second thing <!-- criteria: 1.2 --> <!-- properties: P2 -->
+- [ ] 2. Checkpoint: ensure all tests pass
+`;
+    const ledger = (...tasks: string[]) =>
+      chain([
+        ...approvals().slice(0, 2),
+        approvalEntry(3, "tasks", nested),
+        ...tasks.map((id) => evidenceEntry(id)),
+      ]);
+    const verify = (entries: LedgerEntry[]) =>
+      strictVerify(allArtifacts({ tasks: nested }), entries, policy, commits, "standard");
+
+    it("passes when each sub-task and the checkpoint have evidence and the parent has none", () => {
+      const result = verify(ledger("1.1", "1.2", "2"));
+      expect(result.findings).toEqual([]);
+      expect(result.tasks).toEqual({ satisfied: 3, total: 3 });
+    });
+
+    it("names a checkpoint with no evidence", () => {
+      const result = verify(ledger("1.1", "1.2"));
+      expect(result.findings.map((f) => f.message)).toEqual([
+        "Task 2 has no Evidence Entry with exit status 0",
+      ]);
+    });
+
+    it("names the sub-task, not the parent, when a sub-task has no evidence", () => {
+      const result = verify(ledger("1.1", "2"));
+      expect(result.findings.map((f) => f.message)).toEqual([
+        "Task 1.2 has no Evidence Entry with exit status 0",
+      ]);
+    });
   });
 });

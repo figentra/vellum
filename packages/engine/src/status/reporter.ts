@@ -30,6 +30,7 @@ import {
   computeEffectiveLifecycleState,
   type EffectiveState,
 } from "../lifecycle/effective-state.js";
+import { requiredTasks } from "../lifecycle/required-tasks.js";
 
 /**
  * Status report for a spec.
@@ -239,11 +240,11 @@ function computeVerificationStatus(
   }
 
   const required = tasks
-    ? canonicalArtifactBody(tasks.body)
-        .split("\n")
-        .map((line) => parseTaskLine(line))
-        .filter((line) => line !== null && !line.isOptional)
-        .map((line) => line!.identifier as string)
+    ? requiredTasks(
+        canonicalArtifactBody(tasks.body)
+          .split("\n")
+          .flatMap((line) => parseTaskLine(line) ?? []),
+      ).map((line) => line.identifier as string)
     : [];
   const completed = required.filter((id) => passed.has(id)).length;
 

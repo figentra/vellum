@@ -225,7 +225,8 @@ wave, in order:
    whose checkbox is not `[x]`, dispatch it to `spec-implement` exactly as
    Step 3.3 dispatches a task — one `spec-executor` subagent, one id.
    `spec-implement` Step 2's Checkpoint branch runs the workspace-wide
-   verification and marks the line only if that run is green. Treat a failed
+   verification through `vellum task complete`, which records the evidence
+   `vellum verify` requires and marks the line only if that run is green. Treat a failed
    checkpoint exactly as Step 3.5 treats a failed task: the run stops, and the
    next wave does not start.
 

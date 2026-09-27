@@ -28,6 +28,7 @@ import { computeCoverage } from "../coverage/validate.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
 import { hasRequiredApprovals, verifyApproval } from "../approval/verify.js";
 import { createFinding } from "../validate/finding.js";
+import { requiredTasks as requiredTasksOf } from "../lifecycle/required-tasks.js";
 
 /**
  * Strict verification result.
@@ -224,7 +225,7 @@ export function strictVerify(
 
   const tasksArtifactForEvidence = byKind.get("tasks");
   const requiredTasks = tasksArtifactForEvidence
-    ? taskLines(canonicalArtifactBody(tasksArtifactForEvidence.body)).filter((t) => !t.isOptional)
+    ? requiredTasksOf(taskLines(canonicalArtifactBody(tasksArtifactForEvidence.body)))
     : [];
   let verifiedTasks = 0;
   for (const task of requiredTasks) {

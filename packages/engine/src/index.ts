@@ -29,6 +29,8 @@ export {
   InvalidTransitionError,
 } from "./lifecycle/state-machine.js";
 
+export { requiredTasks, parentTaskIds } from "./lifecycle/required-tasks.js";
+
 export {
   computeEffectiveLifecycleState,
   isLifecycleState,

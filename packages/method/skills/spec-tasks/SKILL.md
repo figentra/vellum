@@ -201,6 +201,10 @@ always immediately before a task that builds on a large batch of prior work:
 ```
 
 Checkpoints have no sub-tasks, no `*`, no trailer, and no entry in the wave graph.
+A checkpoint is still a Required Task: `spec-implement` records its
+workspace-wide verification through `vellum task complete`, and `vellum verify`
+requires that evidence. A parent task needs no evidence of its own — it is
+complete when its required sub-tasks are.
 
 ## Step 3 — build the Task Dependency Graph
 

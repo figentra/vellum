@@ -115,8 +115,15 @@ Build the greeting, then the farewell. Two waves.
 | ---- | -------- | ------- | ---- | -------- |
 `;
 
-/** Tasks the engine requires evidence for: every non-optional task line. */
-export const REQUIRED_TASKS = ["1", "1.1", "1.2", "2", "3", "3.1"] as const;
+/**
+ * Tasks the engine requires evidence for: every task line that is neither
+ * optional nor a parent — the leaves 1.1, 1.2 and 3.1, and checkpoint 2.
+ * Parents 1 and 3 are complete when their required sub-tasks are.
+ */
+export const REQUIRED_TASKS = ["1.1", "1.2", "2", "3.1"] as const;
+
+/** Parent tasks: containers with sub-tasks, never started or evidenced themselves. */
+export const PARENT_TASKS = ["1", "3"] as const;
 
 /** The project the tasks build, so a verification command has something real to run. */
 export const PROJECT_FILES: Readonly<Record<string, string>> = {

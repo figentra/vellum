@@ -64,6 +64,24 @@ describe("preExecutionCheck", () => {
     expect(result.errors).toEqual(["Task 9 not found in tasks.md"]);
   });
 
+  it("refuses a parent task, naming its sub-tasks", () => {
+    const nested = `# Tasks
+
+- [ ] 1. Build it
+  - [ ] 1.1 Build the first thing <!-- criteria: 1.1 --> <!-- properties: P1 -->
+  - [ ] 1.2 Build the second thing <!-- criteria: 1.2 --> <!-- properties: P2 -->
+- [ ] 2. Checkpoint: ensure all tests pass
+`;
+    const ledger = chain([...approvals().slice(0, 2), approvalEntry(3, "tasks", nested)]);
+    const artifacts = allArtifacts({ tasks: nested });
+
+    expect(preExecutionCheck(artifacts, ledger, "1", context).errors).toEqual([
+      "Task 1 is a parent task; start one of its sub-tasks instead (1.1, 1.2)",
+    ]);
+    expect(preExecutionCheck(artifacts, ledger, "1.1", context).passed).toBe(true);
+    expect(preExecutionCheck(artifacts, ledger, "2", context).passed).toBe(true);
+  });
+
   it("refuses a task citing a criterion or property that is not defined", () => {
     const dangling = TASKS.replace("<!-- criteria: 1.1 -->", "<!-- criteria: 1.1, 7.3 -->").replace(
       "<!-- properties: P1 -->",
