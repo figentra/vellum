@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "vellum": {
+      "command": "npx",
+      "args": [
+        "--no",
+        "vellum-mcp"
+      ]
+    }
+  }
+}
