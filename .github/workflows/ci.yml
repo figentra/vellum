@@ -70,7 +70,7 @@ jobs:
         run: pnpm turbo run build typecheck lint test
 
   audit:
-    name: Audit runtime dependencies
+    name: Audit dependencies
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -88,11 +88,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      # Fails on any moderate-or-worse advisory in a production dependency.
-      # @figentra/vellum bundles the workspace and has no runtime dependency,
-      # so this passes today and fails the day one with an advisory is added.
-      # Development tooling (vitest, stryker, tsup) is not gated here: it
-      # carries open moderate advisories whose fixes need major upgrades,
-      # tracked separately rather than hidden behind continue-on-error.
-      - name: pnpm audit --prod
-        run: pnpm audit --prod --audit-level=moderate
+      # Fails on any moderate-or-worse advisory anywhere in the tree,
+      # development tooling included: a compromised test runner or bundler runs
+      # with the same access as the code it builds. @figentra/vellum bundles the
+      # workspace and has no runtime dependency of its own.
+      #
+      # One low advisory stays open and below this level: GHSA-g7r4-m6w7-qqqr,
+      # esbuild >=0.27.3 <0.28.1 serving arbitrary files from its development
+      # server on Windows. It reaches the tree only through tsup, whose latest
+      # release (8.5.1) pins esbuild ^0.27.0, so no fixed tsup exists yet. tsup
+      # calls esbuild's build API and never starts its server.
+      - name: pnpm audit
+        run: pnpm audit --audit-level=moderate

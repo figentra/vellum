@@ -256,7 +256,7 @@ verify (Node 22 and 24): pnpm install --frozen-lockfile
                          pnpm turbo run build typecheck lint test
                            (lint runs scripts/check-boundaries.mjs;
                             test includes the bundle size budget and the e2e suite)
-audit:                   pnpm audit --prod --audit-level=moderate
+audit:                   pnpm audit --audit-level=moderate (the whole tree, dev tooling included)
 ```
 
 `.github/workflows/release.yml` publishes on a human-pushed `vX.Y.Z` tag, after the same
