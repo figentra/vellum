@@ -46,6 +46,7 @@ import {
   type ApprovalRecordView,
 } from "../approval/records.js";
 import { hasRequiredApprovals } from "../approval/verify.js";
+import { decidePlanApproval } from "../coverage/plan-approval.js";
 import { validateProtocol } from "../validate/protocol-validator.js";
 import { buildTaskGraph, validateTaskGraph } from "../validate/task-graph.js";
 import { strictVerify } from "../verify/strict.js";
@@ -298,6 +299,7 @@ class Context {
           this.approved("design"),
           this.approved("tasks"),
           this.taskGraphValid(),
+          this.planCovered(),
         );
       case "IN_PROGRESS":
         return this.taskDispatched();
@@ -399,6 +401,14 @@ class Context {
           status: "unmet",
           message: `the task graph fails validation: ${result.findings[0]?.message ?? "invalid"}`,
         };
+  }
+
+  /** Criteria 20.1-20.3, 20.7: every criterion covered and every property cited. */
+  private planCovered(): Check {
+    const decision = decidePlanApproval(this.input.artifacts);
+    return decision.approvable
+      ? MET
+      : { status: "unmet", message: `the plan's coverage fails: ${decision.problems.join("; ")}` };
   }
 
   private taskDispatched(): Check {

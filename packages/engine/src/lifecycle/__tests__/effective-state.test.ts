@@ -7,6 +7,7 @@ import type { LedgerEntry } from "@vellum/protocol";
 import { computeEffectiveLifecycleState, type EffectiveStateInput } from "../effective-state";
 import {
   allArtifacts,
+  approvalEntry,
   approvals,
   artifact,
   chain,
@@ -67,6 +68,25 @@ describe("computeEffectiveLifecycleState", () => {
       input({ ledger: approvals(), recordedState: "IN_PROGRESS" }),
     );
     expect(result).toMatchObject({ kind: "computed", state: "PLAN_APPROVED" });
+  });
+
+  it("holds an approved plan that leaves a property uncited at PLAN_IN_REVIEW (criterion 20.3)", () => {
+    const uncited = TASKS.replace(" <!-- properties: P2 -->", "");
+    const ledger = chain([
+      ...approvals().slice(0, 2),
+      approvalEntry(0, "tasks", uncited),
+    ]);
+    const result = computeEffectiveLifecycleState(
+      input({
+        artifacts: allArtifacts({ tasks: uncited }),
+        ledger,
+        recordedState: "PLAN_APPROVED",
+      }),
+    );
+    expect(result).toMatchObject({ kind: "computed", state: "PLAN_IN_REVIEW" });
+    if (result.kind === "computed") {
+      expect(result.failedPrecondition).toMatch(/Property P2 is cited by no task/);
+    }
   });
 
   it("stops at IN_PROGRESS while a required task has no passing evidence", () => {

@@ -170,6 +170,8 @@ export {
   validatePropertiesCitation,
 } from "./coverage/validate.js";
 
+export { decidePlanApproval, type PlanApprovalDecision } from "./coverage/plan-approval.js";
+
 // ============================================================================
 // Check Mode
 // ============================================================================

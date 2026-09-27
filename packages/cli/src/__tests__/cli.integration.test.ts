@@ -9,7 +9,7 @@ import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
 import { checkLedgerIntegrity } from "@vellum/engine";
 import { readLedgerHead } from "@vellum/storage";
-import { Fixture, REQUIREMENTS, SLUG } from "./fixture.js";
+import { Fixture, REQUIREMENTS, SLUG, TASKS } from "./fixture.js";
 
 function hasSshKeygen(): boolean {
   try {
@@ -323,6 +323,31 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
 
       const uncommitted = JSON.parse((await fx.cli(["verify", SLUG, "--json"])).stdout);
       expect(JSON.stringify(uncommitted.specs[0].findings)).toContain("not committed");
+    });
+
+    it("refuses to approve a plan that leaves a criterion uncovered or a property uncited, naming each and writing nothing", async () => {
+      fx.writeArtifact("tasks", TASKS.replace("<!-- criteria: 1.2 --> <!-- properties: P2 -->", ""));
+      const result = await fx.cli(["approve", SLUG, "tasks"], { interactive: true });
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("vellum approve: refused — tasks.md cannot be approved");
+      expect(result.stderr).toContain("Criterion 1.2 is referenced by no task's requirements trailer");
+      expect(result.stderr).toContain("Property P2 is cited by no task");
+      expect(result.stdout).toBe("");
+      expect(await fx.ledger()).toEqual([]);
+
+      // A rejection of the same plan is still recorded.
+      const rejected = await fx.cli(
+        ["approve", SLUG, "tasks", "--reject", "--rationale=criterion 1.2 has no task"],
+        { interactive: true },
+      );
+      expect(rejected.status).toBe(0);
+      expect(await fx.ledger()).toHaveLength(1);
+    });
+
+    it("approves a plan that covers every criterion and cites every property", async () => {
+      const result = await fx.cli(["approve", SLUG, "tasks"], { interactive: true });
+      expect(result.status).toBe(0);
+      expect((await fx.ledger())[0]).toMatchObject({ kind: "approval", artifact: "tasks.md" });
     });
 
     it("explains in --help that the signed commit, not the command, makes it valid", async () => {

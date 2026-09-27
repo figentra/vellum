@@ -5,6 +5,12 @@
  * method's tasks template does: `_Properties: N_` after the requirements
  * trailer. Before either form was read, no property of a method-written spec
  * was ever counted, so an uncited one passed verify.
+ *
+ * `vellum approve <spec> tasks` refuses a plan that leaves a property uncited
+ * (criterion 20.4), so the uncited plan here is approved while design.md has
+ * only Properties 1 and 2; design.md then gains Property 3 and is approved
+ * again. The plan's approval still binds its unchanged text, and verify is
+ * what catches the gap.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -13,6 +19,14 @@ import { TestRepo } from "./support/repo.js";
 import { DESIGN, REQUIREMENTS, SLUG, TASKS } from "./support/spec.js";
 
 const UNCITED = TASKS.replace(" _Properties: 3_", "");
+const PROPERTY_3 = `Property 3: Farewell replaces greeting
+
+For all names with --bye, the output is "Goodbye, " followed by the name and "!".
+
+**Validates: Requirements 2.1**
+
+`;
+const TWO_PROPERTIES = DESIGN.replace(PROPERTY_3, "");
 
 interface VerifyJson {
   result: string;
@@ -28,11 +42,15 @@ describe("scenario 9: property citation", () => {
   let repo: TestRepo;
   beforeAll(() => {
     expect(UNCITED).not.toBe(TASKS);
+    expect(TWO_PROPERTIES).not.toBe(DESIGN);
     repo = TestRepo.create();
-    repo.writeSpec({ requirements: REQUIREMENTS, design: DESIGN, tasks: UNCITED });
-    repo.commitAll(`docs: spec ${SLUG} with Property 3 uncited`);
+    repo.writeSpec({ requirements: REQUIREMENTS, design: TWO_PROPERTIES, tasks: UNCITED });
+    repo.commitAll(`docs: spec ${SLUG} with two properties`);
     approveAll(repo);
     completeAll(repo);
+    repo.rewriteBody("design", DESIGN);
+    repo.commitAll(`docs: ${SLUG} design adds Property 3`);
+    approve(repo, "design");
   });
   afterAll(() => repo?.dispose());
 
@@ -40,6 +58,17 @@ describe("scenario 9: property citation", () => {
     const result = repo.vellum(["verify", SLUG, "--strict", "--json"]);
     return { status: result.status, json: JSON.parse(result.stdout) as VerifyJson };
   };
+
+  it("approve refuses the plan while it cites no task for Property 3, writing nothing", () => {
+    const before = repo.ledgerLines();
+    const result = repo.vellumInTerminal(["approve", SLUG, "tasks"]);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("tasks.md cannot be approved");
+    expect(result.output).toContain("Property P3 is cited by no task");
+    expect(result.output).not.toContain("Criterion");
+    expect(repo.ledgerLines()).toEqual(before);
+    expect(repo.git(["status", "--porcelain"])).toBe("");
+  });
 
   it("an approved, fully evidenced plan that cites no task for Property 3 fails verify", () => {
     const { status, json } = verify();
@@ -87,9 +116,9 @@ describe("scenario 9: property citation", () => {
     const { status, json } = verify();
     expect(json.specs[0]!.findings).toEqual([]);
     expect(json.specs[0]!.properties).toEqual({ satisfied: 3, total: 3 });
-    // One approval per document counts; the first tasks approval is history.
+    // One approval per document counts; the first design and plan approvals are history.
     expect(json.specs[0]!.approvals).toEqual({ satisfied: 3, total: 3 });
-    expect(json.specs[0]!.supersededApprovals).toBe(1);
+    expect(json.specs[0]!.supersededApprovals).toBe(2);
     expect(json.result).toBe("PASS");
     expect(status).toBe(0);
   });

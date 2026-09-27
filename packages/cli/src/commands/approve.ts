@@ -5,7 +5,7 @@
 import { relative } from "node:path";
 import type { ArtifactKind } from "@vellum/protocol";
 import { EXIT_STATUS, computeChecksum } from "@vellum/protocol";
-import { approverKeys, checkLedgerIntegrity, getApprovers } from "@vellum/engine";
+import { approverKeys, checkLedgerIntegrity, decidePlanApproval, getApprovers } from "@vellum/engine";
 import {
   LedgerError,
   appendLedgerEntry,
@@ -40,6 +40,10 @@ including when the artifact changes after you approved it. Approving the
 changed artifact again (and committing that, signed) replaces it: the old
 record is then history, neither counted nor reported.
 
+Approving tasks is refused, naming each gap, while the plan leaves a
+criterion of requirements.md without a task or a property of design.md
+without a citing task.
+
 This command refuses to run outside an interactive terminal, in CI, or in
 a detected assistant session. That refusal is a courtesy, not the
 guarantee: the guarantee is the signature check, which no one without your
@@ -53,8 +57,9 @@ const KINDS: readonly ArtifactKind[] = ["requirements", "design", "tasks"];
  *
  * Exit: 0 when the record was written (it still needs your signed commit);
  * 1 when refused (non-interactive, assistant session, no policy, not an
- * authorised approver, no key, missing artifact, damaged ledger); 2 on a
- * usage error.
+ * authorised approver, no key, missing artifact, damaged ledger, or a plan
+ * that leaves a criterion uncovered or a property uncited); 2 on a usage
+ * error.
  */
 export async function approve(args: ApproveArgs, ctx: CliContext): Promise<number> {
   if (!KINDS.includes(args.artifact as ArtifactKind)) {
@@ -154,6 +159,18 @@ export async function approve(args: ApproveArgs, ctx: CliContext): Promise<numbe
       `vellum approve: refused — ledger integrity failure: ${integrity.failures.map((f) => f.message).join("; ")}\n`,
     );
     return EXIT_STATUS.FAILURE;
+  }
+
+  // Criterion 20.4: a plan that leaves a criterion uncovered or a property
+  // uncited cannot be approved. A rejection of it can still be recorded.
+  if (kind === "tasks" && !args.reject) {
+    const decision = decidePlanApproval(spec.artifacts);
+    if (!decision.approvable) {
+      ctx.stderr.write(
+        `vellum approve: refused — tasks.md cannot be approved until the plan covers every criterion and cites every property:\n${decision.problems.map((p) => `  ${p}`).join("\n")}\n`,
+      );
+      return EXIT_STATUS.FAILURE;
+    }
   }
 
   const id = (spec.ledger[spec.ledger.length - 1]?.id ?? 0) + 1;
