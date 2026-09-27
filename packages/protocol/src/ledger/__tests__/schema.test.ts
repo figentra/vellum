@@ -321,6 +321,29 @@ describe("Ledger Schema (Task 4.3)", () => {
     });
   });
 
+  describe("adoption kind", () => {
+    const adoption = {
+      kind: "adoption",
+      id: 1,
+      predecessor_digest: null,
+      timestamp: "2026-09-27T10:00:00Z",
+      from: "legacy",
+      to: "managed",
+    };
+
+    it("accepts the entry vellum adopt writes", () => {
+      expect(validateLedgerEntry(adoption)).toEqual([]);
+    });
+
+    it("names a missing or wrong direction", () => {
+      const { to: _drop, ...partial } = adoption;
+      expect(validateLedgerEntry(partial).map((f) => f.field)).toEqual(["to", "to"]);
+      expect(validateLedgerEntry({ ...adoption, from: "managed" }).map((f) => f.field)).toEqual([
+        "from",
+      ]);
+    });
+  });
+
   describe("EVIDENCE_FORBIDDEN_FIELDS", () => {
     it("should list stdout and stderr", () => {
       expect(EVIDENCE_FORBIDDEN_FIELDS).toContain("stdout");
