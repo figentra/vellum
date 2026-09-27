@@ -125,6 +125,7 @@ export {
   changedPaths,
   findTask,
   setTaskMarker,
+  setTaskMarkers,
   gitConfig,
   type SpecRef,
   type SpecMatch,

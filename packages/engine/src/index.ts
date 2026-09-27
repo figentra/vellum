@@ -29,7 +29,7 @@ export {
   InvalidTransitionError,
 } from "./lifecycle/state-machine.js";
 
-export { requiredTasks, parentTaskIds } from "./lifecycle/required-tasks.js";
+export { requiredTasks, parentTaskIds, parentsCompletedBy } from "./lifecycle/required-tasks.js";
 
 export {
   computeEffectiveLifecycleState,

@@ -3,7 +3,10 @@
  * sub-tasks) is a container: `vellum task start` refuses it, naming its
  * sub-tasks, and verify requires no evidence for it. A checkpoint is
  * required: the method runs the workspace-wide verification there, and the
- * Evidence Entry of that run is what makes a `[x]` on it checkable.
+ * Evidence Entry of that run is what makes a `[x]` on it checkable. When a
+ * parent's last required sub-task is verified, `task complete` marks the
+ * parent `[x]` too, and the plan approval still counts (markers are outside
+ * the checksum).
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -31,9 +34,15 @@ describe("scenario 10: parents and checkpoints", () => {
   });
 
   it("a checkpoint with no evidence is the one task verify names", () => {
+    // A parent's marker flips with its last required sub-task (1.3 is optional).
+    const parentMarkers = { "1.1": [" ", " "], "1.2": ["x", " "], "3.1": ["x", "x"] } as const;
     for (const id of REQUIRED_TASKS.filter((t) => t !== "2")) {
       expect(repo.vellum(["task", "start", SLUG, id]).status).toBe(0);
-      expect(repo.vellum(["task", "complete", SLUG, id, "--command", PASSING_COMMAND]).status).toBe(0);
+      const complete = repo.vellum(["task", "complete", SLUG, id, "--command", PASSING_COMMAND]);
+      expect(complete.status).toBe(0);
+      const [one, three] = parentMarkers[id as keyof typeof parentMarkers];
+      expect([repo.marker("1"), repo.marker("3")]).toEqual([one, three]);
+      if (id === "1.2") expect(complete.stdout).toContain("every required sub-task of task 1 is verified");
     }
     repo.commitAll(`chore: record ${SLUG} leaf evidence`);
     const verify = repo.vellum(["verify", SLUG, "--strict", "--json"]);

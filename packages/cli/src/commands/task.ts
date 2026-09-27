@@ -5,11 +5,12 @@
 
 import { join, relative } from "node:path";
 import type { Checksum, LedgerEntry } from "@vellum/protocol";
-import { EXIT_STATUS, LEDGER_SCHEMA_VERSION } from "@vellum/protocol";
+import { EXIT_STATUS, LEDGER_SCHEMA_VERSION, parseTaskLine } from "@vellum/protocol";
 import {
   checkLedgerIntegrity,
   checkTaskBinding,
   containsSecretPattern,
+  parentsCompletedBy,
   preExecutionCheck,
   type TaskBinding,
 } from "@vellum/engine";
@@ -23,6 +24,7 @@ import {
   resolveSpec,
   runVerificationCommand,
   setTaskMarker,
+  setTaskMarkers,
   specRiskClass,
   type LoadedSpec,
 } from "@vellum/storage";
@@ -75,6 +77,19 @@ async function open(ctx: CliContext, fragment: string, verb: string): Promise<Op
     return EXIT_STATUS.INCONCLUSIVE;
   }
   return { repo, spec };
+}
+
+/** Tasks with committed, passing evidence: exit status 0, not recorded as uncommitted. */
+function passingTasks(ledger: readonly LedgerEntry[]): string[] {
+  return ledger.flatMap((entry) => {
+    const evidence = entry as unknown as Record<string, unknown>;
+    return entry.kind === "evidence" &&
+      evidence.exit_status === 0 &&
+      evidence.uncommitted !== true &&
+      typeof evidence.task_id === "string"
+      ? [evidence.task_id]
+      : [];
+  });
 }
 
 function nextId(spec: LoadedSpec): number {
@@ -265,8 +280,22 @@ export const task = {
       );
       return EXIT_STATUS.FAILURE;
     }
-    setTaskMarker(tasksPath, args.taskId, "x");
-    ctx.stdout.write(`Task ${args.taskId} verified: ${summary}. Evidence recorded; marker set to [x].\n`);
+    // A parent whose last required sub-task this was is complete too; its
+    // marker flips in the same write (Task Markers are outside the checksum).
+    const parents = parentsCompletedBy(
+      tasksText
+        .split("\n")
+        .flatMap((line) => parseTaskLine(line.replace(/\r$/, "")) ?? []),
+      new Set([...passingTasks(spec.ledger), args.taskId]),
+      args.taskId,
+    );
+    setTaskMarkers(tasksPath, new Map([args.taskId, ...parents].map((id) => [id, "x"] as const)));
+    ctx.stdout.write(
+      `Task ${args.taskId} verified: ${summary}. Evidence recorded; marker set to [x]` +
+        (parents.length > 0
+          ? `; every required sub-task of ${parents.map((p) => `task ${p}`).join(" and ")} is verified, so ${parents.length === 1 ? "its marker is" : "their markers are"} set to [x] too.\n`
+          : ".\n"),
+    );
     return EXIT_STATUS.SUCCESS;
   },
 };

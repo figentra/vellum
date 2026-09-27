@@ -404,18 +404,34 @@ export function findTask(tasksText: string, taskId: string): TaskLocation | null
  * rename). Returns the previous marker.
  */
 export function setTaskMarker(tasksPath: string, taskId: string, marker: TaskMarker): TaskMarker {
-  const text = readFileSync(tasksPath, "utf8");
-  const location = findTask(text, taskId);
-  if (location === null) throw new Error(`Task ${taskId} not found in ${tasksPath}`);
+  return setTaskMarkers(tasksPath, new Map([[taskId, marker]])).get(taskId)!;
+}
 
+/**
+ * Set several tasks' markers in `tasksPath` in one atomic write (temp file +
+ * rename), changing only the marker character of each task's line
+ * (criterion 10.2). Returns each task's previous marker. Throws, writing
+ * nothing, when a task is not found.
+ */
+export function setTaskMarkers(
+  tasksPath: string,
+  markers: ReadonlyMap<string, TaskMarker>,
+): Map<string, TaskMarker> {
+  const text = readFileSync(tasksPath, "utf8");
   const lines = text.split("\n");
-  const index = location.lineNumber - 1;
-  lines[index] = lines[index]!.replace(/^(\s*-\s*\[)[ x~-](\])/, `$1${marker}$2`);
+  const previous = new Map<string, TaskMarker>();
+  for (const [taskId, marker] of markers) {
+    const location = findTask(text, taskId);
+    if (location === null) throw new Error(`Task ${taskId} not found in ${tasksPath}`);
+    const index = location.lineNumber - 1;
+    lines[index] = lines[index]!.replace(/^(\s*-\s*\[)[ x~-](\])/, `$1${marker}$2`);
+    previous.set(taskId, location.marker);
+  }
 
   const temp = join(dirname(tasksPath), `.${basename(tasksPath)}.${randomUUID()}.tmp`);
   writeFileSync(temp, lines.join("\n"));
   renameSync(temp, tasksPath);
-  return location.marker;
+  return previous;
 }
 
 /** The value of `git config <key>` in the repository, or null when unset. */

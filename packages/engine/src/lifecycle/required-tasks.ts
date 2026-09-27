@@ -36,3 +36,33 @@ export function requiredTasks<T extends TaskRef>(tasks: readonly T[]): T[] {
   const parents = parentTaskIds(tasks);
   return tasks.filter((task) => !task.isOptional && !parents.has(task.identifier as string));
 }
+
+/**
+ * The parents whose last required sub-task `taskId` is: each ancestor of
+ * `taskId` (nearest first) that is a task line, has at least one required
+ * descendant, and has every required descendant in `verified`. `vellum task
+ * complete` marks them `[x]` in the same write that marks `taskId`; Task
+ * Markers are outside the Artifact Checksum, so approvals stay valid.
+ *
+ * Empty when `taskId` is not itself required (an optional or parent task
+ * never completes a parent) or is not in `verified`.
+ */
+export function parentsCompletedBy<T extends TaskRef>(
+  tasks: readonly T[],
+  verified: ReadonlySet<string>,
+  taskId: string,
+): string[] {
+  const required = requiredTasks(tasks).map((task) => task.identifier as string);
+  if (!required.includes(taskId) || !verified.has(taskId)) return [];
+  const ids = new Set(tasks.map((task) => task.identifier as string));
+
+  const completed: string[] = [];
+  for (let dot = taskId.lastIndexOf("."); dot > 0; dot = taskId.lastIndexOf(".", dot - 1)) {
+    const parent = taskId.slice(0, dot);
+    if (!ids.has(parent)) continue;
+    const descendants = required.filter((id) => id.startsWith(`${parent}.`));
+    if (descendants.length === 0 || !descendants.every((id) => verified.has(id))) break;
+    completed.push(parent);
+  }
+  return completed;
+}
