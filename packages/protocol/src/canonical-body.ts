@@ -21,6 +21,12 @@
  *   the Platform writes (criteria 9.7, 10.2), not plan content: without this,
  *   recording one task's completion would void the plan's approval and every
  *   other task's Task Binding.
+ * - the contents of a `## Execution Log` section (from its heading to the next
+ *   `#` or `##` heading), outside fenced code blocks. The heading is kept. The
+ *   log is an append-only record of execution the executor writes after each
+ *   task, not plan content: without this, the first row would void the plan's
+ *   approval and every later `task start` would be refused. The ledger, not the
+ *   log, is the evidence.
  *
  * Everything else — words, punctuation, blank lines between paragraphs,
  * indentation outside tables, and every character inside a fenced code block
@@ -32,6 +38,8 @@ const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})/;
 const DELIMITER_CELL = /^(:?)-+(:?)$/;
 /** A task line's marker, as the Kiro Task Line Grammar (markers.ts) reads it. */
 const TASK_MARKER = /^(\s*-\s*\[)[ x~-](\]\*?\s*\d+(?:\.\d+)*)/;
+const EXECUTION_LOG_HEADING = /^##\s+Execution Log\s*$/i;
+const SECTION_END = /^#{1,2}\s/;
 
 /** Return the canonical form of an artifact's text (frontmatter excluded). */
 export function canonicalArtifactBody(text: string): string {
@@ -40,9 +48,15 @@ export function canonicalArtifactBody(text: string): string {
 
   const out: string[] = [];
   let fence: { readonly char: string; readonly length: number } | null = null;
+  let inExecutionLog = false;
 
   for (const rawLine of body.split("\n")) {
     const line = rawLine.replace(/[ \t]+$/, "");
+
+    if (inExecutionLog) {
+      if (!SECTION_END.test(line)) continue;
+      inExecutionLog = false;
+    }
 
     if (fence) {
       out.push(line);
@@ -54,6 +68,12 @@ export function canonicalArtifactBody(text: string): string {
     if (open?.[1] !== undefined) {
       fence = { char: open[1].charAt(0), length: open[1].length };
       out.push(line);
+      continue;
+    }
+
+    if (EXECUTION_LOG_HEADING.test(line)) {
+      out.push(line);
+      inExecutionLog = true;
       continue;
     }
 

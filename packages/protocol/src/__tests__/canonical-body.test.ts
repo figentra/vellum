@@ -81,6 +81,42 @@ describe("canonicalArtifactBody", () => {
     );
   });
 
+  it("ignores Execution Log rows, so the executor's record keeps the plan's checksum", () => {
+    const plan = [
+      "# Tasks",
+      "",
+      "- [ ] 1.1 Build the thing",
+      "",
+      "## Execution Log",
+      "",
+      "| Task | Result |",
+      "| --- | --- |",
+      "",
+      "## Notes",
+      "",
+      "Keep it small.",
+      "",
+    ].join("\n");
+    const logged = plan.replace(
+      "| --- | --- |\n",
+      "| --- | --- |\n| 1.1 | passed |\n| 1.2 | failed twice |\n",
+    );
+    expect(computeChecksum(logged)).toBe(computeChecksum(plan));
+    // The section ends at the next heading: plan text after the log still counts.
+    expect(computeChecksum(plan.replace("Keep it small.", "Keep it large."))).not.toBe(
+      computeChecksum(plan),
+    );
+    // So does the task list before it.
+    expect(computeChecksum(plan.replace("Build the thing", "Build another thing"))).not.toBe(
+      computeChecksum(plan),
+    );
+  });
+
+  it("keeps an Execution Log heading inside a code fence significant", () => {
+    const fenced = "```\n## Execution Log\n| 1.1 | passed |\n```\n";
+    expect(canonicalArtifactBody(fenced)).toBe(fenced);
+  });
+
   it("changes when a word changes, inside or outside a fence", () => {
     expect(canonicalArtifactBody(BODY.replace("A folder", "A file"))).not.toBe(
       canonicalArtifactBody(BODY),
