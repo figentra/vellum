@@ -18,6 +18,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
   cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -46,11 +47,8 @@ export const HUMAN = { name: "Hana Human", email: "human@example.test", key: "hu
 /** A key no policy lists. */
 export const INTRUDER_KEY = "intruder";
 
-// Not all digits: the frontmatter reader would take an all-digit value for a number.
 /** "^D" and two backspaces: BSD script's echo of the EOF it reads from /dev/null. */
 const BSD_EOF_ECHO = new RegExp(`^\\^D${String.fromCharCode(8).repeat(2)}`);
-
-const PLACEHOLDER_CHECKSUM = "f".repeat(64);
 
 /** Does `util-linux` script (Linux) or BSD script (macOS) run here? */
 function scriptFlavour(): "util-linux" | "bsd" {
@@ -236,30 +234,39 @@ export class TestRepo {
   }
 
   /**
-   * Write the spec's three artifacts with Lifecycle Frontmatter. The
-   * frontmatter checksum is the one `vellum status --json` reports for the
-   * body — how a consumer of the package learns it — so nothing here
-   * re-implements the protocol's canonical form.
+   * Write the spec's artifacts as the method's skills do — bare Markdown, one
+   * document at a time — and bring each under management with the installed
+   * CLI: `vellum adopt` after requirements.md (Lifecycle Frontmatter and the
+   * adoption entry), `vellum stamp` after each later document. Nothing here
+   * writes frontmatter or re-implements the protocol's checksum.
    */
-  writeSpec(bodies: Readonly<Record<Kind, string>>, state = "DRAFT"): void {
-    // The Machine Folder with an empty ledger marks the spec as under Vellum management.
-    this.write(this.ledgerPath, "");
-    for (const kind of KINDS) this.writeArtifact(kind, bodies[kind], state, PLACEHOLDER_CHECKSUM);
-    this.refreshChecksums();
+  writeSpec(bodies: Readonly<Partial<Record<Kind, string>>>): void {
+    for (const kind of KINDS) {
+      const body = bodies[kind];
+      if (body === undefined) continue;
+      this.write(`${this.specDir}/${kind}.md`, body);
+      this.expectVellum([kind === "requirements" ? "adopt" : "stamp", SLUG]);
+    }
   }
 
-  /** Replace one artifact's body, keeping its version and state, and record its current checksum. */
+  /**
+   * Replace one artifact's body as an editing skill does — the frontmatter
+   * block left as it was — then `vellum stamp`, which records the next
+   * version and the new checksum.
+   */
   rewriteBody(kind: Kind, body: string): void {
-    const fm = this.frontmatter(kind);
-    if (fm.state === undefined || fm.version === undefined) throw new Error(`${kind}.md has no state or version`);
-    this.writeArtifact(kind, body, fm.state, PLACEHOLDER_CHECKSUM, Number(fm.version));
-    this.refreshChecksums();
+    const path = `${this.specDir}/${kind}.md`;
+    const block = /^---\n[\s\S]*?\n---\n/.exec(this.read(path))?.[0];
+    if (block === undefined) throw new Error(`${kind}.md has no frontmatter block`);
+    this.write(path, `${block}${body}`);
+    this.expectVellum(["stamp", SLUG]);
   }
 
-  /** Set the Recorded Lifecycle State in every artifact's frontmatter. */
+  /** Set the Recorded Lifecycle State in the frontmatter of every artifact that exists. */
   setRecordedState(state: string): void {
     for (const kind of KINDS) {
       const path = `${this.specDir}/${kind}.md`;
+      if (!existsSync(join(this.repo, path))) continue;
       this.write(path, this.read(path).replace(/^state: .*$/m, `state: ${state}`));
     }
   }
@@ -274,39 +281,13 @@ export class TestRepo {
     );
   }
 
-  private writeArtifact(
-    kind: Kind,
-    body: string,
-    state: string,
-    checksum: string,
-    version = 1,
-  ): void {
-    this.write(
-      `${this.specDir}/${kind}.md`,
-      [
-        "---",
-        `version: ${version}`,
-        `checksum: ${checksum}`,
-        `state: ${state}`,
-        "createdAt: 2026-09-27T09:00:00Z",
-        "updatedAt: 2026-09-27T09:00:00Z",
-        "---",
-        body,
-      ].join("\n"),
-    );
-  }
-
-  private refreshChecksums(): void {
-    const status = this.vellum(["status", SLUG, "--json"]);
-    const spec = (JSON.parse(status.stdout || "{}") as { specs?: Array<{ artifacts?: Record<Kind, { checksum: string }> }> })
-      .specs?.[0];
-    if (status.status !== 0 || spec?.artifacts === undefined) {
-      throw new Error(`vellum status did not report the artifacts (exit ${status.status}): ${status.stdout}${status.stderr}`);
+  /** Run the installed `vellum`, throwing with its output unless it exits 0. */
+  private expectVellum(args: readonly string[]): Run {
+    const result = this.vellum(args);
+    if (result.status !== 0) {
+      throw new Error(`vellum ${args.join(" ")} exited ${result.status}: ${result.stdout}${result.stderr}`);
     }
-    for (const kind of KINDS) {
-      const path = `${this.specDir}/${kind}.md`;
-      this.write(path, this.read(path).replace(/^checksum: .*$/m, `checksum: ${spec.artifacts[kind].checksum}`));
-    }
+    return result;
   }
 
   // ------------------------------------------------------------------- git

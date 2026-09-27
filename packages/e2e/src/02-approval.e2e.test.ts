@@ -26,6 +26,9 @@ describe("scenario 2: an agent cannot approve", () => {
   it("refuses in an assistant session even at a terminal, and outside a terminal, leaving the ledger untouched", () => {
     repo = draftSpec();
     const before = repo.fingerprint();
+    // The adoption entry `vellum adopt` wrote; no approval may join it.
+    const ledgerBefore = repo.ledgerLines();
+    expect(repo.ledger().map((e) => e.kind)).toEqual(["adoption"]);
     for (const env of ASSISTANT_ENVIRONMENTS) {
       const result = repo.vellumInTerminal(["approve", SLUG, "requirements"], env);
       expect(result.status, JSON.stringify(env)).toBe(1);
@@ -37,7 +40,7 @@ describe("scenario 2: an agent cannot approve", () => {
     const ci = repo.vellumInTerminal(["approve", SLUG, "requirements"], { CI: "true" });
     expect(ci.status).toBe(1);
     expect(ci.output).toContain("not an interactive terminal session");
-    expect(repo.ledgerLines()).toEqual([]);
+    expect(repo.ledgerLines()).toEqual(ledgerBefore);
     expect(repo.fingerprint()).toBe(before);
   });
 
@@ -70,6 +73,8 @@ describe("scenario 2: an agent cannot approve", () => {
     expect(JSON.stringify(JSON.parse(verify.stdout).specs[0].findings)).toContain("SIGNER_NOT_AUTHORIZED");
     const status = JSON.parse(repo.vellum(["status", SLUG, "--json"]).stdout).specs[0];
     expect(status.approvals.tasks.current).toBe(0);
-    expect(repo.ledger().every((e) => e.identity === HUMAN.email)).toBe(true);
+    const approvals = repo.ledger().filter((e) => e.kind === "approval");
+    expect(approvals).toHaveLength(KINDS.length);
+    expect(approvals.every((e) => e.identity === HUMAN.email)).toBe(true);
   });
 });

@@ -7,10 +7,15 @@ import { expect } from "vitest";
 import { DESIGN, PASSING_COMMAND, REQUIRED_TASKS, REQUIREMENTS, SLUG, TASKS } from "./spec.js";
 import { HUMAN, KINDS, TestRepo, type Kind } from "./repo.js";
 
-/** A repository holding spec 001 in DRAFT, committed. */
+/**
+ * A repository holding spec 001 as the method leaves it before any approval:
+ * each document written bare and brought under management by `vellum adopt`
+ * / `vellum stamp`, recorded PLAN_IN_REVIEW, committed.
+ */
 export function draftSpec(): TestRepo {
   const repo = TestRepo.create();
   repo.writeSpec({ requirements: REQUIREMENTS, design: DESIGN, tasks: TASKS });
+  expect(repo.frontmatter("requirements").state).toBe("PLAN_IN_REVIEW");
   repo.commitAll(`docs: spec ${SLUG}`);
   return repo;
 }
