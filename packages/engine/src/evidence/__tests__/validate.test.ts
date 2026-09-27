@@ -44,6 +44,19 @@ describe("validateEvidence", () => {
     ]);
   });
 
+  it("reports an unparseable timestamp as invalid, not as in the future", () => {
+    const result = validateEvidence(
+      { exit_status: 0, start_timestamp: "yesterday-ish", finish_timestamp: "later", commit: COMMIT },
+      commits,
+      "2001-01-01T00:00:00Z",
+    );
+
+    expect(result.errors).toEqual([
+      "Invalid start timestamp: yesterday-ish",
+      "Invalid finish timestamp: later",
+    ]);
+  });
+
   it("refuses an instant that is not a timestamp", () => {
     expect(() => validateEvidence({ exit_status: 0 }, commits, "not a time")).toThrow(RangeError);
   });

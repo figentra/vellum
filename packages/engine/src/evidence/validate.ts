@@ -57,36 +57,20 @@ export function validateEvidence(
     errors.push(`Commit not found: ${evidence.commit}`);
   }
 
-  // Criterion 9.5: Timestamp validity
-  if (evidence.start_timestamp) {
-    try {
-      const start = new Date(evidence.start_timestamp);
-      if (isNaN(start.getTime())) {
-        errors.push(`Invalid start timestamp: ${evidence.start_timestamp}`);
-      }
-
-      // Check not in future
-      if (start.getTime() > nowMs) {
-        errors.push(`Start timestamp is in the future: ${evidence.start_timestamp}`);
-      }
-    } catch (error) {
-      errors.push(`Failed to parse start timestamp: ${evidence.start_timestamp}`);
-    }
-  }
-
-  if (evidence.finish_timestamp) {
-    try {
-      const finish = new Date(evidence.finish_timestamp);
-      if (isNaN(finish.getTime())) {
-        errors.push(`Invalid finish timestamp: ${evidence.finish_timestamp}`);
-      }
-
-      // Check not in future
-      if (finish.getTime() > nowMs) {
-        errors.push(`Finish timestamp is in the future: ${evidence.finish_timestamp}`);
-      }
-    } catch (error) {
-      errors.push(`Failed to parse finish timestamp: ${evidence.finish_timestamp}`);
+  // Criterion 9.5: Timestamp validity. Date.parse never throws; an
+  // unparseable timestamp is NaN, and is reported as invalid rather than
+  // compared with `now`.
+  const timestamps = [
+    ["Start", "start", evidence.start_timestamp],
+    ["Finish", "finish", evidence.finish_timestamp],
+  ] as const;
+  for (const [label, lower, value] of timestamps) {
+    if (!value) continue;
+    const ms = Date.parse(value);
+    if (Number.isNaN(ms)) {
+      errors.push(`Invalid ${lower} timestamp: ${value}`);
+    } else if (ms > nowMs) {
+      errors.push(`${label} timestamp is in the future: ${value}`);
     }
   }
 
