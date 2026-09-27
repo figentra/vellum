@@ -34,6 +34,6 @@
     "@vellum/renderers": "workspace:*",
     "@vellum/cli": "workspace:*",
     "@vellum/mcp": "workspace:*",
-    "fast-check": "^3.22.0"
+    "fast-check": "catalog:"
   }
 }
