@@ -59,9 +59,13 @@ is refused. A spec not listed in `spec_risk_classes` is `standard`.
 
 Per spec: the Recorded Lifecycle State (from `requirements.md`), each artifact's version and
 whether its frontmatter checksum is current, valid approvals against the policy, required tasks
-with passing evidence and failed attempts, and ledger integrity. The Effective Lifecycle State
-is reported as _not computed_: this version does not compute it. Exit 0; 2 when a spec cannot
-be read or the fragment matches no spec or several.
+with passing evidence and failed attempts, ledger integrity, and the Effective Lifecycle State
+with the precondition that stopped it short of the recorded state. A legacy spec (documents
+without frontmatter) is reported with `legacy: true` and `next`, the `vellum adopt` command
+that brings it under management (or `adoptionProblem`, why it cannot be adopted yet); an
+adopted spec with a document lacking frontmatter is INCONCLUSIVE with `next` naming
+`vellum stamp`. Exit 0; 2 when a spec cannot be read or the fragment matches no spec or
+several.
 
 ### `vellum lint [spec] [--type=requirements|design|tasks] [--json]`
 
@@ -140,9 +144,39 @@ evidence was recorded as uncommitted.
 
 There is no `--exit` option.
 
+### `vellum adopt <spec> [--json]`
+
+Brings a legacy spec — Markdown with no Lifecycle Frontmatter, no `.sdlc/` — under management
+(requirement 14). Each artifact present gets a frontmatter block above its unchanged body:
+version 1, the body's checksum, and the in-review state of the latest artifact present
+(`IN_REVIEW` for requirements.md alone, `DESIGN_IN_REVIEW` with design.md, `PLAN_IN_REVIEW`
+with tasks.md). Then `.sdlc/` is created and an `adoption` entry is appended as the ledger's
+first entry. No approval is recorded.
+
+Exit 0 when adopted, or when the spec is already adopted and its frontmatter is current (it
+writes nothing then). Exit 1 when a later artifact exists without an earlier one (naming the
+missing one), when a frontmatter block has a key Lifecycle Frontmatter does not define, when
+the spec is already adopted but an artifact's frontmatter is missing or stale (run `stamp`),
+or when the ledger cannot be read.
+
+### `vellum stamp <spec> [--json]`
+
+Keeps an adopted spec's frontmatter true after an artifact is written or edited: frontmatter
+for an artifact added after adoption, the missing fields of a partial block, and for a body
+whose canonical form changed the next version, the new checksum and a new `updatedAt`. It
+raises the Recorded Lifecycle State to the in-review state of the latest artifact present when
+the recorded state is behind it on the main chain, and never lowers it. A Task Marker change is
+not an edit. It appends nothing to the ledger, and it never makes an approval count: approvals
+are checked against the checksum of the body itself. Exit 0 (whether or not it wrote
+anything); 1 for a spec that is not adopted (run `adopt`), a later artifact without an earlier
+one, or a frontmatter block it cannot complete.
+
+`vellum approve` refuses while an artifact's frontmatter checksum is stale, naming
+`vellum stamp`, so an Approval Record never carries the previous version's number.
+
 ### Not implemented
 
-`vellum check`, `vellum adopt` and `vellum sync` exit 2 with `not implemented: …`.
+`vellum sync` exits 2 with `not implemented: …`.
 
 ## Running the CLI
 

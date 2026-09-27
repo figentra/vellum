@@ -31,8 +31,12 @@ works today; any other command exits 2 with `not implemented`.
   `vellum_get_artifact` over stdio. It refuses approvals and task completion by name; those
   stay with the CLI.
 
-Not implemented: `vellum check` (Check Mode), `vellum adopt`, `vellum sync`, the Effective
-Lifecycle State and next-transition computation, and the doctor categories reported as
+- **Managed specs from plain Markdown.** The method's skills write each document as bare
+  Markdown; `vellum adopt <spec>` adds the Lifecycle Frontmatter (bodies unchanged, no
+  approval) and the first ledger entry, and `vellum stamp <spec>` records the next version and
+  checksum after every edit. A stamp never makes an approval of earlier text count.
+
+Not implemented: `vellum sync` (projection) and the doctor categories reported as
 `NOT_CHECKED`. See the [CLI reference](docs/cli/README.md).
 
 ## Architecture

@@ -61,7 +61,7 @@ refuses to append to a damaged ledger.
 
 ## A command exits 2
 
-- `not implemented: …` — `check`, `adopt` and `sync` do not exist in this version.
+- `not implemented: …` — `sync` does not exist in this version.
 - `no spec matches` / `matches more than one spec` — give a longer fragment or the full
   directory name.
 - `has no option --…` — the command does not take that option (`task complete` has no `--exit`).

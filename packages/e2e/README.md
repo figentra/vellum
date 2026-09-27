@@ -81,4 +81,4 @@ loaded machine, not expectations.
 - GPG-signed approvals (the SSH path is exercised end to end; GPG signing is
   covered by `packages/storage`'s signature tests).
 - Windows: the pseudo-terminal comes from `script(1)`.
-- `adopt` and `sync`, which the CLI does not implement.
+- `sync`, which the CLI does not implement.
