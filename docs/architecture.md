@@ -242,8 +242,8 @@ Invalidations cascade:
    repositories (see `packages/e2e/README.md`)
 5. **Conformance fixtures**: negative/near-miss fixtures under `conformance/`; no test reads them
    yet
-6. **Mutation Testing**: `pnpm test:mutation` runs Stryker; there is no Stryker configuration
-   and no score threshold, and CI does not run it
+6. **Mutation Testing**: none. Stryker was listed as a dev dependency with no configuration, no
+   threshold and no CI job, and was removed
 7. **Coverage**: not collected in CI; no threshold is enforced
 
 ## CI/CD Pipeline
