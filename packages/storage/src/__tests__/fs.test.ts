@@ -143,6 +143,16 @@ Body content`;
     expect(result?.body).toBe("Body content");
   });
 
+  it("keeps an all-digit or digits-e-digits checksum a string, through a round trip", () => {
+    for (const checksum of ["0".repeat(64), `${"1".repeat(40)}e${"2".repeat(23)}`]) {
+      const result = parseFrontmatter(`---\nversion: 2\nchecksum: ${checksum}\nstate: DRAFT\n---\nBody`);
+      expect(result?.frontmatter.checksum).toBe(checksum);
+      expect(result?.frontmatter.version).toBe(2);
+      const again = parseFrontmatter(serializeFrontmatter(result!.frontmatter, result!.body));
+      expect(again).toEqual(result);
+    }
+  });
+
   it("should return null for content without frontmatter", () => {
     const content = "No frontmatter here";
     expect(parseFrontmatter(content)).toBeNull();

@@ -163,6 +163,9 @@ importers:
       '@vellum/tsconfig':
         specifier: workspace:*
         version: link:../../tooling/tsconfig
+      fast-check:
+        specifier: 'catalog:'
+        version: 3.23.2
 
   packages/renderers:
     dependencies:

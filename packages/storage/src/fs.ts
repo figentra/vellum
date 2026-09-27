@@ -158,16 +158,14 @@ export function parseFrontmatter(
     const key = line.slice(0, colonIdx).trim();
     const value = line.slice(colonIdx + 1).trim();
 
-    // Parse common types
-    if (/^\d+$/.test(value)) {
-      frontmatter[key] = parseInt(value, 10);
-    } else if (/^\d+\.\d+$/.test(value)) {
-      frontmatter[key] = parseFloat(value);
-    } else if (value === "true" || value === "false") {
-      frontmatter[key] = value === "true";
+    // Scalars stay strings: a type guessed from the value's shape turns an
+    // all-digit checksum or id into a number. `version` is the one field the
+    // protocol types as a number, and it is converted only when it is an
+    // unquoted integer.
+    if (key === "version" && /^\d+$/.test(value)) {
+      frontmatter[key] = Number(value);
     } else {
-      // Remove quotes if present
-      frontmatter[key] = value.replace(/^["']|["']$/g, "");
+      frontmatter[key] = /^(["']).*\1$/.test(value) ? value.slice(1, -1) : value;
     }
   }
 

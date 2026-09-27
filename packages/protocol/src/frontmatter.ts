@@ -53,26 +53,31 @@ export function parseFrontmatter(
   }
 
   try {
-    // Parse YAML content (simple parser for now)
     const parsed = parseYamlFrontmatter(yamlContent);
 
     if (!parsed) {
       return null;
     }
 
-    // Validate required fields
+    // Every scalar is read as a string; only `version` is typed as a number
+    // by the protocol, so only it is converted. Guessing a type from the
+    // value's shape would turn an all-digit checksum ("0123…") into a number
+    // and reject a valid artifact.
+    const { version: versionText, checksum: checksumText, state, createdAt, updatedAt } = parsed;
     if (
-      typeof parsed.version !== "number" ||
-      typeof parsed.checksum !== "string" ||
-      typeof parsed.state !== "string" ||
-      typeof parsed.createdAt !== "string" ||
-      typeof parsed.updatedAt !== "string"
+      versionText === undefined ||
+      !/^\d+$/.test(versionText) ||
+      checksumText === undefined ||
+      state === undefined ||
+      createdAt === undefined ||
+      updatedAt === undefined
     ) {
       return null;
     }
+    const version = Number(versionText);
 
     // Validate checksum format
-    const checksum = parseChecksum(parsed.checksum);
+    const checksum = parseChecksum(checksumText);
     if (!checksum) {
       return null;
     }
@@ -99,17 +104,17 @@ export function parseFrontmatter(
       "INVALID",
     ];
 
-    if (!validStates.includes(parsed.state as LifecycleState)) {
+    if (!validStates.includes(state as LifecycleState)) {
       return null;
     }
 
     return {
       frontmatter: {
-        version: parsed.version,
+        version,
         checksum,
-        state: parsed.state as LifecycleState,
-        createdAt: parsed.createdAt,
-        updatedAt: parsed.updatedAt,
+        state: state as LifecycleState,
+        createdAt,
+        updatedAt,
       },
       body,
     };
@@ -119,53 +124,31 @@ export function parseFrontmatter(
 }
 
 /**
- * Simple YAML parser for frontmatter
- * (Note: For production, consider using a proper YAML library)
+ * Read the frontmatter's `key: value` lines. Values stay strings (one pair of
+ * surrounding quotes removed); the caller converts the fields the protocol
+ * types as something else. Returns null on a line that is not `key: value`.
  */
-function parseYamlFrontmatter(yaml: string): Record<string, unknown> | null {
-  const result: Record<string, unknown> = {};
+function parseYamlFrontmatter(yaml: string): Partial<Record<string, string>> | null {
+  const result: Partial<Record<string, string>> = {};
 
   for (const line of yaml.split("\n")) {
-    // Skip empty lines
     if (!line.trim()) continue;
 
-    // Match key: value
     const match = line.match(/^(\w+):\s*(.+)$/);
-    if (!match) {
-      return null; // Invalid YAML
-    }
-
-    const key = match[1];
-    const value = match[2];
-
-    // Validate required groups exist
-    if (!key || value === undefined) {
+    if (!match?.[1] || match[2] === undefined) {
       return null;
     }
 
-    // Parse value
-    let parsedValue: unknown;
-
-    // Try number
-    const numValue = Number(value);
-    if (!isNaN(numValue) && value.trim() !== "") {
-      parsedValue = numValue;
-    }
-    // Try boolean
-    else if (value === "true") {
-      parsedValue = true;
-    } else if (value === "false") {
-      parsedValue = false;
-    }
-    // String (strip quotes if present)
-    else {
-      parsedValue = value.replace(/^["']|["']$/g, "");
-    }
-
-    result[key] = parsedValue;
+    result[match[1]] = unquote(match[2].trim());
   }
 
   return result;
+}
+
+/** Remove one pair of matching surrounding quotes. */
+function unquote(value: string): string {
+  const quoted = /^(["'])(.*)\1$/.exec(value);
+  return quoted?.[2] ?? value;
 }
 
 // ============================================================================
