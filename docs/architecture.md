@@ -237,23 +237,30 @@ Invalidations cascade:
 2. **Property Tests**: fast-check (engine, protocol)
 3. **Integration Tests**: `packages/cli` runs the CLI against a temporary git repository per
    test, with throwaway signing keys
-4. **Conformance Tests**: negative/near-miss fixtures under `conformance/`
-5. **Mutation Testing**: `pnpm test:mutation` runs Stryker; no score threshold is configured
-6. **Coverage**: collected in CI for the engine; no threshold is enforced
+4. **End-to-end Tests**: `packages/e2e` packs `@figentra/vellum`, installs the tarball offline and
+   drives the installed `vellum` and `vellum-mcp` through the spec lifecycle in temp git
+   repositories (see `packages/e2e/README.md`)
+5. **Conformance fixtures**: negative/near-miss fixtures under `conformance/`; no test reads them
+   yet
+6. **Mutation Testing**: `pnpm test:mutation` runs Stryker; there is no Stryker configuration
+   and no score threshold, and CI does not run it
+7. **Coverage**: not collected in CI; no threshold is enforced
 
 ## CI/CD Pipeline
 
+`.github/workflows/ci.yml`, on pushes and pull requests to `main`, with read-only permissions and
+no secrets:
+
 ```
-Lint → TypeCheck → Test → Build
-  ↓
-Mutation Testing (engine only)
-  ↓
-Bundle Size Check
-  ↓
-Security Audit
-  ↓
-Release
+verify (Node 22 and 24): pnpm install --frozen-lockfile
+                         pnpm turbo run build typecheck lint test
+                           (lint runs scripts/check-boundaries.mjs;
+                            test includes the bundle size budget and the e2e suite)
+audit:                   pnpm audit --prod --audit-level=moderate
 ```
+
+`.github/workflows/release.yml` publishes on a human-pushed `vX.Y.Z` tag, after the same
+build/typecheck/lint/test gate.
 
 ## Security Model
 

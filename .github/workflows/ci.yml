@@ -1,306 +1,98 @@
 name: CI
 
+# No job in this workflow reads a secret: nothing here needs a token, a
+# registry credential or a signing key. The end-to-end suite generates its
+# own throwaway SSH signing keys inside a temp directory per run. Publishing
+# lives only in release.yml, behind a human-pushed tag and OIDC.
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # A newer push to a pull request supersedes the running check; pushes to
+  # main each run to completion.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  lint:
-    name: Lint
+  verify:
+    name: Build, typecheck, lint, test (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22 is the engines floor (package.json) and mise's pin; 24 is current.
+        node: ["22", "24"]
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'pnpm'
+          node-version: ${{ matrix.node }}
+          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run lint
-        run: pnpm turbo run lint
-
-  typecheck:
-    name: TypeCheck
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run typecheck
-        run: pnpm turbo run typecheck
-
-  test:
-    name: Test
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run tests
-        run: pnpm turbo run test
-
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: packages/engine/coverage/
-          retention-days: 7
-
-  boundaries:
-    name: Boundaries
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Check dependency boundaries
-        run: pnpm check:boundaries
-
-  security:
-    name: Security Audit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run npm audit
-        run: pnpm audit --audit-level=moderate
-        continue-on-error: true
-
-      - name: Check for known vulnerabilities
-        run: npx better-npm-audit audit --level=moderate
-        continue-on-error: true
-
-  bundle-size:
-    name: Bundle Size Check
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build packages
-        run: pnpm turbo run build
-
-      - name: Check bundle size
+      # The storage signature tests and the e2e suite shell out to these;
+      # ubuntu-latest ships all of them. Printed so a failure names the version.
+      - name: Tools the tests shell out to
         run: |
-          TOTAL_SIZE=$(du -sb packages/vellum/dist/ | cut -f1)
-          MAX_SIZE=$((500 * 1024))
-          echo "Bundle size: ${TOTAL_SIZE} bytes ($(($TOTAL_SIZE / 1024)) KB)"
-          if [ "$TOTAL_SIZE" -gt "$MAX_SIZE" ]; then
-            echo "Error: Bundle size ($TOTAL_SIZE bytes) exceeds limit ($MAX_SIZE bytes)"
-            exit 1
-          fi
-          echo "✅ Bundle size check passed"
+          git --version
+          ssh -V
+          gpg --version | head -n 1
+          script --version
+          npm --version
 
-      - name: Check chunk sizes
-        run: |
-          MAX_CHUNK=$((200 * 1024))
-          for file in packages/vellum/dist/*.js; do
-            SIZE=$(stat -c%s "$file")
-            echo "$file: $SIZE bytes ($((SIZE / 1024)) KB)"
-            if [ "$SIZE" -gt "$MAX_CHUNK" ]; then
-              echo "Error: $file exceeds 200KB limit"
-              exit 1
-            fi
-          done
-          echo "✅ Chunk size checks passed"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
-  mutation:
-    name: Mutation Testing
+      # One command, the same one release.yml gates on:
+      #   build     every package, the @figentra/vellum bundle and the three plugins
+      #   typecheck every TypeScript member
+      #   lint      oxlint per member; its turbo task depends on
+      #             //#check:boundaries (scripts/check-boundaries.mjs)
+      #   test      every unit and integration suite, @figentra/vellum's
+      #             npm pack -> offline install test and its size budget, the
+      #             CLI/MCP parity suite, and @vellum/e2e: the packed tarball
+      #             driven through the whole spec lifecycle in temp git
+      #             repositories (packages/e2e/README.md). That suite replaces
+      #             the placeholder "conformance" job this workflow had.
+      - name: Build, typecheck, lint and test
+        run: pnpm turbo run build typecheck lint test
+
+  audit:
+    name: Audit runtime dependencies
     runs-on: ubuntu-latest
-    needs: [test]
-    if: github.event_name == 'pull_request'
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          persist-credentials: false
 
       - uses: pnpm/action-setup@v4
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          cache: 'pnpm'
+          node-version: "22"
+          cache: pnpm
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build packages
-        run: pnpm turbo run build --filter=@vellum/engine...
-
-      - name: Run mutation testing
-        run: |
-          pnpm stryker run \
-            --mutate packages/engine/src/**/*.ts \
-            --thresholds.break 85 \
-            --reporters json,clear-text
-
-      - name: Upload mutation report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: mutation-report
-          path: reports/mutation/
-
-  build:
-    name: Build
-    runs-on: ubuntu-latest
-    needs: [lint, typecheck, test, security, bundle-size]
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm turbo run build
-
-      - name: Verify build artifacts
-        run: |
-          # Check that all packages built successfully
-          for pkg in packages/*/; do
-            if [ -f "$pkg/package.json" ]; then
-              if jq -e '.exports["."]' "$pkg/package.json" > /dev/null 2>&1; then
-                if [ ! -d "$pkg/dist" ]; then
-                  echo "Error: $pkg did not produce dist/ directory"
-                  exit 1
-                fi
-              fi
-            fi
-          done
-          echo "✅ All packages built successfully"
-
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: build
-          path: packages/*/dist/
-          retention-days: 7
-
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-          registry-url: 'https://registry.npmjs.org'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm turbo run build
-
-      - name: Create release PR or publish
-        id: changesets
-        uses: changesets/action@v1
-        with:
-          publish: pnpm release
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create release notes
-        if: steps.changesets.outputs.published == 'true'
-        run: |
-          echo "Published version:"
-          jq -r '.version' packages/vellum/package.json
-
-  # Conformance gate for future use
-  conformance:
-    name: Conformance Tests
-    runs-on: ubuntu-latest
-    needs: [test]
-    if: github.event_name == 'pull_request'
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: pnpm/action-setup@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Run conformance tests
-        run: |
-          echo "Running conformance tests..."
-          # TODO: Add conformance test runner when implemented
-          # pnpm test:conformance
-          echo "✅ Conformance tests passed (placeholder)"
-        continue-on-error: true
+      # Fails on any moderate-or-worse advisory in a production dependency.
+      # @figentra/vellum bundles the workspace and has no runtime dependency,
+      # so this passes today and fails the day one with an advisory is added.
+      # Development tooling (vitest, stryker, tsup) is not gated here: it
+      # carries open moderate advisories whose fixes need major upgrades,
+      # tracked separately rather than hidden behind continue-on-error.
+      - name: pnpm audit --prod
+        run: pnpm audit --prod --audit-level=moderate
