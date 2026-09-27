@@ -82,10 +82,14 @@ task's trailer references it.
 ## Step 3 — check 2: every design Property has a covering test task
 
 For every `Property N` in the design inventory, look for a task that covers
-it: a task (commonly, but not necessarily, marked `*`) whose `_Requirements:_`
-trailer includes at least one of that Property's own `Validates:` references,
-AND whose task text indicates it is a test (mentions "test", "property",
-"property-based", or names the property), **AND whose checkbox is `[x]`**.
+it: a task (commonly, but not necessarily, marked `*`) whose `_Properties:_`
+trailer names `N` — the citation `vellum verify` itself checks, reporting
+`PROPERTY_NOT_CITED` when no task carries one — **AND whose checkbox is `[x]`**.
+A plan written before that trailer existed has none; for it, fall back to a task
+whose `_Requirements:_` trailer includes at least one of that Property's own
+`Validates:` references AND whose text indicates it is a test (mentions "test",
+"property", "property-based", or names the property), and say that the plan
+cites no Property explicitly.
 
 The checkbox is part of the check, not a footnote to it. `spec-tasks` marks
 every test sub-task optional, and `spec-run` skips optional tasks by default —
@@ -107,11 +111,12 @@ Report each Property as exactly one of:
   _test_ task; report this as a gap even where Step 2 shows its underlying
   criteria as "covered".
 
-**The match is a keyword heuristic and it is not sound.** A task whose text
-mentions "test" and whose trailer overlaps the Property's `Validates:` list can
+**Neither match is sound.** A citation is the plan author's claim, and the
+fallback is a keyword heuristic: a task whose text mentions "test" and whose
+trailer overlaps the Property's `Validates:` list can
 still test a single example rather than the universal claim the Property makes
 — which is exactly the distinction a Property exists to draw. So for every
-Property you report as Covered, say that the match was textual and that a human
+Property you report as Covered, say how it matched and that a human
 has to read the named test and confirm it exercises the universal claim. Do not
 present the heuristic's output as verification.
 

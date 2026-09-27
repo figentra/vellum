@@ -25,8 +25,9 @@ configuration do not leak in.
 Spec documents (`src/support/spec.ts`) are shaped the way
 `packages/method/templates` shape them: EARS criteria under
 `### Requirement N:`, Correctness Properties with `**Validates: …**`, and a plan
-with parent tasks, leaf tasks carrying Kiro `_Requirements: …_` trailers, an
-optional `1.3*` task, a checkpoint, a Task Dependency Graph and an Execution
+with parent tasks, leaf tasks carrying Kiro `_Requirements: …_` trailers,
+optional `1.3*` and `3.2*` test tasks citing every Property with
+`_Properties: …_`, a checkpoint, a Task Dependency Graph and an Execution
 Log. The Lifecycle Frontmatter the protocol requires is added on top; its
 checksum is the one `vellum status --json` reports, so the suite does not
 re-implement the protocol's canonical form.
@@ -52,6 +53,7 @@ commits the ledger files signed with the `human` key (`git commit -S`,
 | `06-mcp.e2e.test.ts`          | `vellum-mcp` over stdio: handshake; `tools/list` all `readOnlyHint`; `vellum_status`, `vellum_lint`, `vellum_verify` and `vellum_check` equal the CLI's `--json` for the same repository; `vellum_approve` / `vellum_task_complete` refused by name; a path escaping the repository refused; repository bytes unchanged.                                                                  |
 | `07-plugins.e2e.test.ts`      | The built Claude Code, Kiro and OpenCode plugins: manifests, MCP config, steering, skills and agents re-checked on disk with the renderers' frontmatter checks; `claude plugin validate --strict` when the `claude` binary is on `PATH` (skipped with a printed reason otherwise); every `vellum <command>` in shipped Markdown exists in the installed `vellum --help`.                  |
 | `08-frontmatter.e2e.test.ts`  | A frontmatter checksum that is all digits, or digits around an `e`, is read as a string: `status` reports it stale rather than the artifact unparseable, `lint` reports `CHECKSUM_MISMATCH`, and `verify --strict` still passes because approvals bind the computed body checksum.                                                                                                        |
+| `09-properties.e2e.test.ts` | Property citation: a plan that is approved and fully evidenced but cites no task for `Property 3` fails `verify --strict` with the single finding `PROPERTY_NOT_CITED` (properties 2/3); a `_Properties: 4_` citation of an undefined property is `TASK_PROPERTY_UNDEFINED` from `lint`; the same spec with Property 3 cited passes with properties 3/3. |
 
 ## Running
 

@@ -118,3 +118,73 @@ describe("computeCoverage", () => {
     expect(findings[0]?.rule).toBe("vellum/coverage/CRITERIA_SOURCE_UNREADABLE");
   });
 });
+
+describe("the method's forms: plain property headings and Kiro `_Properties:_` trailers", () => {
+  // Shaped as packages/method/templates/design.md writes it.
+  const methodDesign = `# Design
+
+## Correctness Properties
+
+Property 1: First
+
+For all inputs, the first thing holds.
+
+**Validates: Requirements 1.1, 1.2**
+
+Property 2: Second
+
+For every input, the second thing holds.
+
+**Validates: Requirements 2.1**
+
+### Requirement coverage
+
+| Requirement | Criterion | Classification | Covered by |
+| ----------- | --------- | -------------- | ---------- |
+| 1           | 1.1       | Universal      | Property 1 |
+
+\`\`\`
+Property 9: an example inside a fence is not a definition
+\`\`\`
+
+The coverage of Property 2: prose that mentions a property is not a heading.
+`;
+
+  it("reads plain `Property N:` headings and ignores table cells, prose and fences", () => {
+    expect(extractProperties(methodDesign)).toEqual(["P1", "P2"]);
+  });
+
+  it("fails naming a property no task cites (PROPERTY_NOT_CITED)", () => {
+    const result = computeCoverage(
+      requirements,
+      methodDesign,
+      tasks(
+        "  - [ ] 1.1 Build one _Requirements: 1.1, 1.2_",
+        "  - [ ] 1.2* Property test for Property 1 _Requirements: 1.1, 1.2_ _Properties: 1_",
+        "- [ ] 2. Build two _Requirements: 2.1_",
+      ),
+    );
+    expect(result.result).toBe("FAIL");
+    expect(result.uncitedProperties).toEqual(["P2"]);
+    expect(validatePropertiesCitation(result)).toEqual([
+      expect.objectContaining({ rule: "vellum/coverage/PROPERTY_NOT_CITED" }),
+    ]);
+  });
+
+  it("passes once every property is cited, in either trailer order", () => {
+    const result = computeCoverage(
+      requirements,
+      methodDesign,
+      tasks(
+        "  - [ ] 1.1 Build one _Requirements: 1.1, 1.2_",
+        "  - [ ] 1.2* Property test for Property 1 _Requirements: 1.1, 1.2_ _Properties: 1_",
+        "- [ ] 2. Build two _Properties: P2_ _Requirements: 2.1_",
+      ),
+    );
+    expect(result.result).toBe("PASS");
+    expect(result.properties).toEqual([
+      { id: "P1", citedBy: ["1.2"] },
+      { id: "P2", citedBy: ["2"] },
+    ]);
+  });
+});

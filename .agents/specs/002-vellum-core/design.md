@@ -588,6 +588,13 @@ Requirements trailer:   <!-- criteria: 1.2, 3.4, 5.6 -->
 Properties trailer:     <!-- properties: P1, P2 -->
 ```
 
+The Kiro form the method's tasks template writes is read as the same trailers: a line may end
+with `_Requirements: 1.2, 3.4_` and `_Properties: 1, 2_` (in either order; a property is cited by
+its design.md number, `2` or `P2`), and each is merged with the matching comment trailer when both
+are present. In design.md a property is defined by a line `Property N: Title` (the method's design
+template form) or `**Property N: Title**`; a mention inside prose, a table cell or a fenced block
+is not a definition.
+
 #### 1.5 Diagnostic codes
 
 **Location:** `src/protocol/diagnostics.ts`

@@ -47,11 +47,16 @@ updatedAt: 2026-09-26T10:00:00Z
 ...
 ```
 
-Tasks use the Kiro task-line grammar, with criterion and property trailers:
+Correctness Properties in `design.md` are headed `Property N: Title` (the method's template form;
+`**Property N: Title**` is read too). Tasks use the Kiro task-line grammar, with criterion and
+property trailers, either in the form the method's tasks template writes or as HTML comments:
 
 ```markdown
-- [ ] 1 Build the first thing <!-- criteria: 1.1 --> <!-- properties: P1 -->
+- [ ] 1. Build the first thing _Requirements: 1.1_ _Properties: 1_
+- [ ] 2. Build the second thing <!-- criteria: 1.2 --> <!-- properties: P2 -->
 ```
+
+`vellum verify --strict` fails with `PROPERTY_NOT_CITED` for a property no task cites.
 
 `vellum lint 001` validates the folder, the frontmatter and checksums, markers and references.
 

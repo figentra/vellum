@@ -71,9 +71,10 @@ export function formatMarker(marker: TaskMarker): string {
  * - Task identifier: number with optional hierarchy (1, 2.3, 5.1.4)
  * - Task text: any text after identifier
  * - Optional trailers: HTML comments with criteria and/or properties
- * - Kiro requirements trailer ending the text: `_Requirements: 1.2, 3.4_`
- *   (the form the method's tasks template writes); merged with a comment
- *   trailer when both are present
+ * - Kiro trailers ending the text, in either order: `_Requirements: 1.2, 3.4_`
+ *   and `_Properties: 1, 3_` (the forms the method's tasks template writes;
+ *   a property is cited by its design.md number, `3` or `P3`); each merged
+ *   with the matching comment trailer when both are present
  * - Optional task marker: `(optional)` in the text, or Kiro's `*` right after
  *   the checkbox (`- [ ]* 1.3`) or the identifier (`- [ ] 1.3* …`)
  */
@@ -131,12 +132,24 @@ export function parseTaskLine(line: string): {
   let requirementsTrailer: CriterionId[] | undefined;
   let propertiesTrailer: PropertyId[] | undefined;
 
-  // Kiro requirements trailer at the end of the text: `_Requirements: 1.2, 3.4_`
-  const kiroTrailer = /\s*_Requirements:\s*([\d.,\s]+?)\s*_$/.exec(taskText);
-  if (kiroTrailer?.[1] !== undefined) {
-    taskText = taskText.slice(0, kiroTrailer.index).trim();
-    const criteria = parseCriterionList(kiroTrailer[1]);
-    if (criteria.length > 0) requirementsTrailer = criteria;
+  // Kiro trailers at the end of the text, in either order:
+  // `_Requirements: 1.2, 3.4_` and `_Properties: 1, 3_` (or `P1, P3`)
+  for (;;) {
+    const kiroRequirements = /\s*_Requirements:\s*([\d.,\s]+?)\s*_$/.exec(taskText);
+    if (kiroRequirements?.[1] !== undefined && requirementsTrailer === undefined) {
+      taskText = taskText.slice(0, kiroRequirements.index).trim();
+      const criteria = parseCriterionList(kiroRequirements[1]);
+      if (criteria.length > 0) requirementsTrailer = criteria;
+      continue;
+    }
+    const kiroProperties = /\s*_Properties:\s*((?:P?\d+)(?:\s*,\s*P?\d+)*)\s*_$/.exec(taskText);
+    if (kiroProperties?.[1] !== undefined && propertiesTrailer === undefined) {
+      taskText = taskText.slice(0, kiroProperties.index).trim();
+      const properties = parsePropertyList(kiroProperties[1]);
+      if (properties.length > 0) propertiesTrailer = properties;
+      continue;
+    }
+    break;
   }
 
   if (trailers) {
@@ -152,16 +165,9 @@ export function parseTaskLine(line: string): {
     // Parse properties trailer: <!-- properties: P1, P2 -->
     const propertiesMatch = trailers.match(/<!--\s*properties:\s*([A-Z\d,\s]+)\s*-->/);
     if (propertiesMatch && propertiesMatch[1]) {
-      const propertiesStr = propertiesMatch[1];
-      const properties = propertiesStr
-        .split(",")
-        .map((s) => s.trim())
-        .filter((s) => s)
-        .map((s) => parsePropertyId(s))
-        .filter((id): id is PropertyId => id !== null);
-
+      const properties = parsePropertyList(propertiesMatch[1]);
       if (properties.length > 0) {
-        propertiesTrailer = properties;
+        propertiesTrailer = [...new Set([...(propertiesTrailer ?? []), ...properties])];
       }
     }
   }
@@ -188,6 +194,19 @@ export function parseTaskLine(line: string): {
   }
 
   return result;
+}
+
+/**
+ * Property identifiers in a comma-separated list. `3` and `P3` both name
+ * design.md's `Property 3`; unparseable items are dropped.
+ */
+function parsePropertyList(list: string): PropertyId[] {
+  return list
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s)
+    .map((s) => parsePropertyId(/^\d+$/.test(s) ? `P${s}` : s))
+    .filter((id): id is PropertyId => id !== null);
 }
 
 /** Criterion identifiers in a comma-separated list; unparseable items are dropped. */

@@ -144,6 +144,7 @@ Which means, concretely:
 | `- [ ] 1. Title`                         | top-level task, not started |
 | `  - [ ] 1.1 Title _Requirements: 1.1_`  | sub-task, not started       |
 | `  - [ ] 1.3* Title _Requirements: 1.1_` | **optional** sub-task       |
+| `  - [ ] 1.4* Title _Requirements: 1.1_ _Properties: 1_` | optional sub-task that tests Property 1 |
 | `  - [~] 1.4 Title _Requirements: 1.2_`  | queued                      |
 | `  - [-] 1.5 Title _Requirements: 1.3_`  | in progress                 |
 | `  - [x] 1.6 Title _Requirements: 1.4_`  | completed                   |
@@ -178,6 +179,12 @@ reported such a file clean.
 - Parent tasks carry no trailer. Checkpoint tasks carry no trailer.
 - A leaf that implements a Correctness Property lists the criteria that Property
   validates — take them from the Property's `**Validates:**` line.
+- **A leaf that tests a Correctness Property cites it** with a second trailer
+  after the first: `_Requirements: 2.1, 2.2_ _Properties: 2_` — the Property's
+  number from `design.md`, numbers only. **Every Property must be cited by at
+  least one task.** `vellum verify` fails with `PROPERTY_NOT_CITED` for each
+  Property no task cites, and `vellum lint` reports `TASK_PROPERTY_UNDEFINED`
+  for a citation of a Property `design.md` does not define.
 - **Every criterion in `requirements.md` must appear in at least one trailer.**
   After drafting, compute the union of all trailers and diff it against your Step 1
   inventory. Any criterion missing is either a missing task or a deferral already
@@ -277,6 +284,7 @@ Verify and state each result:
 - [ ] no top-level task is marked optional; every test sub-task is
 - [ ] every leaf has a `_Requirements:_` trailer with numeric refs only
 - [ ] the union of trailers covers every criterion in `requirements.md`
+- [ ] every Property in `design.md` is cited by some task's `_Properties:_` trailer
 - [ ] every incomplete leaf is in exactly one wave; parents and checkpoints excluded
 - [ ] wave ids are contiguous from 0
 - [ ] the graph records wave membership only — no `files`, `dependsOn` or `optional`

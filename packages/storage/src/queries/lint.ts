@@ -13,6 +13,7 @@ import {
   checkLedgerIntegrity,
   detectLegacyStage,
   extractCriteria,
+  extractProperties,
   findClarificationMarkers,
   sortFindings,
   validateMachineFolder,
@@ -186,6 +187,10 @@ function lintSpec(
     const criteria = requirements
       ? new Set(extractCriteria(canonicalArtifactBody(requirements.body)))
       : null;
+    const design = spec.artifacts.find((a) => a.kind === "design");
+    const properties = design
+      ? new Set(extractProperties(canonicalArtifactBody(design.body)))
+      : null;
     tasksText.split("\n").forEach((raw, index) => {
       const line = raw.replace(/\r$/, "");
       const checkbox = /^\s*-\s*\[(.)\]\*?\s*\d/.exec(line);
@@ -201,14 +206,23 @@ function lintSpec(
       const task = parseTaskLine(line);
       if (!task) return;
       examined.taskLines++;
-      if (criteria === null) return;
       for (const ref of task.requirementsTrailer ?? []) {
-        if (!criteria.has(ref)) {
+        if (criteria !== null && !criteria.has(ref)) {
           findings.push({
             file: tasksFile,
             line: index + 1,
             rule: "TASK_CRITERION_UNDEFINED",
             message: `Task ${task.identifier} cites criterion ${ref}, which requirements.md does not define`,
+          });
+        }
+      }
+      for (const ref of task.propertiesTrailer ?? []) {
+        if (properties !== null && !properties.has(ref)) {
+          findings.push({
+            file: tasksFile,
+            line: index + 1,
+            rule: "TASK_PROPERTY_UNDEFINED",
+            message: `Task ${task.identifier} cites property ${ref}, which design.md does not define`,
           });
         }
       }

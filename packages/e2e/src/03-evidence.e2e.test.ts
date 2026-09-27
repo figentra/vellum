@@ -8,7 +8,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { approveAll, draftSpec } from "./support/lifecycle.js";
 import type { TestRepo } from "./support/repo.js";
-import { PASSING_COMMAND, SLUG } from "./support/spec.js";
+import { PASSING_COMMAND, REQUIRED_TASKS, SLUG } from "./support/spec.js";
 
 describe("scenario 3: evidence is engine-recorded", () => {
   let repo: TestRepo;
@@ -46,7 +46,7 @@ describe("scenario 3: evidence is engine-recorded", () => {
 
   it("a hand-written [x] with no evidence fails verify as an unverified completion", () => {
     // Every other required task completes the real way; 1.1 retries after its failure.
-    for (const id of ["1.1", "1", "2", "3"]) {
+    for (const id of ["1.1", ...REQUIRED_TASKS.filter((t) => t !== "1.1" && t !== "1.2")]) {
       if (id !== "1.1") expect(repo.vellum(["task", "start", SLUG, id]).status).toBe(0);
       expect(repo.vellum(["task", "complete", SLUG, id, "--command", PASSING_COMMAND]).status).toBe(0);
     }
@@ -58,7 +58,7 @@ describe("scenario 3: evidence is engine-recorded", () => {
     const status = JSON.parse(repo.vellum(["status", SLUG, "--json"]).stdout).specs[0];
     expect(status.approvals.tasks.complete).toBe(true);
     expect(status.artifacts.tasks.checksumCurrent).toBe(true);
-    expect(status.verification).toMatchObject({ completed: 4, complete: false });
+    expect(status.verification).toMatchObject({ completed: REQUIRED_TASKS.length - 1, complete: false });
 
     const verify = repo.vellum(["verify", SLUG, "--strict", "--json"]);
     expect(verify.status).toBe(1);

@@ -77,7 +77,26 @@ export function parseCoverageTable(designText: string): CoverageRow[] {
 }
 
 /**
- * Parse property definitions from design.md.
+ * A property heading, in either form the protocol accepts:
+ *   `**Property N: Title**`  (bold, as the design document was first written)
+ *   `Property N: Title`      (plain, at the start of a line — the form the
+ *                             method's design template and spec-design skill write)
+ * The plain form is anchored to the start of the line so that prose and
+ * table cells that mention "Property 1" are not read as definitions.
+ */
+const BOLD_PROPERTY = /\*\*Property\s+(\d+):\s*(.+?)\*\*/;
+const PLAIN_PROPERTY = /^\s*Property\s+(\d+):\s*(\S.*?)\s*$/;
+
+function matchProperty(line: string): { number: string; title: string } | null {
+  const match = BOLD_PROPERTY.exec(line) ?? PLAIN_PROPERTY.exec(line);
+  return match?.[1] !== undefined && match[2] !== undefined
+    ? { number: match[1], title: match[2] }
+    : null;
+}
+
+/**
+ * Parse property definitions from design.md. Lines inside fenced code blocks
+ * are examples, not definitions, and are skipped.
  *
  * @param designText - Full design.md text
  * @returns Array of property definitions
@@ -85,17 +104,22 @@ export function parseCoverageTable(designText: string): CoverageRow[] {
 export function parseProperties(designText: string): PropertyDefinition[] {
   const properties: PropertyDefinition[] = [];
   const lines = designText.split("\n");
+  let fenced = false;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
     if (!line) continue;
+    if (/^\s*(```|~~~)/.test(line)) {
+      fenced = !fenced;
+      continue;
+    }
+    if (fenced) continue;
 
-    // Match property heading: **Property N:**
-    const match = line.match(/\*\*Property\s+(\d+):\s*(.+?)\*\*/);
-    if (match?.[1] !== undefined && match[2] !== undefined) {
+    const heading = matchProperty(line);
+    if (heading !== null) {
       const prop: PropertyDefinition = {
-        number: match[1],
-        title: match[2],
+        number: heading.number,
+        title: heading.title,
         line_number: i + 1,
       };
 
@@ -108,7 +132,7 @@ export function parseProperties(designText: string): PropertyDefinition[] {
           prop.validates = validatesMatch[1].split(",").map((s) => s.trim());
           break;
         }
-        if (nextLine.match(/\*\*Property\s+\d+:/)) {
+        if (matchProperty(nextLine) !== null) {
           break; // Next property
         }
       }

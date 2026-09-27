@@ -53,7 +53,7 @@ export function extractCriteria(requirements: string): string[] {
   return unique(parseCriteria(requirements).map((c) => c.reference));
 }
 
-/** Property identifiers design.md defines (`**Property N: …**` → `PN`), without duplicates. */
+/** Property identifiers design.md defines (`Property N: …`, plain or bold → `PN`), without duplicates. */
 export function extractProperties(design: string): string[] {
   return unique(parseProperties(design).map((p) => `P${p.number}`));
 }

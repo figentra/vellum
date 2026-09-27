@@ -30,6 +30,18 @@ _Requirements: 1.1, 1.2_
     expect(tasks[0]?.referenced_criteria).toEqual(["1.1", "1.2"]);
   });
 
+  it("reads the Kiro trailers written on the task line itself", () => {
+    const tasks = parseTasks(
+      "  - [ ] 2.3* Property test (spec-executor) _Requirements: 2.1, 2.2_ _Properties: 2_\n",
+    );
+    expect(tasks[0]).toMatchObject({
+      title: "Property test (spec-executor)",
+      referenced_criteria: ["2.1", "2.2"],
+      referenced_properties: ["2"],
+      executor: "spec-executor",
+    });
+  });
+
   it("marks test tasks", () => {
     const tasksText = `
 - [ ] 1. Write tests for feature

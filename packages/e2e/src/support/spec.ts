@@ -3,9 +3,9 @@
  * (packages/method/templates) shape them: an EARS requirements document with
  * numbered criteria under `### Requirement N:` headings, a design whose
  * Correctness Properties carry `**Validates: Requirements …**`, and a plan of
- * parent tasks, leaf tasks with Kiro `_Requirements: …_` trailers, an
- * optional `N.M*` test task, a checkpoint, a Task Dependency Graph and an
- * Execution Log. Template comments and placeholders are removed, as the
+ * parent tasks, leaf tasks with Kiro `_Requirements: …_` trailers, optional
+ * `N.M*` test tasks citing each Correctness Property with `_Properties: …_`,
+ * a checkpoint, a Task Dependency Graph and an Execution Log. Template comments and placeholders are removed, as the
  * templates instruct. The Lifecycle Frontmatter the protocol requires is added
  * by TestRepo.writeSpec.
  */
@@ -81,18 +81,20 @@ Build the greeting, then the farewell. Two waves.
 
 **Source documents:** \`requirements.md\`, \`design.md\` (both in this spec directory)
 
-**Total leaf tasks:** 4 · **Optional leaf tasks:** 1 · **Waves:** 2
+**Total leaf tasks:** 5 · **Optional leaf tasks:** 2 · **Waves:** 4
 
 ## Tasks
 
 - [ ] 1. Greeting core
   - [ ] 1.1 Implement greet() in src/greet.mjs _Requirements: 1.1_
   - [ ] 1.2 Refuse an empty name in src/greet.mjs _Requirements: 1.2_
-  - [ ] 1.3* Unit tests for greet() in test/greet.test.mjs _Requirements: 1.1, 1.2_
+  - [ ] 1.3* Unit tests for greet() in test/greet.test.mjs _Requirements: 1.1, 1.2_ _Properties: 1, 2_
 
 - [ ] 2. Checkpoint: ensure all tests pass
 
-- [ ] 3. Farewell option in src/greet.mjs _Requirements: 2.1_
+- [ ] 3. Farewell
+  - [ ] 3.1 Farewell option in src/greet.mjs _Requirements: 2.1_
+  - [ ] 3.2* Unit test for --bye in test/greet.test.mjs _Requirements: 2.1_ _Properties: 3_
 
 ## Task Dependency Graph
 
@@ -100,7 +102,9 @@ Build the greeting, then the farewell. Two waves.
 {
   "waves": [
     { "id": 0, "tasks": ["1.1"] },
-    { "id": 1, "tasks": ["1.2", "1.3", "3"] }
+    { "id": 1, "tasks": ["1.2"] },
+    { "id": 2, "tasks": ["1.3", "3.1"] },
+    { "id": 3, "tasks": ["3.2"] }
   ]
 }
 \`\`\`
@@ -112,7 +116,7 @@ Build the greeting, then the farewell. Two waves.
 `;
 
 /** Tasks the engine requires evidence for: every non-optional task line. */
-export const REQUIRED_TASKS = ["1", "1.1", "1.2", "2", "3"] as const;
+export const REQUIRED_TASKS = ["1", "1.1", "1.2", "2", "3", "3.1"] as const;
 
 /** The project the tasks build, so a verification command has something real to run. */
 export const PROJECT_FILES: Readonly<Record<string, string>> = {

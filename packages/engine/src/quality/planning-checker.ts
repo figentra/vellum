@@ -49,12 +49,23 @@ export function parseTasks(tasksText: string): TaskInfo[] {
     if (!line) continue;
 
     // Match task markdown: - [ ] N. Title or - [-] N.N Title (sub-tasks may be indented)
-    const match = line.match(/^\s*-\s+\[[~\-\sx]\]\s+(\d+(?:\.\d+)*)\.?\s+(.+)/);
+    const match = line.match(/^\s*-\s+\[[~\-\sx]\]\*?\s+(\d+(?:\.\d+)*)\*?\.?\s+(.+)/);
     if (match && match[1] && match[2]) {
       // The protocol's trailers: <!-- criteria: 1.2 --> <!-- properties: P1 -->
       const criteriaTrailer = match[2].match(/<!--\s*criteria:\s*([\d.,\s]+?)\s*-->/);
       const propertiesTrailer = match[2].match(/<!--\s*properties:\s*([P\d,\s]+?)\s*-->/);
-      const title = match[2].replace(/<!--[\s\S]*?-->/g, "").trim();
+      let title = match[2].replace(/<!--[\s\S]*?-->/g, "").trim();
+      // Kiro trailers on the task line itself, as the method's template writes them
+      const kiroCriteria: string[] = [];
+      const kiroProperties: string[] = [];
+      for (;;) {
+        const req = /\s*_Requirements:\s*([\d.,\s]+?)\s*_$/.exec(title);
+        const prop = /\s*_Properties:\s*((?:P?\d+)(?:\s*,\s*P?\d+)*)\s*_$/.exec(title);
+        const found = req ?? prop;
+        if (!found?.[1]) break;
+        (found === req ? kiroCriteria : kiroProperties).push(...splitList(found[1]));
+        title = title.slice(0, found.index).trim();
+      }
       const task: TaskInfo = {
         id: match[1],
         title,
@@ -68,6 +79,15 @@ export function parseTasks(tasksText: string): TaskInfo[] {
         task.referenced_properties = splitList(propertiesTrailer[1]).map((p) =>
           p.replace(/^P/, ""),
         );
+      }
+      if (kiroCriteria.length > 0) {
+        task.referenced_criteria = [...(task.referenced_criteria ?? []), ...kiroCriteria];
+      }
+      if (kiroProperties.length > 0) {
+        task.referenced_properties = [
+          ...(task.referenced_properties ?? []),
+          ...kiroProperties.map((p) => p.replace(/^P/, "")),
+        ];
       }
 
       // Look for Requirements trailer in following lines

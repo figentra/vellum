@@ -25,7 +25,7 @@ describe("scenario 1: full lifecycle", () => {
       command: "lint",
       status: "PASS",
       findings: [],
-      examined: { specs: 1, artifacts: 3, taskLines: 6 },
+      examined: { specs: 1, artifacts: 3, taskLines: 8 },
     });
   });
 

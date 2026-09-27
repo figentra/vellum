@@ -61,4 +61,35 @@ describe("parseTaskLine", () => {
     expect(parseTaskLine("- [?] 1 Bad marker")).toBeNull();
     expect(parseTaskLine("Some prose _Requirements: 1.1_")).toBeNull();
   });
+
+  describe("the Kiro properties trailer", () => {
+    it("reads `_Properties: N_` after the requirements trailer and removes both from the text", () => {
+      expect(parseTaskLine("  - [ ] 2.3* Property test for Property 2 _Requirements: 2.1, 2.2_ _Properties: 2_")).toEqual({
+        marker: " ",
+        identifier: "2.3",
+        text: "Property test for Property 2",
+        requirementsTrailer: ["2.1", "2.2"],
+        propertiesTrailer: ["P2"],
+        isOptional: true,
+      });
+    });
+
+    it("reads the trailers in either order, with numbers or P-prefixed ids", () => {
+      const task = parseTaskLine("- [ ] 4. Do it _Properties: P1, 3_ _Requirements: 1.1_");
+      expect(task?.text).toBe("Do it");
+      expect(task?.requirementsTrailer).toEqual(["1.1"]);
+      expect(task?.propertiesTrailer).toEqual(["P1", "P3"]);
+    });
+
+    it("merges with the HTML-comment properties trailer", () => {
+      const task = parseTaskLine("- [ ] 5 Do _Properties: 1_ <!-- properties: P1, P2 -->");
+      expect(task?.propertiesTrailer).toEqual(["P1", "P2"]);
+    });
+
+    it("leaves a mid-text `_Properties_` word alone", () => {
+      const task = parseTaskLine("- [ ] 6 Rename _Properties_ helper _Requirements: 1.1_");
+      expect(task?.text).toBe("Rename _Properties_ helper");
+      expect(task?.propertiesTrailer).toBeUndefined();
+    });
+  });
 });

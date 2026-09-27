@@ -21,6 +21,9 @@
       There is no `1.1.1`.
     - Every LEAF task ends with a traceability trailer on the same line:
       `_Requirements: 1.2, 3.4_` — numeric refs only, `<requirement>.<criterion>`.
+      A leaf that tests a Correctness Property also cites it, after that
+      trailer: `_Requirements: 2.1, 2.2_ _Properties: 2_` — design.md Property
+      numbers only. Every Property must be cited by at least one task.
       Parent tasks carry no trailer; checkpoints carry no trailer.
 
   Replace every [bracketed placeholder]. Delete every HTML comment.
@@ -45,7 +48,7 @@ first task that produces something runnable, and say how many waves the graph ha
 - [ ] 2. [Parent task]
   - [ ] 2.1 [Leaf task] _Requirements: 2.1_
   - [ ] 2.2 [Leaf task] _Requirements: 2.2, 2.3_
-  - [ ] 2.3* [Optional leaf task — property-based test for Property 2] _Requirements: 2.1, 2.2_
+  - [ ] 2.3* [Optional leaf task — property-based test for Property 2] _Requirements: 2.1, 2.2_ _Properties: 2_
 
 - [ ] 3. Checkpoint: ensure all tests pass
 
@@ -156,6 +159,12 @@ acceptance criteria in `requirements.md`. Numeric references only — no titles,
 quoted criterion text, no links. Union of every leaf trailer must cover every
 criterion in `requirements.md`; a criterion no task references is either an
 oversight or a documented deferral in `design.md` Open Questions.
+
+A leaf that tests a Correctness Property cites it with a second trailer after the
+first: `_Properties: <N>, …_`, the Property numbers from `design.md`. Every
+Property must be cited by at least one task: `vellum verify` reports each one no
+task cites as `PROPERTY_NOT_CITED`, and `vellum lint` reports a citation of a
+Property `design.md` does not define as `TASK_PROPERTY_UNDEFINED`.
 
 ### Checkpoints
 
