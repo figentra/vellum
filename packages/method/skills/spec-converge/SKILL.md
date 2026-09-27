@@ -194,9 +194,10 @@ Otherwise, append to `tasks.md`:
    above anything it depends on. `spec-run` dispatches only what the graph lists — a task
    left out of it is a task no run will execute.
 
-5. **Validate:**
+5. **Stamp and validate** — `stamp` records the appended plan's new version and checksum:
 
    ```bash
+   npx vellum stamp <NNN>
    npx vellum lint <NNN> --type=tasks --json
    ```
 
@@ -207,7 +208,9 @@ Otherwise, append to `tasks.md`:
 **Appending changes `tasks.md`, so its checksum changes and the plan approval no longer
 counts.** `npx vellum task start` refuses every task — the new ones and any still pending —
 until a human re-approves the plan with `npx vellum approve <NNN> tasks` and commits the record.
-You never run that command. Say this first in the report when you appended anything, not
+You never run that command. If `npx vellum approve` refuses because the frontmatter checksum of the document is
+stale (the body changed after its last stamp), the human runs `npx vellum stamp <NNN>`
+first, reviews the result, then approves. Say this first in the report when you appended anything, not
 last.
 
 Then report:

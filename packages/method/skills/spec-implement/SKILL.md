@@ -274,8 +274,16 @@ Log **leaf tasks only.** A checkpoint is not a leaf and carries no trailer; an
 entry for one is rejected as an unknown task, and a `[x]` checkpoint needs no
 row.
 
-Re-run the linter after appending, for the same reason you ran it after the
-checkbox edit.
+The row is text, not a marker, so it changes the plan: record the new version and
+checksum, then re-run the linter, for the same reason you ran it after the checkbox edit:
+
+```bash
+npx vellum stamp <NNN>
+npx vellum lint <NNN> --type=tasks --json
+```
+
+`npx vellum task complete` changing a marker is not an edit and needs no stamp; any other
+change you make to `tasks.md` does.
 
 Report:
 

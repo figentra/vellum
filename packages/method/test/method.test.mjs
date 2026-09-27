@@ -99,7 +99,7 @@ test("no method file contains CLAUDE_PLUGIN_ROOT", () => {
 test("the CLI command list read from packages/cli is the one the method was written against", () => {
   const { commands, taskSubcommands } = cliCommands();
   // Guards against a parse that silently finds nothing and makes the next test vacuous.
-  for (const c of ["status", "lint", "verify", "approve", "task", "doctor"])
+  for (const c of ["status", "lint", "verify", "approve", "task", "doctor", "adopt", "stamp"])
     assert.ok(commands.has(c), `run.ts has no '${c}' command`);
   assert.deepEqual([...taskSubcommands].sort(), ["complete", "start"]);
 });
@@ -304,7 +304,7 @@ test("each new skill names the persona agent that lists it", () => {
 test("skills and agents invoke the CLI through npx, which finds the project's local install", () => {
   // @figentra/vellum is a project dev dependency, so a bare `vellum` is not on PATH
   // inside an assistant's shell; `npx vellum` resolves the local bin (or a global one).
-  const bare = /(?<![\w@/.\-])(?<!npx )vellum (?:status|lint|verify|check|doctor|approve|task|trace)\b/;
+  const bare = /(?<![\w@/.\-])(?<!npx )vellum (?:status|lint|verify|check|doctor|approve|task|trace|adopt|stamp)\b/;
   const offenders = [];
   for (const file of dataFiles().filter((f) => f.endsWith(".md"))) {
     const text = readFileSync(file, "utf8");
@@ -313,4 +313,46 @@ test("skills and agents invoke the CLI through npx, which finds the project's lo
     });
   }
   assert.deepEqual(offenders, []);
+});
+
+/** The fenced bash blocks of a skill: the commands it instructs the reader to run. */
+const bashBlocks = (name) =>
+  [...skill(name).matchAll(/```bash\n([\s\S]*?)```/g)].map((m) => m[1]).join("\n");
+
+test("spec-new adopts the requirements it writes, and stamps every rewrite", () => {
+  // A bare requirements.md is a legacy spec: status says legacy and approve refuses it.
+  const commands = bashBlocks("spec-new");
+  assert.match(commands, /^\s*npx vellum adopt <NNN>$/m);
+  assert.match(commands, /^\s*npx vellum stamp <NNN>$/m);
+  assert.ok(
+    skill("spec-new").indexOf("npx vellum adopt <NNN>") < skill("spec-new").indexOf("## Step 6"),
+    "spec-new adopts before it reports and hands off",
+  );
+});
+
+test("every other skill that writes or edits a document stamps it with the CLI", () => {
+  for (const name of ["spec-design", "spec-tasks", "spec-clarify", "spec-converge", "spec-implement"]) {
+    assert.match(bashBlocks(name), /^\s*npx vellum stamp <NNN>$/m, `${name} does not run npx vellum stamp`);
+    assert.doesNotMatch(bashBlocks(name), /vellum adopt/, `${name} adopts; only spec-new creates a spec`);
+  }
+  // The read-only skills never write frontmatter.
+  for (const name of ["spec-verify", "spec-run"]) {
+    assert.doesNotMatch(bashBlocks(name), /vellum (adopt|stamp)/, `${name} is read-only`);
+  }
+});
+
+test("no skill tells the reader to write Lifecycle Frontmatter by hand", () => {
+  for (const name of ["spec-new", "spec-design", "spec-tasks"]) {
+    assert.match(skill(name), /[Nn]ever write (or repair )?frontmatter by hand/, name);
+  }
+});
+
+test("each approval hand-off says what to do when approve refuses a stale checksum", () => {
+  for (const name of ["spec-new", "spec-design", "spec-tasks", "spec-clarify", "spec-converge"]) {
+    assert.match(
+      skill(name),
+      /refuses because the frontmatter checksum of the document is\s+stale[\s\S]{0,120}`npx vellum stamp <NNN>`\s+first/,
+      name,
+    );
+  }
 });
