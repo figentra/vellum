@@ -15,6 +15,7 @@ import { verify } from "./commands/verify.js";
 import { doctor } from "./commands/doctor.js";
 import { approve, APPROVE_HELP } from "./commands/approve.js";
 import { task, DEFAULT_TIMEOUT_SECONDS } from "./commands/task.js";
+import { adopt, stamp } from "./commands/frontmatter.js";
 
 export const HELP = `vellum ${VERSION} — specification lifecycle enforcement
 
@@ -41,6 +42,15 @@ COMMANDS
   approve <spec> <requirements|design|tasks> [--reject --rationale=<text>]
       Write an approval record for YOU to commit, signed. Humans only.
       See 'vellum approve --help'.
+  adopt <spec> [--json]
+      Bring a legacy spec under management: Lifecycle Frontmatter on each
+      artifact (bodies unchanged, version 1), the in-review state of the
+      latest artifact, an adoption entry in the ledger, no approvals.
+  stamp <spec> [--json]
+      After an artifact is written or edited: frontmatter for a new
+      artifact, the next version and checksum of a changed body, and the
+      recorded state raised to the latest artifact's in-review state.
+      Never makes an approval valid; appends nothing to the ledger.
   task start <spec> <task-id>
       Pre-execution check; records a Task Binding and sets [-].
   task complete <spec> <task-id> --command=<cmd> [--timeout=<seconds>]
@@ -50,16 +60,26 @@ COMMANDS
 EXIT STATUS
   0 PASS / done, 1 FAIL / refused, 2 INCONCLUSIVE, usage error, or not implemented
 
-Not implemented in this version (exit 2): adopt, sync.
+Not implemented in this version (exit 2): sync.
 `;
 
 /** Commands named by the spec but not implemented; each exits 2. */
 const NOT_IMPLEMENTED: Readonly<Record<string, string>> = {
-  adopt: "adopt (bringing a legacy spec under management, criterion 14)",
   sync: "sync (projection to assistant directories, criterion 13)",
 };
 
-const IMPLEMENTED = ["status", "lint", "verify", "doctor", "approve", "task start", "task complete", "check"];
+const IMPLEMENTED = [
+  "status",
+  "lint",
+  "verify",
+  "doctor",
+  "approve",
+  "task start",
+  "task complete",
+  "check",
+  "adopt",
+  "stamp",
+];
 
 function usage(ctx: CliContext, message: string): number {
   ctx.stderr.write(`vellum: ${message}\nSee 'vellum --help'.\n`);
@@ -149,6 +169,17 @@ export async function run(argv: readonly string[], ctx: CliContext): Promise<num
         { spec, artifact, reject: args.options.has("reject"), rationale: rationale ?? undefined },
         ctx,
       );
+    }
+
+    case "adopt":
+    case "stamp": {
+      const bad = checkOptions(ctx, args, command, ["json"]);
+      if (bad !== null) return bad;
+      const [spec, ...extra] = rest;
+      if (spec === undefined || extra.length > 0) {
+        return usage(ctx, `usage: vellum ${command} <spec> [--json]`);
+      }
+      return (command === "adopt" ? adopt : stamp)({ spec, json }, withJson);
     }
 
     case "task": {

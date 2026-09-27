@@ -6,10 +6,10 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { checkLedgerIntegrity } from "@vellum/engine";
 import { readLedgerHead } from "@vellum/storage";
-import { Fixture, REQUIREMENTS, SLUG, TASKS } from "./fixture.js";
+import { DESIGN, Fixture, REQUIREMENTS, SLUG, TASKS } from "./fixture.js";
 
 function hasSshKeygen(): boolean {
   try {
@@ -50,7 +50,12 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       expect(report.effectiveState).toBe("IN_REVIEW");
       expect(report.effective.failedPrecondition).toContain("IN_REVIEW → REQUIREMENTS_APPROVED");
       expect(report.approvals.requirements).toEqual({ current: 0, required: 1, complete: false });
-      expect(report.verification).toEqual({ required: 2, completed: 0, failed: 0, complete: false });
+      expect(report.verification).toEqual({
+        required: 2,
+        completed: 0,
+        failed: 0,
+        complete: false,
+      });
       expect(report.ledger).toEqual({ entries: 0, valid: true, failures: [] });
 
       await fx.approve(ALL, "alice");
@@ -84,7 +89,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       const unapproved = await fx.cli(["check"]);
       expect(unapproved.status).toBe(1);
       expect(unapproved.stdout).toContain("[STATE_MISMATCH]");
-      expect(unapproved.stdout).toContain("records IN_PROGRESS but its effective state is IN_REVIEW");
+      expect(unapproved.stdout).toContain(
+        "records IN_PROGRESS but its effective state is IN_REVIEW",
+      );
       expect(tree()).toBe(before);
 
       await fx.approve(ALL, "alice");
@@ -110,13 +117,18 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
 
     it("fails a spec whose ledger was edited, naming the entry", async () => {
       await fx.approve(["requirements"], "alice");
-      writeFileSync(fx.ledgerPath, readFileSync(fx.ledgerPath, "utf8").replace("alice@", "mallory@"));
+      writeFileSync(
+        fx.ledgerPath,
+        readFileSync(fx.ledgerPath, "utf8").replace("alice@", "mallory@"),
+      );
 
       const result = await fx.cli(["check", SLUG, "--json"]);
       expect(result.status).toBe(1);
       const report = JSON.parse(result.stdout);
       expect(report.summary.ledgerFailures).toBe(1);
-      expect(report.findings.some((f: { rule: string }) => f.rule === "LEDGER_INTEGRITY")).toBe(true);
+      expect(report.findings.some((f: { rule: string }) => f.rule === "LEDGER_INTEGRITY")).toBe(
+        true,
+      );
     });
 
     it("passes a legacy spec and exits 2 naming a fragment that matches nothing", async () => {
@@ -135,7 +147,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       const result = await fx.cli(["lint", SLUG]);
       expect(result.stderr).toBe("");
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain("PASS: 0 finding(s); examined 1 spec(s), 3 artifact(s), 2 task line(s)");
+      expect(result.stdout).toContain(
+        "PASS: 0 finding(s); examined 1 spec(s), 3 artifact(s), 2 task line(s)",
+      );
     });
 
     it("fails an artifact edited without its checksum, and a fourth file in the spec", async () => {
@@ -160,20 +174,28 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     it("fails an unresolved clarification marker in requirements.md or design.md, naming the line", async () => {
       fx.writeArtifact(
         "requirements",
-        REQUIREMENTS.replace("do one thing", "do one thing within [NEEDS CLARIFICATION: how fast?]"),
+        REQUIREMENTS.replace(
+          "do one thing",
+          "do one thing within [NEEDS CLARIFICATION: how fast?]",
+        ),
       );
       const result = await fx.cli(["lint", SLUG, "--json"]);
       expect(result.status).toBe(1);
-      const findings = JSON.parse(result.stdout).findings as { file: string; line: number; rule: string; message: string }[];
+      const findings = JSON.parse(result.stdout).findings as {
+        file: string;
+        line: number;
+        rule: string;
+        message: string;
+      }[];
       expect(findings).toHaveLength(1);
       expect(findings[0]).toMatchObject({
         file: `.agents/specs/${SLUG}/requirements.md`,
         rule: "NEEDS_CLARIFICATION",
       });
       expect(findings[0]!.message).toContain("how fast?");
-      expect(fx.read(`.agents/specs/${SLUG}/requirements.md`).split("\n")[findings[0]!.line - 1]).toContain(
-        "NEEDS CLARIFICATION",
-      );
+      expect(
+        fx.read(`.agents/specs/${SLUG}/requirements.md`).split("\n")[findings[0]!.line - 1],
+      ).toContain("NEEDS CLARIFICATION");
       expect((await fx.cli(["lint", SLUG, "--type=tasks"])).status).toBe(0);
     });
 
@@ -186,7 +208,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       fx.writeArtifact("tasks", plan(`{ "waves": [ { "id": 0, "tasks": ["1", "7"] } ] }`));
       const result = await fx.cli(["lint", SLUG, "--json"]);
       expect(result.status).toBe(1);
-      const messages = JSON.parse(result.stdout).findings.map((f: { rule: string; message: string }) => `${f.rule}: ${f.message}`);
+      const messages = JSON.parse(result.stdout).findings.map(
+        (f: { rule: string; message: string }) => `${f.rule}: ${f.message}`,
+      );
       expect(messages).toEqual([
         "WAVE_GRAPH_INVALID: Incomplete leaf task 2 appears in no wave of the Task Dependency Graph",
         "WAVE_TASK_UNDEFINED: Wave 0 names task 7, which tasks.md does not define",
@@ -246,13 +270,24 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
       await fx.approve(ALL, "alice");
       await fx.cli(["task", "start", SLUG, "2"]);
 
-      const result = await fx.cli(["task", "complete", SLUG, "2", "--command", "echo broken >&2; exit 3"]);
+      const result = await fx.cli([
+        "task",
+        "complete",
+        SLUG,
+        "2",
+        "--command",
+        "echo broken >&2; exit 3",
+      ]);
       expect(result.status).toBe(1);
       expect(result.stdout).toContain("Task 2 FAILED: exit status 3");
       expect(result.stderr).toContain("broken");
       expect(marker("2")).toBe("-");
       const ledger = await fx.ledger();
-      expect(ledger[ledger.length - 1]).toMatchObject({ kind: "evidence", task_id: "2", exit_status: 3 });
+      expect(ledger[ledger.length - 1]).toMatchObject({
+        kind: "evidence",
+        task_id: "2",
+        exit_status: 3,
+      });
     });
 
     it("does not set [x] when the working tree differs from HEAD outside the spec", async () => {
@@ -278,7 +313,14 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     it("stops a command at its timeout and records exit status 124", async () => {
       await fx.approve(ALL, "alice");
       await fx.cli(["task", "start", SLUG, "1"]);
-      const result = await fx.cli(["task", "complete", SLUG, "1", "--command=sleep 30", "--timeout=1"]);
+      const result = await fx.cli([
+        "task",
+        "complete",
+        SLUG,
+        "1",
+        "--command=sleep 30",
+        "--timeout=1",
+      ]);
       expect(result.status).toBe(1);
       const ledger = await fx.ledger();
       expect(ledger[ledger.length - 1]).toMatchObject({ exit_status: 124, timed_out: true });
@@ -326,11 +368,16 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     });
 
     it("refuses to approve a plan that leaves a criterion uncovered or a property uncited, naming each and writing nothing", async () => {
-      fx.writeArtifact("tasks", TASKS.replace("<!-- criteria: 1.2 --> <!-- properties: P2 -->", ""));
+      fx.writeArtifact(
+        "tasks",
+        TASKS.replace("<!-- criteria: 1.2 --> <!-- properties: P2 -->", ""),
+      );
       const result = await fx.cli(["approve", SLUG, "tasks"], { interactive: true });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain("vellum approve: refused — tasks.md cannot be approved");
-      expect(result.stderr).toContain("Criterion 1.2 is referenced by no task's requirements trailer");
+      expect(result.stderr).toContain(
+        "Criterion 1.2 is referenced by no task's requirements trailer",
+      );
       expect(result.stderr).toContain("Property P2 is cited by no task");
       expect(result.stdout).toBe("");
       expect(await fx.ledger()).toEqual([]);
@@ -390,7 +437,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
 
       const result = await fx.cli(["verify", SLUG, "--strict", "--json"]);
       expect(result.status).toBe(1);
-      expect(JSON.stringify(JSON.parse(result.stdout).specs[0].findings)).toContain("SIGNER_NOT_AUTHORIZED");
+      expect(JSON.stringify(JSON.parse(result.stdout).specs[0].findings)).toContain(
+        "SIGNER_NOT_AUTHORIZED",
+      );
     });
 
     it("fails an approval whose signed commit also changes other files", async () => {
@@ -399,7 +448,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
 
       const result = await fx.cli(["verify", SLUG, "--json"]);
       expect(result.status).toBe(1);
-      expect(result.stdout).toContain("an Approval Signal commit may change only the spec's ledger");
+      expect(result.stdout).toContain(
+        "an Approval Signal commit may change only the spec's ledger",
+      );
     });
 
     it("fails once an approved artifact is edited after approval", async () => {
@@ -412,13 +463,17 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
 
       const result = await fx.cli(["verify", SLUG, "--strict", "--json"]);
       expect(result.status).toBe(1);
-      expect(JSON.stringify(JSON.parse(result.stdout).specs[0].findings)).toContain("CHECKSUM_MISMATCH");
+      expect(JSON.stringify(JSON.parse(result.stdout).specs[0].findings)).toContain(
+        "CHECKSUM_MISMATCH",
+      );
     });
 
     it("fails a ledger whose last entries were removed", async () => {
       await fx.approve(ALL, "alice");
       await completeAll();
-      const lines = readFileSync(fx.ledgerPath, "utf8").split("\n").filter((l) => l !== "");
+      const lines = readFileSync(fx.ledgerPath, "utf8")
+        .split("\n")
+        .filter((l) => l !== "");
       writeFileSync(fx.ledgerPath, `${lines.slice(0, -2).join("\n")}\n`);
 
       const result = await fx.cli(["verify", SLUG, "--json"]);
@@ -428,7 +483,9 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
 
     it("is INCONCLUSIVE (exit 2) when no spec is in progress", async () => {
       fx.writeArtifact("requirements", REQUIREMENTS);
-      const draft = fx.read(`.agents/specs/${SLUG}/requirements.md`).replace("IN_PROGRESS", "DRAFT");
+      const draft = fx
+        .read(`.agents/specs/${SLUG}/requirements.md`)
+        .replace("IN_PROGRESS", "DRAFT");
       fx.write(`.agents/specs/${SLUG}/requirements.md`, draft);
       const result = await fx.cli(["verify"]);
       expect(result.status).toBe(2);
@@ -440,15 +497,23 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     it("passes a healthy repository and marks unimplemented categories NOT_CHECKED", async () => {
       const result = await fx.cli(["doctor", "--json"]);
       expect(result.status).toBe(0);
-      const diagnostics = JSON.parse(result.stdout).diagnostics as { category: string; outcome: string }[];
+      const diagnostics = JSON.parse(result.stdout).diagnostics as {
+        category: string;
+        outcome: string;
+      }[];
       expect(diagnostics.find((d) => d.category === "Approval Policy")?.outcome).toBe("PASS");
       expect(diagnostics.find((d) => d.category === "Ledger integrity")?.outcome).toBe("PASS");
-      expect(diagnostics.find((d) => d.category === "Repository hooks")?.outcome).toBe("NOT_CHECKED");
+      expect(diagnostics.find((d) => d.category === "Repository hooks")?.outcome).toBe(
+        "NOT_CHECKED",
+      );
     });
 
     it("fails a damaged ledger and an untracked spec document", async () => {
       await fx.approve(["requirements"], "alice");
-      writeFileSync(fx.ledgerPath, readFileSync(fx.ledgerPath, "utf8").replace("alice@", "mallory@"));
+      writeFileSync(
+        fx.ledgerPath,
+        readFileSync(fx.ledgerPath, "utf8").replace("alice@", "mallory@"),
+      );
       fx.write(`.agents/specs/${SLUG}/draft.md`, "notes\n");
 
       const result = await fx.cli(["doctor"]);
@@ -458,13 +523,180 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     });
   });
 
+  describe("adopt and stamp", () => {
+    const SPEC = `.agents/specs/${SLUG}`;
+    const file = (kind: string) => `${SPEC}/${kind}.md`;
+    /** The spec as spec-new leaves it: bare Markdown, no Machine Folder. */
+    const legacy = (kinds: Partial<Record<(typeof ALL)[number], string>>) => {
+      fx.git(["rm", "-rq", SPEC]);
+      rmSync(`${fx.repo}/${SPEC}`, { recursive: true, force: true });
+      for (const [kind, body] of Object.entries(kinds)) fx.write(file(kind), body);
+    };
+    const fm = (kind: string) =>
+      Object.fromEntries(
+        (/^---\n([\s\S]*?)\n---\n/.exec(fx.read(file(kind)))?.[1] ?? "")
+          .split("\n")
+          .map((l) => [l.slice(0, l.indexOf(":")), l.slice(l.indexOf(":") + 1).trim()]),
+      );
+    const status = async () =>
+      JSON.parse((await fx.cli(["status", SLUG, "--json"])).stdout).specs[0];
+    const tree = () => {
+      const hash = createHash("sha256");
+      for (const kind of ALL) {
+        try {
+          hash.update(fx.read(file(kind)));
+        } catch {
+          hash.update(`no ${kind}`);
+        }
+      }
+      return `${hash.digest("hex")} ${existsSync(fx.ledgerPath)}`;
+    };
+
+    it("status names the adopt command for a bare spec; adopt adds frontmatter, bodies unchanged, and one adoption entry", async () => {
+      legacy({ requirements: REQUIREMENTS });
+      expect(await status()).toEqual({
+        specId: SLUG,
+        legacy: true,
+        legacyStage: "design",
+        next: `npx vellum adopt ${SLUG}`,
+      });
+      expect((await fx.cli(["status", SLUG])).stdout).toContain(
+        `Adopt it: npx vellum adopt ${SLUG}`,
+      );
+
+      const result = await fx.cli(["adopt", SLUG]);
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(result.stdout).toContain(
+        `Adopted ${SLUG}: Recorded Lifecycle State IN_REVIEW, no approvals.`,
+      );
+      const text = fx.read(file("requirements"));
+      expect(text.endsWith(`\n---\n${REQUIREMENTS}`)).toBe(true);
+      expect(fm("requirements")).toMatchObject({ version: "1", state: "IN_REVIEW" });
+
+      const ledger = await fx.ledger();
+      expect(ledger).toHaveLength(1);
+      expect(ledger[0]).toMatchObject({
+        kind: "adoption",
+        id: 1,
+        predecessor_digest: null,
+        from: "legacy",
+        to: "managed",
+      });
+      expect(checkLedgerIntegrity(ledger, await readLedgerHead(fx.ledgerPath)).valid).toBe(true);
+
+      const spec = await status();
+      expect(spec).toMatchObject({ recordedState: "IN_REVIEW", effectiveState: "IN_REVIEW" });
+      expect(spec.artifacts.requirements).toMatchObject({ version: 1, checksumCurrent: true });
+      expect(spec.approvals.requirements).toMatchObject({ current: 0 });
+      expect((await fx.cli(["lint", SLUG, "--json"])).stdout).not.toContain("LEDGER_SCHEMA");
+
+      // A second adopt changes nothing.
+      const before = tree();
+      const again = await fx.cli(["adopt", SLUG]);
+      expect(again.status).toBe(0);
+      expect(again.stdout).toContain("already adopted");
+      expect(tree()).toBe(before);
+      expect(await fx.ledger()).toHaveLength(1);
+    });
+
+    it("adopt records the in-review state of the latest artifact present", async () => {
+      legacy({ requirements: REQUIREMENTS, design: DESIGN, tasks: TASKS });
+      const result = await fx.cli(["adopt", SLUG, "--json"]);
+      expect(result.status).toBe(0);
+      expect(JSON.parse(result.stdout)).toMatchObject({
+        command: "adopt",
+        result: "ADOPTED",
+        recordedState: "PLAN_IN_REVIEW",
+      });
+      for (const kind of ALL)
+        expect(fm(kind)).toMatchObject({ version: "1", state: "PLAN_IN_REVIEW" });
+    });
+
+    it("adopt refuses a later artifact without an earlier one, naming it and writing nothing", async () => {
+      legacy({ design: DESIGN });
+      const before = tree();
+      const result = await fx.cli(["adopt", SLUG]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain("design.md exists without requirements.md");
+      expect(tree()).toBe(before);
+      expect((await status()).adoptionProblem).toContain(
+        "design.md exists without requirements.md",
+      );
+    });
+
+    it("stamp refuses a spec that is not adopted, naming adopt", async () => {
+      legacy({ requirements: REQUIREMENTS });
+      const result = await fx.cli(["stamp", SLUG]);
+      expect(result.status).toBe(1);
+      expect(result.stderr).toContain(`run npx vellum adopt ${SLUG}`);
+    });
+
+    it("stamp gives an artifact written after adoption its frontmatter and raises the recorded state, appending nothing", async () => {
+      legacy({ requirements: REQUIREMENTS });
+      expect((await fx.cli(["adopt", SLUG])).status).toBe(0);
+      fx.write(file("design"), DESIGN);
+
+      const unreadable = await status();
+      expect(unreadable.result).toBe("INCONCLUSIVE");
+      expect(unreadable.next).toBe(`npx vellum stamp ${SLUG}`);
+      const adoptAgain = await fx.cli(["adopt", SLUG]);
+      expect(adoptAgain.status).toBe(1);
+      expect(adoptAgain.stderr).toContain(`run npx vellum stamp ${SLUG}`);
+
+      const result = await fx.cli(["stamp", SLUG]);
+      expect(result.stderr).toBe("");
+      expect(result.status).toBe(0);
+      expect(fx.read(file("design")).endsWith(`\n---\n${DESIGN}`)).toBe(true);
+      expect(fm("design")).toMatchObject({ version: "1", state: "DESIGN_IN_REVIEW" });
+      expect(fm("requirements")).toMatchObject({ version: "1", state: "DESIGN_IN_REVIEW" });
+      expect(await fx.ledger()).toHaveLength(1);
+
+      const current = await fx.cli(["stamp", SLUG, "--json"]);
+      expect(JSON.parse(current.stdout)).toMatchObject({ result: "CURRENT", artifacts: [] });
+    });
+
+    it("approve refuses a stale frontmatter checksum naming stamp; after stamp it binds the new version", async () => {
+      await fx.approve(["requirements"], "alice");
+      const text = fx.read(file("design"));
+      fx.write(
+        file("design"),
+        text.replace("**Property 2: Second**", "**Property 2: Second, reworded**"),
+      );
+
+      const refused = await fx.cli(["approve", SLUG, "design"], { interactive: true });
+      expect(refused.status).toBe(1);
+      expect(refused.stderr).toContain("the frontmatter of design.md is stale");
+      expect(refused.stderr).toContain(`npx vellum stamp ${SLUG}`);
+      expect(await fx.ledger()).toHaveLength(1);
+
+      const stamped = await fx.cli(["stamp", SLUG]);
+      expect(stamped.status).toBe(0);
+      expect(stamped.stdout).toContain("design.md: v2");
+      expect(fm("design")).toMatchObject({ version: "2" });
+      // The recorded state (IN_PROGRESS) is ahead of DESIGN_IN_REVIEW: it is not lowered.
+      expect(fm("requirements").state).toBe("IN_PROGRESS");
+
+      const approved = await fx.cli(["approve", SLUG, "design"], { interactive: true });
+      expect(approved.status).toBe(0);
+      expect((await fx.ledger()).at(-1)).toMatchObject({
+        kind: "approval",
+        artifact: "design.md",
+        artifact_version: 2,
+      });
+    });
+  });
+
   describe("command surface", () => {
-    it("exits 2 with 'not implemented' for adopt and sync", async () => {
-      for (const command of ["adopt", "sync"]) {
+    it("exits 2 with 'not implemented' for sync, and a usage error for adopt or stamp without a spec", async () => {
+      const sync = await fx.cli(["sync"]);
+      expect(sync.status).toBe(2);
+      expect(sync.stderr).toContain("not implemented");
+      expect(sync.stdout).toBe("");
+      for (const command of ["adopt", "stamp"]) {
         const result = await fx.cli([command]);
         expect(result.status).toBe(2);
-        expect(result.stderr).toContain("not implemented");
-        expect(result.stdout).toBe("");
+        expect(result.stderr).toContain(`usage: vellum ${command} <spec>`);
       }
     });
 
@@ -483,9 +715,11 @@ describe.skipIf(!SSH)("vellum CLI against a temp repository", () => {
     it("lists in help only commands that exist, and names the ones that do not", async () => {
       const result = await fx.cli(["--help"]);
       expect(result.status).toBe(0);
-      expect(result.stdout).not.toMatch(/^\s+(adopt|sync)\b/m);
+      expect(result.stdout).not.toMatch(/^\s+sync\b/m);
       expect(result.stdout).toMatch(/^\s+check \[spec\]/m);
-      expect(result.stdout).toContain("Not implemented in this version (exit 2): adopt, sync.");
+      expect(result.stdout).toMatch(/^\s+adopt <spec>/m);
+      expect(result.stdout).toMatch(/^\s+stamp <spec>/m);
+      expect(result.stdout).toContain("Not implemented in this version (exit 2): sync.");
     });
   });
 });

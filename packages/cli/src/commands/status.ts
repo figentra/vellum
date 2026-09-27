@@ -51,9 +51,15 @@ export async function status(
     }
     const human = result.entries.map((entry) =>
       entry.kind === "legacy"
-        ? `Spec: ${entry.slug}\nLegacy spec (not under Vellum management), stage: ${entry.stage}`
+        ? `Spec: ${entry.slug}\nLegacy spec (not under Vellum management), stage: ${entry.stage}` +
+          (entry.next !== null
+            ? `\nIts artifacts have no Lifecycle Frontmatter. Adopt it: ${entry.next}`
+            : entry.adoptionProblem !== null
+              ? `\nIt cannot be adopted yet: ${entry.adoptionProblem}`
+              : "")
         : entry.kind === "unreadable"
-          ? `Spec: ${entry.slug}\nINCONCLUSIVE — could not read:\n${entry.problems.map((p) => `  ${p}`).join("\n")}`
+          ? `Spec: ${entry.slug}\nINCONCLUSIVE — could not read:\n${entry.problems.map((p) => `  ${p}`).join("\n")}` +
+            (entry.next === null ? "" : `\nRepair the frontmatter: ${entry.next}`)
           : formatStatusHuman(entry.report),
     );
     ctx.stdout.write(

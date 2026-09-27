@@ -11,6 +11,7 @@
 import { execFileSync } from "node:child_process";
 import {
   existsSync,
+  mkdirSync,
   readdirSync,
   readFileSync,
   renameSync,
@@ -432,6 +433,21 @@ export function setTaskMarkers(
   writeFileSync(temp, lines.join("\n"));
   renameSync(temp, tasksPath);
   return previous;
+}
+
+/**
+ * Replace a spec file's content atomically (temp file in the same directory,
+ * then rename), so a reader never sees half an artifact.
+ */
+export function writeFileAtomically(path: string, text: string): void {
+  const temp = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+  writeFileSync(temp, text);
+  renameSync(temp, path);
+}
+
+/** Create the Machine Folder that holds `ledgerPath`, if it does not exist. */
+export function ensureMachineFolder(ledgerPath: string): void {
+  mkdirSync(dirname(ledgerPath), { recursive: true });
 }
 
 /** The value of `git config <key>` in the repository, or null when unset. */

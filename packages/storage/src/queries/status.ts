@@ -3,7 +3,7 @@
  */
 
 import { EXIT_STATUS, type ExitStatus } from "@vellum/protocol";
-import { computeStatusReport, detectLegacyStage } from "@vellum/engine";
+import { computeStatusReport, detectLegacyStage, planAdoption } from "@vellum/engine";
 import {
   loadSpec,
   specRiskClass,
@@ -27,11 +27,17 @@ export type StatusEntry =
       readonly kind: "legacy";
       readonly slug: string;
       readonly stage: ReturnType<typeof detectLegacyStage>;
+      /** The command that adopts it; null when it has no artifact or adoption would be refused */
+      readonly next: string | null;
+      /** Why adoption would be refused, when it would be */
+      readonly adoptionProblem: string | null;
     }
   | {
       readonly kind: "unreadable";
       readonly slug: string;
       readonly problems: readonly string[];
+      /** The command that repairs unreadable frontmatter, when that is the problem */
+      readonly next: string | null;
     }
   | { readonly kind: "report"; readonly report: StatusReport };
 
@@ -61,10 +67,22 @@ export function queryStatus(
   for (const ref of specs) {
     const spec = loadSpec(ref);
     if (isLegacy(spec)) {
+      // A dry run of the adoption plan: nothing is written here.
+      const plan =
+        spec.texts.size === 0
+          ? null
+          : planAdoption({
+              spec: ref.slug,
+              texts: spec.texts,
+              ledgerEntries: spec.ledger.length,
+              now: new Date().toISOString(),
+            });
       entries.push({
         kind: "legacy",
         slug: ref.slug,
         stage: detectLegacyStage(spec.entries),
+        next: plan?.kind === "plan" ? `npx vellum adopt ${ref.slug}` : null,
+        adoptionProblem: plan?.kind === "refused" ? plan.message : null,
       });
       continue;
     }
@@ -73,7 +91,16 @@ export function queryStatus(
       ...(spec.ledgerProblem ? [spec.ledgerProblem] : []),
     ];
     if (problems.length > 0) {
-      entries.push({ kind: "unreadable", slug: ref.slug, problems });
+      const repair = spec.ledger.length > 0 ? "stamp" : "adopt";
+      entries.push({
+        kind: "unreadable",
+        slug: ref.slug,
+        problems,
+        next:
+          spec.artifactProblems.length > 0 && spec.ledgerProblem === null
+            ? `npx vellum ${repair} ${ref.slug}`
+            : null,
+      });
       continue;
     }
     const git = gitContext(repo.root, spec, policy);
@@ -107,12 +134,19 @@ export function statusDocument(query: StatusQuery): {
     policy: query.policy.kind,
     specs: query.entries.map((entry) =>
       entry.kind === "legacy"
-        ? { specId: entry.slug, legacy: true, legacyStage: entry.stage }
+        ? {
+            specId: entry.slug,
+            legacy: true,
+            legacyStage: entry.stage,
+            next: entry.next,
+            ...(entry.adoptionProblem === null ? {} : { adoptionProblem: entry.adoptionProblem }),
+          }
         : entry.kind === "unreadable"
           ? {
               specId: entry.slug,
               result: "INCONCLUSIVE",
               problems: entry.problems,
+              next: entry.next,
             }
           : entry.report,
     ),
