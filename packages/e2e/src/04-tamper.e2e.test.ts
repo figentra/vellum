@@ -103,8 +103,12 @@ describe("scenario 4: tampering", () => {
     expect(repo.vellum(["lint", SLUG]).status).toBe(0);
     const report = verify(repo);
     expect(report.status).toBe(1);
+    // Criterion 8.2: the finding names the artifact and both checksums.
+    const approved = repo.ledger().find((e) => e.kind === "approval" && e.artifact === "requirements.md")!;
+    const current = repo.frontmatter("requirements").checksum;
+    expect(approved.artifact_checksum).not.toBe(current);
     expect(report.json.specs[0]!.findings.map((f) => `${f.rule}: ${f.message}`)).toEqual([
-      "APPROVAL_INVALID: Approval invalid: CHECKSUM_MISMATCH",
+      `APPROVAL_INVALID: Approval invalid: CHECKSUM_MISMATCH — requirements.md was approved at ${String(approved.artifact_checksum)} and is now ${current}`,
       "APPROVAL_REQUIRED: requirements.md has 0 of the 1 valid approvals the policy requires",
     ]);
     const status = JSON.parse(repo.vellum(["status", SLUG, "--json"]).stdout).specs[0];

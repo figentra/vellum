@@ -145,6 +145,14 @@ describe("validateApproval", () => {
     expect(result.errors[0]).toMatch(/not present/);
   });
 
+  it("does not count an approval of an older checksum as an error once the current text is re-approved", () => {
+    const older = { ...approval, artifactChecksum: parseChecksum("c".repeat(64)) as Checksum };
+    expect(validateApprovals([older, approval], context())).toEqual({ valid: true, errors: [] });
+    const alone = validateApprovals([older], context());
+    expect(alone.valid).toBe(false);
+    expect(alone.errors).toHaveLength(1);
+  });
+
   it("aggregates errors across approvals", () => {
     const result = validateApprovals([approval, approval], context({ policy: null }));
     expect(result.errors).toHaveLength(2);

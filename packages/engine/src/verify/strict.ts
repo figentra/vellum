@@ -26,7 +26,7 @@ import {
 } from "../approval/records.js";
 import { computeCoverage } from "../coverage/validate.js";
 import { checkLedgerIntegrity } from "../ledger/integrity.js";
-import { hasRequiredApprovals, verifyApproval } from "../approval/verify.js";
+import { evaluateApprovals } from "../approval/evaluate.js";
 import { createFinding } from "../validate/finding.js";
 import { requiredTasks as requiredTasksOf } from "../lifecycle/required-tasks.js";
 
@@ -44,8 +44,13 @@ export interface StrictVerificationResult {
   readonly tasks: { readonly satisfied: number; readonly total: number };
   /** Evidence entries */
   readonly evidence: { readonly satisfied: number; readonly total: number };
-  /** Approvals valid */
+  /**
+   * Approvals valid, of the approvals that count or are findings: an approval
+   * superseded by a re-approval of the current text is not in `total`.
+   */
   readonly approvals: { readonly satisfied: number; readonly total: number };
+  /** Approvals bound to an older checksum whose artifact was approved again: history */
+  readonly supersededApprovals: number;
   /** All findings */
   readonly findings: readonly Finding[];
 }
@@ -111,70 +116,75 @@ export function strictVerify(
     }
   }
 
-  // Verify each approval against the current artifact checksum (criterion 12.5)
+  // Verify each approval against the current artifact checksums (criteria
+  // 12.5, 8.2). An approval bound to an older checksum is history once the
+  // current text is approved again; see approval/evaluate.
   const records = resolveApprovalSignals(approvalRecords(ledger), options.approvalCommits);
   let validApprovals = 0;
+  let supersededApprovals = 0;
   for (const { record, problem } of records) {
-    if (problem !== undefined) {
-      findings.push(
-        createFinding(
-          ".sdlc/ledger.jsonl",
-          record.entryId,
-          "APPROVAL_INVALID",
-          `Approval invalid: ${problem}`,
-        ),
-      );
-      continue;
-    }
-    const current = byKind.get(record.artifact);
-    if (!current) {
-      findings.push(
-        createFinding(
-          ".sdlc/ledger.jsonl",
-          record.entryId,
-          "APPROVAL_INVALID",
-          `Approval invalid: approved artifact ${record.artifact}.md is not present`,
-        ),
-      );
-      continue;
-    }
-
-    const result = verifyApproval(
-      record,
-      policy,
-      riskClass,
-      gitCommits,
-      computeChecksum(current.body),
+    if (problem === undefined) continue;
+    findings.push(
+      createFinding(
+        ".sdlc/ledger.jsonl",
+        record.entryId,
+        "APPROVAL_INVALID",
+        `Approval invalid: ${problem}`,
+      ),
     );
-    if (result.valid) {
-      validApprovals++;
-    } else {
-      findings.push(
-        createFinding(
-          ".sdlc/ledger.jsonl",
-          record.entryId,
-          "APPROVAL_INVALID",
-          `Approval invalid: ${result.reason}`,
-        ),
-      );
+  }
+  const signalled = records.flatMap((resolved) =>
+    resolved.problem === undefined ? [resolved.record] : [],
+  );
+  const currentChecksums = new Map(
+    [...byKind].map(([kind, current]) => [kind, computeChecksum(current.body)] as const),
+  );
+  const evaluation = evaluateApprovals(signalled, policy, riskClass, gitCommits, currentChecksums);
+  for (const { record, standing } of evaluation.records) {
+    switch (standing.kind) {
+      case "valid":
+        validApprovals++;
+        break;
+      case "superseded":
+        supersededApprovals++;
+        break;
+      case "invalidated":
+        findings.push(
+          createFinding(
+            ".sdlc/ledger.jsonl",
+            record.entryId,
+            "APPROVAL_INVALID",
+            `Approval invalid: CHECKSUM_MISMATCH — ${record.artifact}.md was approved at ${standing.approvedChecksum} and is now ${standing.currentChecksum}`,
+          ),
+        );
+        break;
+      case "rejected":
+        findings.push(
+          createFinding(
+            ".sdlc/ledger.jsonl",
+            record.entryId,
+            "APPROVAL_INVALID",
+            `Approval invalid: ${standing.reason}`,
+          ),
+        );
+        break;
+      case "artifact-missing":
+        findings.push(
+          createFinding(
+            ".sdlc/ledger.jsonl",
+            record.entryId,
+            "APPROVAL_INVALID",
+            `Approval invalid: approved artifact ${record.artifact}.md is not present`,
+          ),
+        );
+        break;
     }
   }
 
   // Each present artifact holds the approvals the policy requires (criterion
   // 12.5): checking only the approvals that were recorded would pass a spec
   // that recorded none.
-  const validRecords = records.flatMap((resolved) =>
-    resolved.problem === undefined ? [resolved.record] : [],
-  );
-  for (const [kind, current] of byKind) {
-    const required = hasRequiredApprovals(
-      validRecords,
-      policy,
-      riskClass,
-      kind,
-      computeChecksum(current.body),
-      gitCommits,
-    );
+  for (const [kind, required] of evaluation.artifacts) {
     if (!required.met) {
       findings.push(
         createFinding(
@@ -295,7 +305,7 @@ export function strictVerify(
 
   const tasks = { satisfied: verifiedTasks, total: requiredTasks.length };
   const evidence = { satisfied: validEvidence, total: totalEvidence };
-  const approvals = { satisfied: validApprovals, total: records.length };
+  const approvals = { satisfied: validApprovals, total: records.length - supersededApprovals };
 
   // Overall PASS if all checks pass (criterion 12.1)
   const result: CheckResult = findings.length === 0 ? "PASS" : "FAIL";
@@ -307,6 +317,7 @@ export function strictVerify(
     tasks,
     evidence,
     approvals,
+    supersededApprovals,
     findings: Object.freeze(findings),
   };
 }
@@ -339,6 +350,7 @@ export function formatVerificationJson(result: StrictVerificationResult): string
       tasks: result.tasks,
       evidence: result.evidence,
       approvals: result.approvals,
+      supersededApprovals: result.supersededApprovals,
       findings: result.findings,
     },
     null,
@@ -360,7 +372,12 @@ export function formatVerificationHuman(result: StrictVerificationResult): strin
   lines.push(`  Properties: ${result.properties.satisfied}/${result.properties.total}`);
   lines.push(`  Tasks: ${result.tasks.satisfied}/${result.tasks.total}`);
   lines.push(`  Evidence: ${result.evidence.satisfied}/${result.evidence.total}`);
-  lines.push(`  Approvals: ${result.approvals.satisfied}/${result.approvals.total}`);
+  lines.push(
+    `  Approvals: ${result.approvals.satisfied}/${result.approvals.total}` +
+      (result.supersededApprovals > 0
+        ? ` (${result.supersededApprovals} superseded by re-approval, not counted)`
+        : ""),
+  );
 
   if (result.findings.length > 0) {
     lines.push(``);

@@ -25,6 +25,7 @@ import {
   verifyApproval,
   type ApprovalRejectionReason,
 } from "../../approval/verify.js";
+import { evaluateApprovals } from "../../approval/evaluate.js";
 
 /**
  * Approval validation result.
@@ -102,6 +103,10 @@ export function isApprovalStale(approval: ApprovalPayload, currentChecksum: stri
 /**
  * Validate approvals for a set of artifacts.
  *
+ * The set is judged as strict verification judges a ledger (see
+ * approval/evaluate): an approval bound to an older checksum is history, not
+ * an error, once the artifact's current text is approved again.
+ *
  * @param approvals - Approvals to validate
  * @param context - Policy, risk class, signal commits and current checksums
  * @returns Validation result for all approvals
@@ -112,9 +117,16 @@ export function validateApprovals(
 ): ApprovalValidationResult {
   const errors: string[] = [];
 
-  for (const approval of approvals) {
-    const result = validateApproval(approval, context);
-    errors.push(...result.errors);
+  const evaluation = evaluateApprovals(
+    approvals,
+    context.policy,
+    context.riskClass,
+    context.commits,
+    context.currentChecksums,
+  );
+  for (const { record, standing } of evaluation.records) {
+    if (standing.kind === "valid" || standing.kind === "superseded") continue;
+    errors.push(...validateApproval(record, context).errors);
   }
 
   return {

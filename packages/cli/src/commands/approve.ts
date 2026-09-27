@@ -36,7 +36,9 @@ when you commit it yourself: a commit that changes only the spec's
 .sdlc/ledger.jsonl and .sdlc/ledger.head.json, signed (git commit -S) with a
 key the Approval Policy (.sdlc/policy.json) lists for your identity.
 'vellum verify' checks exactly that, and rejects the approval otherwise —
-including when the artifact changes after you approved it.
+including when the artifact changes after you approved it. Approving the
+changed artifact again (and committing that, signed) replaces it: the old
+record is then history, neither counted nor reported.
 
 This command refuses to run outside an interactive terminal, in CI, or in
 a detected assistant session. That refusal is a courtesy, not the
@@ -83,7 +85,9 @@ export async function approve(args: ApproveArgs, ctx: CliContext): Promise<numbe
   if (typeof repo === "number") return repo;
   const match = resolveSpec(repo.root, args.spec);
   if (match.kind !== "one") {
-    ctx.stderr.write(`vellum approve: '${args.spec}' matches ${match.kind === "none" ? "no spec" : "more than one spec"}\n`);
+    ctx.stderr.write(
+      `vellum approve: '${args.spec}' matches ${match.kind === "none" ? "no spec" : "more than one spec"}\n`,
+    );
     return EXIT_STATUS.INCONCLUSIVE;
   }
 
@@ -127,13 +131,17 @@ export async function approve(args: ApproveArgs, ctx: CliContext): Promise<numbe
 
   const spec = loadSpec(match.spec);
   if (isLegacy(spec)) {
-    ctx.stderr.write(`vellum approve: refused — ${match.spec.slug} is a legacy spec (not under Vellum management)\n`);
+    ctx.stderr.write(
+      `vellum approve: refused — ${match.spec.slug} is a legacy spec (not under Vellum management)\n`,
+    );
     return EXIT_STATUS.FAILURE;
   }
   const artifact = spec.artifacts.find((a) => a.kind === kind);
   if (!artifact) {
     const problem = spec.artifactProblems.find((p) => p.kind === kind);
-    ctx.stderr.write(`vellum approve: refused — ${problem?.message ?? `${kind}.md does not exist`}\n`);
+    ctx.stderr.write(
+      `vellum approve: refused — ${problem?.message ?? `${kind}.md does not exist`}\n`,
+    );
     return EXIT_STATUS.FAILURE;
   }
   if (spec.ledgerProblem !== null) {

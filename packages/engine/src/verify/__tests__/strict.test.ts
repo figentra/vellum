@@ -5,6 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { LedgerEntry } from "@vellum/protocol";
+import { computeChecksum } from "@vellum/protocol";
 import { strictVerify } from "../strict.js";
 import {
   allArtifacts,
@@ -65,9 +66,68 @@ describe("strictVerify", () => {
     expect(result.result).toBe("FAIL");
     expect(result.approvals).toEqual({ satisfied: 2, total: 3 });
     expect(result.findings.map((f) => f.message)).toEqual([
-      "Approval invalid: CHECKSUM_MISMATCH",
+      `Approval invalid: CHECKSUM_MISMATCH — requirements.md was approved at ${computeChecksum(REQUIREMENTS)} and is now ${computeChecksum(edited)}`,
       "requirements.md has 0 of the 1 valid approvals the policy requires",
     ]);
+  });
+
+  it("passes when an amended artifact is approved again: the old approval is history", () => {
+    const edited = REQUIREMENTS.replace("A folder", "A file");
+    const ledger = chain([...verifiedLedger(), approvalEntry(0, "requirements", edited)]);
+    const result = strictVerify(
+      allArtifacts({ requirements: edited }),
+      ledger,
+      policy,
+      commits,
+      "standard",
+    );
+
+    expect(result.findings).toEqual([]);
+    expect(result.result).toBe("PASS");
+    expect(result.approvals).toEqual({ satisfied: 3, total: 3 });
+    expect(result.supersededApprovals).toBe(1);
+  });
+
+  it("names the artifact and both checksums of an approval no re-approval replaced", () => {
+    const edited = REQUIREMENTS.replace("A folder", "A file");
+    const result = strictVerify(
+      allArtifacts({ requirements: edited }),
+      verifiedLedger(),
+      policy,
+      commits,
+      "standard",
+    );
+
+    expect(result.supersededApprovals).toBe(0);
+    expect(result.findings[0]!.message).toBe(
+      `Approval invalid: CHECKSUM_MISMATCH — requirements.md was approved at ${computeChecksum(REQUIREMENTS)} and is now ${computeChecksum(edited)}`,
+    );
+  });
+
+  it("still reports an old approval that was never validly signed, re-approval or not", () => {
+    const edited = REQUIREMENTS.replace("A folder", "A file");
+    const forged = {
+      ...approvalEntry(0, "requirements", REQUIREMENTS),
+      approval_signal: { commit: "f".repeat(40), message_prefix: "approve:" },
+    } as unknown as LedgerEntry;
+    const ledger = chain([
+      forged,
+      ...verifiedLedger(),
+      approvalEntry(0, "requirements", edited),
+    ]);
+    const result = strictVerify(
+      allArtifacts({ requirements: edited }),
+      ledger,
+      policy,
+      commits,
+      "standard",
+    );
+
+    expect(result.result).toBe("FAIL");
+    expect(result.findings.map((f) => `${f.line} ${f.message}`)).toEqual([
+      "1 Approval invalid: INVALID_SIGNAL",
+    ]);
+    expect(result.supersededApprovals).toBe(1);
   });
 
   it("reports missing artifacts and approvals of them", () => {

@@ -8,7 +8,7 @@
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { approveAll, completeAll, verifiedSpec } from "./support/lifecycle.js";
+import { approve, approveAll, completeAll } from "./support/lifecycle.js";
 import { TestRepo } from "./support/repo.js";
 import { DESIGN, REQUIREMENTS, SLUG, TASKS } from "./support/spec.js";
 
@@ -18,6 +18,8 @@ interface VerifyJson {
   result: string;
   specs: Array<{
     properties: { satisfied: number; total: number };
+    approvals: { satisfied: number; total: number };
+    supersededApprovals: number;
     findings: Array<{ rule: string; message: string }>;
   }>;
 }
@@ -64,17 +66,31 @@ describe("scenario 9: property citation", () => {
     expect(repo.vellum(["lint", SLUG, "--type=tasks"]).status).toBe(0);
   });
 
-  it("the same spec with Property 3 cited passes verify, counting all three", () => {
-    const cited = verifiedSpec();
-    try {
-      const result = cited.vellum(["verify", SLUG, "--strict", "--json"]);
-      const json = JSON.parse(result.stdout) as VerifyJson;
-      expect(json.specs[0]!.findings).toEqual([]);
-      expect(json.specs[0]!.properties).toEqual({ satisfied: 3, total: 3 });
-      expect(json.result).toBe("PASS");
-      expect(result.status).toBe(0);
-    } finally {
-      cited.dispose();
-    }
+  it("the same spec, amended to cite Property 3 and approved again, passes verify", () => {
+    // Amend the approved plan in place: the old tasks approval no longer
+    // binds the current text, so verify fails until the human re-approves.
+    const amended = body().replace(BYE_TEST, `${BYE_TEST} _Properties: 3_`);
+    expect(amended).not.toBe(body());
+    repo.rewriteBody("tasks", amended);
+    repo.commitAll(`docs: ${SLUG} plan cites Property 3`);
+
+    const stale = verify();
+    expect(stale.status).toBe(1);
+    expect(stale.json.specs[0]!.findings.map((f) => f.rule)).toEqual([
+      "APPROVAL_INVALID",
+      "APPROVAL_REQUIRED",
+    ]);
+
+    // The human approves the amended plan and commits the record, signed.
+    approve(repo, "tasks");
+
+    const { status, json } = verify();
+    expect(json.specs[0]!.findings).toEqual([]);
+    expect(json.specs[0]!.properties).toEqual({ satisfied: 3, total: 3 });
+    // One approval per document counts; the first tasks approval is history.
+    expect(json.specs[0]!.approvals).toEqual({ satisfied: 3, total: 3 });
+    expect(json.specs[0]!.supersededApprovals).toBe(1);
+    expect(json.result).toBe("PASS");
+    expect(status).toBe(0);
   });
 });

@@ -75,6 +75,14 @@ export {
 } from "./approval/verify.js";
 
 export {
+  evaluateApprovals,
+  type ApprovalStanding,
+  type ApprovalEvaluation,
+  type EvaluatedApproval,
+  type EvaluatedApprovalInput,
+} from "./approval/evaluate.js";
+
+export {
   cascadeInvalidation,
   wouldCascadeToDesign,
   wouldCascadeToPlan,
