@@ -62,7 +62,7 @@ Property 1: Test property
 - [ ] 1.1 Implement feature (spec-executor)
 _Requirements: 1.1_
 
-- [ ] 1.2 Write tests (spec-executor)
+- [ ] 1.2 Write tests (spec-executor) <!-- properties: P1 -->
 _Requirements: 1.1_
 
 - [ ] 1.3 Write documentation (spec-executor)
