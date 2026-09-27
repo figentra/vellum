@@ -8,8 +8,9 @@ import { readMethod } from "./method.ts";
 import { writeTree } from "./write.ts";
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The plugin ships the method for one @figentra/vellum release, so it carries that version.
 const { version } = JSON.parse(
-  readFileSync(join(packageRoot, "package.json"), "utf8"),
+  readFileSync(join(packageRoot, "..", "vellum", "package.json"), "utf8"),
 ) as {
   version: string;
 };

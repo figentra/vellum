@@ -68,7 +68,9 @@ describe("plugin-kiro build", () => {
   it("references the Vellum MCP server in mcp.json", () => {
     const mcp = JSON.parse(files.get("mcp.json") as string);
     expect(Object.keys(mcp.mcpServers)).toEqual(["vellum"]);
-    expect(mcp.mcpServers.vellum.args).toContain("vellum-mcp");
+    expect(mcp.mcpServers.vellum.command).toBe("npx");
+    // Runs the project's installed bin only: never downloads, so no registry token is needed.
+    expect(mcp.mcpServers.vellum.args).toEqual(["--no", "vellum-mcp"]);
   });
 
   it("steers Kiro to record task completion through vellum task complete", () => {

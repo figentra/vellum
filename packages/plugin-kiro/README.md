@@ -24,8 +24,7 @@ through `vellum task complete <spec> <id> --command=…`, which runs the command
 - The `dev.kiro/` layout (steering and agents under a `.kiro/`-shaped directory) and the agents'
   `skill://.kiro/skills/<name>/SKILL.md` resource URIs assume the Power's skills end up in the
   workspace's `.kiro/skills/`. Unverified.
-- `mcp.json` starts the server with `npx -y --package=@figentra/vellum vellum-mcp`.
-  `@figentra/vellum` is published only to the private registry `https://npm.figentra.com/`,
-  so `npx` resolves it only when the user's `~/.npmrc` routes the `@figentra` scope there and
-  authenticates (see the root README, "Installing"). Until the first release tag is pushed the
-  package is unpublished and the command fails.
+- `mcp.json` starts the server with `npx --no vellum-mcp`: the `vellum-mcp` bin of the
+  project's own `@figentra/vellum` dev dependency. It never downloads, so no registry token
+  is needed at runtime; without the dev dependency the server fails to start, naming the
+  missing package. Install `@figentra/vellum` in the project first (root README, "Installing").

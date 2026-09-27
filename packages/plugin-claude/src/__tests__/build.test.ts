@@ -71,7 +71,8 @@ describe("plugin-claude build", () => {
     const mcp = JSON.parse(files.get(".mcp.json") as string);
     expect(Object.keys(mcp.mcpServers)).toEqual(["vellum"]);
     expect(mcp.mcpServers.vellum.command).toBe("npx");
-    expect(mcp.mcpServers.vellum.args).toContain("vellum-mcp");
+    // Runs the project's installed bin only: never downloads, so no registry token is needed.
+    expect(mcp.mcpServers.vellum.args).toEqual(["--no", "vellum-mcp"]);
   });
 
   it("ships every method skill verbatim with valid skill frontmatter", () => {

@@ -14,12 +14,14 @@ import type { Method } from "./method.ts";
 export const GENERATOR = "@vellum/plugin-claude";
 
 /**
- * How the plugin starts the Vellum MCP server: the `vellum-mcp` bin of @figentra/vellum
- * (packages/vellum). It resolves only once that package is published; see the README.
+ * How the plugin starts the Vellum MCP server: the `vellum-mcp` bin of the project's own
+ * @figentra/vellum dev dependency. `npx --no` runs only an already-installed bin and never
+ * downloads, so starting the server needs no registry access or token; the skills call the
+ * same local `vellum` CLI. Without the dev dependency, npx fails naming the missing package.
  */
 export const MCP_SERVER = {
   command: "npx",
-  args: ["-y", "--package=@figentra/vellum", "vellum-mcp"],
+  args: ["--no", "vellum-mcp"],
 } as const;
 
 export interface BuildOptions {
