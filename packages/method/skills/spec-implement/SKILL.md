@@ -95,18 +95,18 @@ sub-task). If no line matches, stop and report: "Task <id> does not exist in
 
 **Parent task.** If the matched line has sub-tasks beneath it in the file,
 refuse: parent tasks are containers, never units of work. Report which
-sub-tasks exist — one of those is the actual unit to implement. `vellum task
-start` refuses a parent the same way, and `vellum verify` requires no evidence
+sub-tasks exist — one of those is the actual unit to implement. `npx vellum task
+start` refuses a parent the same way, and `npx vellum verify` requires no evidence
 for one: a parent is complete when its required sub-tasks are.
 
 **Checkpoint.** If the matched line reads `Checkpoint: …`, refuse as a unit of
 implementation. Instead record the workspace-wide verification through Vellum,
-exactly as Steps 3 and 6 do for a task — `vellum task start <NNN> <id>`, then
-`vellum task complete <NNN> <id> --command="pnpm verify"` (or the narrowest
+exactly as Steps 3 and 6 do for a task — `npx vellum task start <NNN> <id>`, then
+`npx vellum task complete <NNN> <id> --command="pnpm verify"` (or the narrowest
 `turbo run` that covers everything built so far) — and report the result.
 Vellum runs the command, records the Evidence Entry and sets `[x]` only if the
 run is green; do not set it yourself. A checkpoint is a Required Task:
-`vellum verify` fails with `TASK_NOT_VERIFIED` for one with no passing
+`npx vellum verify` fails with `TASK_NOT_VERIFIED` for one with no passing
 evidence. It is the only verification in the run that crosses package
 boundaries, so a green one is the claim that the tasks before it work
 together; do not narrow the command to make it pass. If the run is red, that
@@ -136,7 +136,7 @@ is the plan author's signal that the spec ships without it.
 Start the task through Vellum first. The marker is not the record; the task binding is:
 
 ```bash
-vellum task start <NNN> <task-id>
+npx vellum task start <NNN> <task-id>
 ```
 
 If it refuses (a failed pre-execution check, an unapproved plan), stop and report its
@@ -226,7 +226,7 @@ records its real exit status, timestamps, duration and HEAD commit as evidence, 
 decides the marker — you never report an exit status:
 
 ```bash
-vellum task complete <NNN> <task-id> --command="<the verification command>"
+npx vellum task complete <NNN> <task-id> --command="<the verification command>"
 ```
 
 It sets the task's marker to `[x]` only when the command exits 0 and the working tree matches
@@ -237,10 +237,10 @@ recorded verification failed goes to Step 7, not here. Then run the linter again
 `tasks.md`:
 
 ```bash
-vellum lint <NNN> --type=tasks --json
+npx vellum lint <NNN> --type=tasks --json
 ```
 
-This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `npx vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 If it reports a diagnostic on the line you just edited, fix your edit (not the
 rest of the file) before finishing — a state store that fails its own linter
@@ -250,10 +250,10 @@ is not actually done.
 creating the section at the end of the file if it does not exist. `[x]` on its
 own is unfalsifiable — the executor writes the character and the orchestrator
 "confirms" the work by reading the character the executor just wrote. The log
-is the row a reader can check it against. `vellum lint` does not check Execution Log rows in this version (the
+is the row a reader can check it against. `npx vellum lint` does not check Execution Log rows in this version (the
 `EXECUTION_LOG_*` rule identifiers have no implementation). The check that can
-contradict a `[x]` is `vellum verify`: it requires, for every required task, an
-Evidence Entry the engine itself recorded when `vellum task complete` ran the
+contradict a `[x]` is `npx vellum verify`: it requires, for every required task, an
+Evidence Entry the engine itself recorded when `npx vellum task complete` ran the
 verification command:
 
 ```

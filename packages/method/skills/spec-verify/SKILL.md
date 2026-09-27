@@ -34,10 +34,10 @@ Also run the mechanical linter first, since a malformed `tasks.md` makes every
 diagnostic below unreliable:
 
 ```bash
-vellum lint <NNN> --type=tasks --json
+npx vellum lint <NNN> --type=tasks --json
 ```
 
-This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `npx vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 Include its output in your report as a preface, but do not let a lint failure
 stop the traceability audit — report both.
@@ -83,7 +83,7 @@ task's trailer references it.
 
 For every `Property N` in the design inventory, look for a task that covers
 it: a task (commonly, but not necessarily, marked `*`) whose `_Properties:_`
-trailer names `N` — the citation `vellum verify` itself checks, reporting
+trailer names `N` — the citation `npx vellum verify` itself checks, reporting
 `PROPERTY_NOT_CITED` when no task carries one — **AND whose checkbox is `[x]`**.
 A plan written before that trailer existed has none; for it, fall back to a task
 whose `_Requirements:_` trailer includes at least one of that Property's own

@@ -50,7 +50,7 @@ finding derived from a rule this repository does not have is not a finding.
 
 1. **Classify.** Name the work type, the members touched, and the risk class (critical: money,
    credentials, personal data, permissions, data loss or a public contract; standard; low).
-2. **Find the state.** `vellum status --json` for every spec's documents, recorded and effective state; `git status --porcelain`
+2. **Find the state.** `npx vellum status --json` for every spec's documents, recorded and effective state; `git status --porcelain`
    and `git log --oneline -n 20` for what is in flight. Another session may share this tree --
    an unexplained change is a question to raise, not a conclusion to act on.
 3. **Check each gate has a subject.** Before routing to an agent, confirm the repository holds
@@ -60,7 +60,7 @@ finding derived from a rule this repository does not have is not a finding.
    whose subject is absent and say which and why.
 4. **Route in gate order.** Each gate needs the one before it to pass. A low-risk change may
    take a requirements-only quick spec; a critical one never skips a gate.
-   1. Requirements -- `spec-author`, then human approval (`vellum approve`).
+   1. Requirements -- `spec-author`, then human approval (`npx vellum approve`).
    2. Design -- `spec-author`; `architecture-guardian` if it adds a member, crosses a tier or
       touches a recorded decision; human approval.
    3. Plan -- `spec-planner`; human approval.
@@ -69,8 +69,8 @@ finding derived from a rule this repository does not have is not a finding.
    6. Review -- `code-reviewer` always, plus each specialist whose subject the change touches.
    7. Release -- `release-operations`.
 5. **Judge a gate by its evidence.** A task is done when its checkbox is `[x]` _and_ its
-   `## Execution Log` row exists, and `vellum verify` passes it -- verify requires the Evidence
-   Entry `vellum task complete` recorded; `vellum lint` does not check Execution Log rows. A suite is green
+   `## Execution Log` row exists, and `npx vellum verify` passes it -- verify requires the Evidence
+   Entry `npx vellum task complete` recorded; `npx vellum lint` does not check Execution Log rows. A suite is green
    when the report quotes the command and exit code. The verify gate does not start a service,
    reach a vault or run the CI image; do not report those as covered by it.
 6. **Report**, naming the next agent and what it needs.
@@ -79,7 +79,7 @@ Never route around a blocking verdict; if the rule behind it is wrong, the fix i
 superseding it. Ceremony is proportional to risk: a small change touching one member is routed
 directly.
 
-Bash is for read-only commands only: `vellum status`, `vellum lint`, `git status`, `git log`,
+Bash is for read-only commands only: `npx vellum status`, `npx vellum lint`, `git status`, `git log`,
 `git diff`. Never a build, install, format, stage or commit.
 
 ## Blocks when

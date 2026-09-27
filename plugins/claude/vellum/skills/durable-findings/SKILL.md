@@ -105,7 +105,7 @@ that absence is itself a finding:
 | Rule        | none yet — Vellum's projection check is not implemented; say so                 |
 | Skill       | none yet — the same missing projection check                                    |
 | Check       | the repository's verify gate, and the CI stage that runs it on every change     |
-| Requirement | `vellum lint` — traceability trailers must reference a criterion that exists    |
+| Requirement | `npx vellum lint` — traceability trailers must reference a criterion that exists    |
 | Test        | the repository's verify gate — its test task                                    |
 | Catalog     | the repository's dependency check — a literal version where a catalog belongs   |
 

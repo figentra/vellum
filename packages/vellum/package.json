@@ -1,6 +1,6 @@
 {
   "name": "@figentra/vellum",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "description": "Vellum — specification lifecycle enforcement: the vellum CLI and the read-only vellum-mcp server, bundled with no runtime dependencies",
   "license": "MIT",

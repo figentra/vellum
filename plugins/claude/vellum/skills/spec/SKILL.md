@@ -27,12 +27,12 @@ files on disk and ask.** This command never guesses and never skips a stage.
 ## Step 1 — read the state, do not infer it
 
 ```bash
-vellum status --json
+npx vellum status --json
 ```
 
 Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
 
-`vellum status --json` prints one document, `{ "command": "status", "policy", "specs": [...] }`,
+`npx vellum status --json` prints one document, `{ "command": "status", "policy", "specs": [...] }`,
 with one entry per directory under `.agents/specs/`. It has no `stage` or `root`
 field; read these instead:
 
@@ -110,7 +110,7 @@ each other, and reports separately how many design Properties have a covering
 test task that was never run. A full board plus a clean audit is not a
 statement that the spec is done, and the question's context must not word it as
 one. After the audit, `spec-converge` is the next question: it checks the code
-against the documents and reads task evidence through `vellum verify`, where a
+against the documents and reads task evidence through `npx vellum verify`, where a
 `[x]` with no recorded evidence is a gap rather than a completion.
 
 For a spec at `requirements` whose `requirements.md` still contains a

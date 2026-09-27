@@ -113,7 +113,7 @@ Go to Step 2 for either mode. Quick mode diverges at Step 5.
 
 **Where specs live.** Vellum reads specs from exactly one place: `.agents/specs/` at
 the root of the git repository that contains the working directory — it finds that
-root from any subdirectory. `vellum status --json` has no `root` field; below,
+root from any subdirectory. `npx vellum status --json` has no `root` field; below,
 `<specs-root>` means `<repository root>/.agents/specs`. Do not write a spec anywhere
 else: a spec in `.claude/specs/` or a root `specs/` is invisible to every `vellum`
 command, and the next invocation opens a duplicate for work that already has one.
@@ -126,7 +126,7 @@ report a permanent conflict and fails the repository's verify gate.
 1. **Read the current state with the stage detector.** Do not `ls` and infer:
 
    ```bash
-   vellum status --json
+   npx vellum status --json
    ```
 
    Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
@@ -427,7 +427,7 @@ change it is the right one.
 `spec-implement`, `spec-run` and `spec-verify` each read `requirements.md`,
 `design.md` and `tasks.md`, and each refuses when one is absent — there is no
 task list to dispatch and no criterion numbering to trace against.
-`vellum status` reports a requirements-only spec as stage `requirements`, whose
+`npx vellum status` reports a requirements-only spec as stage `requirements`, whose
 next step is `spec-design`; there is no quick stage. So recommending the skip is
 recommending that a human or a directly-invoked agent do the work, and you must
 say that in the same breath, not leave the user to discover it when `spec-run`

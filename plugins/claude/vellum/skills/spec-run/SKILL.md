@@ -33,10 +33,10 @@ a valid graph. Do not guess a schedule.
 Run the mechanical linter first:
 
 ```bash
-vellum lint <NNN> --type=tasks --json
+npx vellum lint <NNN> --type=tasks --json
 ```
 
-This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `npx vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 **Any diagnostic meaning the graph cannot be trusted to sequence work blocks
 the run.** That is the rule; the list below is today's instance of it. Stop and
@@ -225,8 +225,8 @@ wave, in order:
    whose checkbox is not `[x]`, dispatch it to `spec-implement` exactly as
    Step 3.3 dispatches a task — one `spec-executor` subagent, one id.
    `spec-implement` Step 2's Checkpoint branch runs the workspace-wide
-   verification through `vellum task complete`, which records the evidence
-   `vellum verify` requires and marks the line only if that run is green. Treat a failed
+   verification through `npx vellum task complete`, which records the evidence
+   `npx vellum verify` requires and marks the line only if that run is green. Treat a failed
    checkpoint exactly as Step 3.5 treats a failed task: the run stops, and the
    next wave does not start.
 
@@ -314,7 +314,7 @@ failure per Step 3.5), report:
    from the current checkbox state with no extra arguments needed.
 8. **The next step, when every wave finished and review did not block:**
    `spec-verify` for traceability, then `spec-converge`, which compares the code
-   with the three documents, counts a task as done only where `vellum verify`
+   with the three documents, counts a task as done only where `npx vellum verify`
    shows recorded evidence for it, and appends a task for every gap it can prove.
    Name both; run neither — this skill's job ends with the report.
 

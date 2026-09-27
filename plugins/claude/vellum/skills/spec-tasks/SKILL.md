@@ -27,7 +27,7 @@ spec engine turns into an unreviewed commit.
    five callers reimplementing directory resolution is exactly how they drift apart:
 
    ```bash
-   vellum status --json
+   npx vellum status --json
    ```
 
    Each entry's `specId` is `<NNN>-<slug>` and the documents it has are the keys of
@@ -123,7 +123,7 @@ write the plan without it.
 Every task line must match:
 
 ```
-`vellum lint` is the authority; it parses by hand rather than with one
+`npx vellum lint` is the authority; it parses by hand rather than with one
 expression, and the id it accepts is:
 
 ```
@@ -156,7 +156,7 @@ heading, or a numbered list for tasks — only `-` list items in this exact shap
 
 A `*` marks the task **optional**: tests, property-based test harnesses, extra
 fixtures, nice-to-haves. It may sit **after the closing bracket** (`- [ ]* 1.3`)
-or **after the task id** (`- [ ] 1.3*`); `vellum lint` accepts both and treats
+or **after the task id** (`- [ ] 1.3*`); `npx vellum lint` accepts both and treats
 them identically. Prefer the second — it is what every example here and in the
 template uses, and it attaches the marker to the thing that is optional.
 
@@ -182,8 +182,8 @@ reported such a file clean.
 - **A leaf that tests a Correctness Property cites it** with a second trailer
   after the first: `_Requirements: 2.1, 2.2_ _Properties: 2_` — the Property's
   number from `design.md`, numbers only. **Every Property must be cited by at
-  least one task.** `vellum verify` fails with `PROPERTY_NOT_CITED` for each
-  Property no task cites, and `vellum lint` reports `TASK_PROPERTY_UNDEFINED`
+  least one task.** `npx vellum verify` fails with `PROPERTY_NOT_CITED` for each
+  Property no task cites, and `npx vellum lint` reports `TASK_PROPERTY_UNDEFINED`
   for a citation of a Property `design.md` does not define.
 - **Every criterion in `requirements.md` must appear in at least one trailer.**
   After drafting, compute the union of all trailers and diff it against your Step 1
@@ -202,7 +202,7 @@ always immediately before a task that builds on a large batch of prior work:
 
 Checkpoints have no sub-tasks, no `*`, no trailer, and no entry in the wave graph.
 A checkpoint is still a Required Task: `spec-implement` records its
-workspace-wide verification through `vellum task complete`, and `vellum verify`
+workspace-wide verification through `npx vellum task complete`, and `npx vellum verify`
 requires that evidence. A parent task needs no evidence of its own — it is
 complete when its required sub-tasks are.
 
@@ -221,14 +221,14 @@ Emit a single fenced ` ```json ` block under `## Task Dependency Graph`, recordi
 ```
 
 That is the whole schema. No `files`, no `dependsOn`, no `optional` — the `*` on the task
-line already carries optionality, and nothing reads the other two. `vellum lint` validates
+line already carries optionality, and nothing reads the other two. `npx vellum lint` validates
 membership, uniqueness, the parent and checkpoint exclusions, and contiguous ids (a `[x]`
 task still listed after it completed is not a finding); `spec-run` needs the wave list and
 nothing more.
 A graph carrying per-task file lists ran to two-thirds of one document and was checked by
 no tool at all.
 
-**Rules 1-3 are verified by `vellum lint`. Rules 4-6 are yours to apply** — they are how you
+**Rules 1-3 are verified by `npx vellum lint`. Rules 4-6 are yours to apply** — they are how you
 *construct* correct waves, and the graph records only the result. Nothing re-checks them
 afterwards, so state in your report that you applied each and what you found.
 

@@ -38,8 +38,8 @@ If more than five ambiguities qualify, ask the five that matter most and report 
 1. **Read the state with the stage detector.** Do not `ls` and infer:
 
    ```bash
-   vellum status --json          # every spec
-   vellum status <NNN> --json    # one, by number
+   npx vellum status --json          # every spec
+   npx vellum status <NNN> --json    # one, by number
    ```
 
    Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
@@ -57,10 +57,10 @@ If more than five ambiguities qualify, ask the five that matter most and report 
 3. **Check for approval before you edit anything.** In the status JSON, read the spec's
    `approvals.requirements` (`current` against `required`). An approval is bound to the
    checksum of `requirements.md` as it was when the human approved it. **Any edit this
-   skill makes changes that checksum, and the approval no longer counts:** `vellum verify`
-   rejects an approval whose artifact changed after it was given, and `vellum task start`
+   skill makes changes that checksum, and the approval no longer counts:** `npx vellum verify`
+   rejects an approval whose artifact changed after it was given, and `npx vellum task start`
    refuses to start a task without valid approvals. A human must then re-approve with
-   `vellum approve <NNN> requirements` and commit the record. You never run that command —
+   `npx vellum approve <NNN> requirements` and commit the record. You never run that command —
    approval is a human act, and an agent that approves has approved nothing.
 
    So when `approvals.requirements.current` is above zero, say this to the user before
@@ -212,10 +212,10 @@ Stop asking when any of these holds:
 Then validate the document:
 
 ```bash
-vellum lint <NNN> --type=requirements --json
+npx vellum lint <NNN> --type=requirements --json
 ```
 
-This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
+This is the same validator the repository's CI runs through `npx vellum lint`, so the skill and the gate cannot disagree about a spec.
 
 Fix a diagnostic your edits caused; report any other one without touching it.
 
@@ -235,7 +235,7 @@ Report:
    this skill again or answer them directly.
 6. **Approval** — if `requirements.md` was approved before this session, state that the
    approval no longer counts and that a human must re-approve it with
-   `vellum approve <NNN> requirements`. Do not soften it into a suggestion.
+   `npx vellum approve <NNN> requirements`. Do not soften it into a suggestion.
 
 Then **ask the user how to proceed**, with `AskUserQuestion`. Offer exactly these options,
 in this order:
@@ -261,4 +261,4 @@ Until the user answers, do not create `design.md` or `tasks.md`.
 - Never create a file in the spec folder, or edit `design.md` or `tasks.md`.
 - Never edit an earlier `## Clarifications` session.
 - Never report a marker count you did not just grep for.
-- Never run `vellum approve`, and never describe an edited, previously approved document as still approved.
+- Never run `npx vellum approve`, and never describe an edited, previously approved document as still approved.

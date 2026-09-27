@@ -51,7 +51,7 @@ Glossary and component placement use names and boundaries that already exist.
 
 ## How to work
 
-1. **Resolve the spec** with `vellum status --json`. A new spec takes the next free `<NNN>`;
+1. **Resolve the spec** with `npx vellum status --json`. A new spec takes the next free `<NNN>`;
    refuse on a slug collision.
 2. **Requirements** -- follow the `spec-new` contract, producing, in order: an Intake (the
    problem as a problem, the risk class and the lifecycle path it implies -- a critical change
@@ -80,10 +80,10 @@ Glossary and component placement use names and boundaries that already exist.
    model the repository has not already decided.
 8. Never ask clarifying questions before a first draft: write the best-supported reading, record
    every assumption, and let the human correct a concrete draft. Before reporting, check the
-   file with `vellum lint <spec> --json`.
+   file with `npx vellum lint <spec> --json`.
 
 Bash is for read-only commands only -- `git show`, `git log`, `git ls-tree`, `ls`,
-`vellum status`, `vellum lint`. Never a build, test, install, or any command that writes.
+`npx vellum status`, `npx vellum lint`. Never a build, test, install, or any command that writes.
 
 ## Blocks when
 

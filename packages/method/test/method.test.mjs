@@ -251,8 +251,8 @@ test("spec-clarify caps a session at five questions and resolves clarification m
   assert.match(clarify, /\[NEEDS CLARIFICATION: /);
   assert.match(clarify, /## Clarifications/);
   // The approval is bound to the checksum; a clarified document needs a human to re-approve it.
-  assert.match(clarify, /`vellum approve <NNN> requirements`/);
-  assert.match(clarify, /Never run `vellum approve`/);
+  assert.match(clarify, /`npx vellum approve <NNN> requirements`/);
+  assert.match(clarify, /Never run `npx vellum approve`/);
   // spec-new is the producer of the marker spec-clarify resolves; spec-design stops on one.
   assert.match(skill("spec-new"), /\[NEEDS CLARIFICATION: /);
   assert.match(skill("spec-design"), /NEEDS CLARIFICATION/);
@@ -269,7 +269,7 @@ test("spec-converge treats [x] without evidence as a gap and never marks a task 
   // Evidence is read through the CLI, with flags the CLI accepts.
   assert.match(converge, /vellum verify <NNN> --strict --json/);
   assert.match(converge, /vellum status <NNN> --json/);
-  assert.match(converge, /`vellum approve <NNN> tasks`/);
+  assert.match(converge, /`npx vellum approve <NNN> tasks`/);
   for (const cls of ["missing", "partial", "contradicts", "unrequested", "unverified completion"])
     assert.match(converge, new RegExp(`\\*\\*${cls}\\*\\*`), cls);
 });
@@ -299,4 +299,18 @@ test("each new skill names the persona agent that lists it", () => {
     const fm = frontmatter(read(join(METHOD, "agents", `${agent}.md`)));
     assert.match(fm.skills, new RegExp(`\\b${name}\\b`), `${agent} does not list ${name}`);
   }
+});
+
+test("skills and agents invoke the CLI through npx, which finds the project's local install", () => {
+  // @figentra/vellum is a project dev dependency, so a bare `vellum` is not on PATH
+  // inside an assistant's shell; `npx vellum` resolves the local bin (or a global one).
+  const bare = /(?<![\w@/.\-])(?<!npx )vellum (?:status|lint|verify|check|doctor|approve|task|trace)\b/;
+  const offenders = [];
+  for (const file of dataFiles().filter((f) => f.endsWith(".md"))) {
+    const text = readFileSync(file, "utf8");
+    text.split("\n").forEach((line, i) => {
+      if (bare.test(line)) offenders.push(`${rel(file)}:${i + 1}: ${line.trim()}`);
+    });
+  }
+  assert.deepEqual(offenders, []);
 });

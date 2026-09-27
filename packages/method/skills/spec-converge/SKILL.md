@@ -26,7 +26,7 @@ documents and its hidden machine folder.
 
 A task line reading `[x]` is a character someone wrote. **A `[x]` task counts as done only
 when the engine has recorded passing evidence for it** — an Evidence Entry written by
-`vellum task complete`, which ran the verification command itself and recorded its real
+`npx vellum task complete`, which ran the verification command itself and recorded its real
 exit status. A `[x]` with no such entry is an **unverified completion**, and it is a gap
 like any other, reported and turned into work.
 
@@ -41,7 +41,7 @@ is there.
 1. **Read the state with the stage detector.** Do not `ls` and infer:
 
    ```bash
-   vellum status <NNN> --json
+   npx vellum status <NNN> --json
    ```
 
    Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.
@@ -56,10 +56,10 @@ is there.
    unreliable:
 
    ```bash
-   vellum lint <NNN> --type=tasks --json
+   npx vellum lint <NNN> --type=tasks --json
    ```
 
-   This is the same validator the repository's CI runs through `vellum lint`, so the skill and the gate cannot disagree about a spec.
+   This is the same validator the repository's CI runs through `npx vellum lint`, so the skill and the gate cannot disagree about a spec.
 
    Include its output in the report. A lint failure does not stop the convergence pass,
    but you append nothing to a `tasks.md` that fails lint for a reason you did not cause —
@@ -72,8 +72,8 @@ is there.
 ## Step 1 — read the evidence through the CLI
 
 ```bash
-vellum status <NNN> --json
-vellum verify <NNN> --strict --json
+npx vellum status <NNN> --json
+npx vellum verify <NNN> --strict --json
 ```
 
 `verify` is always strict; `--strict` is accepted and changes nothing, and is written
@@ -183,7 +183,7 @@ Otherwise, append to `tasks.md`:
    - An **unverified completion** task names the original task id and carries that task's
      trailer. It does not replace the original: task `4.2` keeps its `[x]` and keeps its
      `TASK_NOT_VERIFIED` finding until evidence is recorded for `4.2` itself, which only
-     `vellum task start` and `vellum task complete` on `4.2` can do. Say this in the report.
+     `npx vellum task start` and `npx vellum task complete` on `4.2` can do. Say this in the report.
    - Test sub-tasks are optional (`*`), as `spec-tasks` requires; a top-level task never is.
    - End the section with a `Checkpoint: ensure all tests pass` top-level task.
    - No forbidden task type — the `spec-tasks` list applies here unchanged.
@@ -197,7 +197,7 @@ Otherwise, append to `tasks.md`:
 5. **Validate:**
 
    ```bash
-   vellum lint <NNN> --type=tasks --json
+   npx vellum lint <NNN> --type=tasks --json
    ```
 
    Fix a diagnostic your appended lines caused, in those lines only.
@@ -205,8 +205,8 @@ Otherwise, append to `tasks.md`:
 ## Step 5 — report, then stop
 
 **Appending changes `tasks.md`, so its checksum changes and the plan approval no longer
-counts.** `vellum task start` refuses every task — the new ones and any still pending —
-until a human re-approves the plan with `vellum approve <NNN> tasks` and commits the record.
+counts.** `npx vellum task start` refuses every task — the new ones and any still pending —
+until a human re-approves the plan with `npx vellum approve <NNN> tasks` and commits the record.
 You never run that command. Say this first in the report when you appended anything, not
 last.
 
@@ -238,5 +238,5 @@ Then report:
 - Never append a task without a `_Requirements:_` trailer that resolves.
 - Never report a gap without the file and line, or the verifier finding, it rests on.
 - Never create a file in the spec folder.
-- Never run `vellum approve`, and never describe an appended plan as still approved.
+- Never run `npx vellum approve`, and never describe an appended plan as still approved.
 - Never implement anything.

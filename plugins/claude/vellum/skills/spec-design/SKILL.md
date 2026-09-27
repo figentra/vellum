@@ -17,7 +17,7 @@ You own `design.md` only. You do not touch `requirements.md`. You do not write
 
 **Where specs live.** Vellum reads specs from exactly one place: `.agents/specs/` at
 the root of the git repository that contains the working directory — it finds that
-root from any subdirectory. `vellum status --json` has no `root` field; below,
+root from any subdirectory. `npx vellum status --json` has no `root` field; below,
 `<specs-root>` means `<repository root>/.agents/specs`. Do not write a spec anywhere
 else: a spec in `.claude/specs/` or a root `specs/` is invisible to every `vellum`
 command, and the next invocation opens a duplicate for work that already has one.
@@ -25,8 +25,8 @@ command, and the next invocation opens a duplicate for work that already has one
 1. **Read the current state with the stage detector.** Do not `ls` and infer:
 
    ```bash
-   vellum status --json          # every spec
-   vellum status <NNN> --json    # one, by number
+   npx vellum status --json          # every spec
+   npx vellum status <NNN> --json    # one, by number
    ```
 
    Every skill reads the stage from this one command rather than from its own directory listing, so no two callers can disagree about where a spec is.

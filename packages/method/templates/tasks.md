@@ -74,7 +74,7 @@ first task that produces something runnable, and say how many waves the graph ha
 ## Task Dependency Graph
 
 <!--
-  Rules 1-3 are checked by `vellum lint`. Rules 4-6 are yours to apply, and
+  Rules 1-3 are checked by `npx vellum lint`. Rules 4-6 are yours to apply, and
   nothing re-checks them: a same-file collision inside one wave lints clean, and
   `spec-run` then dispatches those tasks concurrently, editing the same file.
 
@@ -110,8 +110,8 @@ first task that produces something runnable, and say how many waves the graph ha
 
   Each row's Criteria must be a subset of that task's own `_Requirements:_` trailer —
   claiming a criterion the task does not carry is what a fabricated entry looks like.
-  `vellum lint` does not check these rows in this version; `vellum verify` is what
-  contradicts a `[x]`, by requiring the Evidence Entry `vellum task complete` records.
+  `npx vellum lint` does not check these rows in this version; `npx vellum verify` is what
+  contradicts a `[x]`, by requiring the Evidence Entry `npx vellum task complete` records.
 
   Delete the example row. Keep the header.
 -->
@@ -162,8 +162,8 @@ oversight or a documented deferral in `design.md` Open Questions.
 
 A leaf that tests a Correctness Property cites it with a second trailer after the
 first: `_Properties: <N>, …_`, the Property numbers from `design.md`. Every
-Property must be cited by at least one task: `vellum verify` reports each one no
-task cites as `PROPERTY_NOT_CITED`, and `vellum lint` reports a citation of a
+Property must be cited by at least one task: `npx vellum verify` reports each one no
+task cites as `PROPERTY_NOT_CITED`, and `npx vellum lint` reports a citation of a
 Property `design.md` does not define as `TASK_PROPERTY_UNDEFINED`.
 
 ### Checkpoints
@@ -173,7 +173,7 @@ that builds on a large batch of prior work. Its body is `Ensure all tests pass`
 or a similarly concrete verification. Checkpoints have no sub-tasks, no
 `_Requirements:_` trailer, and no entry in the dependency graph. A checkpoint
 is still a Required Task: its verification run is recorded with
-`vellum task complete`, and `vellum verify` requires that evidence. A parent task
+`npx vellum task complete`, and `npx vellum verify` requires that evidence. A parent task
 needs none of its own; it is complete when its required sub-tasks are.
 
 ### What is NOT in this plan

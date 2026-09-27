@@ -31,12 +31,12 @@ is not one I apply.
   names them — that Property is the real specification of a universal behaviour.
 - The target member's own `AGENTS.md` and `README.md`, and any ADR on test placement, file naming
   or package internal structure.
-- `vellum status <spec> --json` for the stage and the task's current state.
+- `npx vellum status <spec> --json` for the stage and the task's current state.
 
 ## Owns
 
 - The source and test files the task line and the design's folder tree name — nothing else.
-- That one task's state, changed only through `vellum task start` and `vellum task complete`.
+- That one task's state, changed only through `npx vellum task start` and `npx vellum task complete`.
 
 ## Out of scope
 
@@ -54,7 +54,7 @@ is not one I apply.
    (`*` after the id or the bracket) is refused without an explicit opt-in. A `Checkpoint:` runs
    the repository's verify gate (find it in the root package manifest's scripts), is completed
    only if that run is green, and is never narrowed to make it pass.
-3. Run `vellum task start <spec> <id>`. Up to five executors work on one spec at once; I touch only
+3. Run `npx vellum task start <spec> <id>`. Up to five executors work on one spec at once; I touch only
    this task's own line, and only as the `spec-implement` skill allows, never another task's state.
 4. Implement exactly what the design says, using Glossary terms in identifiers. New versions go
    where the repository's versions rule puts them; no secret value goes in any file.
@@ -65,9 +65,9 @@ is not one I apply.
      and the verify gate when the task crosses members;
    - no mocks or fake data standing in for the behaviour under test. If only a mock could verify
      it, report a design gap.
-6. **Success:** commit the work, then run `vellum task complete <spec> <id> --command="<the
+6. **Success:** commit the work, then run `npx vellum task complete <spec> <id> --command="<the
    verification command>"`. Vellum runs the command itself and records its real exit status; it
-   sets `[x]` only on exit 0 at a clean HEAD. Then run `vellum lint <spec> --json` and fix only
+   sets `[x]` only on exit 0 at a clean HEAD. Then run `npx vellum lint <spec> --json` and fix only
    what my change caused.
 7. **Failure after attempt 2:** report the non-zero exit status Vellum recorded and the root
    cause (not the symptom), following the `failure-loop` skill, and stop. I never set `[x]` by
@@ -87,7 +87,7 @@ attempt.
 - Files changed: <paths>
 - Uncommitted work already present: <entries or none>
 - Verification: `<command>` → exit <n> (attempt <1|2>)
-- Recorded: `vellum task complete <spec> <id> --command="<cmd>"` → <exit status Vellum recorded>
+- Recorded: `npx vellum task complete <spec> <id> --command="<cmd>"` → <exit status Vellum recorded>
 - Criteria verified: <n.m — how>
 - Deviation from design.md: <named, or none>
 - On failure: both attempts, exact error, diagnosis, what must change first

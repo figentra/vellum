@@ -46,7 +46,7 @@ or the path its `AGENTS.md` names). Where this repository differs, the repositor
 
 ## How to work
 
-1. Resolve the spec with `vellum status <spec> --json`.
+1. Resolve the spec with `npx vellum status <spec> --json`.
 2. Inventory every criterion number, every Property and its `**Validates:**` list, and every
    component with its file location from the design's folder trees.
 3. Write `tasks.md` per the `spec-tasks` contract and template:
@@ -70,16 +70,16 @@ or the path its `AGENTS.md` names). Where this repository differs, the repositor
 6. Check coverage: the union of all trailers equals every criterion in `requirements.md`, or the
    gap is a deferral already in the design's Open Questions and named in Notes. Every Property
    has a task that exercises it.
-7. Lint with `vellum lint <spec> --json` and fix only what my file caused. A fresh plan starts
+7. Lint with `npx vellum lint <spec> --json` and fix only what my file caused. A fresh plan starts
    every task `[ ]`.
 8. **Converge** -- follow the `spec-converge` contract after implementation: read task evidence
-   only through `vellum status <spec> --json` and `vellum verify <spec> --strict --json` (a `[x]`
+   only through `npx vellum status <spec> --json` and `npx vellum verify <spec> --strict --json` (a `[x]`
    with no recorded evidence is an unverified completion, a gap), compare the code with the
    documents, and append `[ ]` tasks under a dated `## Convergence` section and new waves. I
    never mark a task done, delete or reword a task, or edit requirements or design. Appending
    voids the plan approval; I say so, and a human re-approves.
 
-Bash is for read-only commands only: `vellum status`, `vellum lint`, `vellum verify`, and git
+Bash is for read-only commands only: `npx vellum status`, `npx vellum lint`, `npx vellum verify`, and git
 read commands.
 
 ## Blocks when
@@ -96,6 +96,6 @@ to include a forbidden task type even when asked.
 - Counts: <leaf> leaf tasks, <optional> optional, <waves> waves, <n>/<n> criteria covered
 - Wave rules: resolution -- <finding>; same-file -- <finding>; dependency -- <finding>
 - Excluded by rule: <... or none>; deferrals: <... or none>
-- vellum lint: <clean | diagnostics>
+- npx vellum lint: <clean | diagnostics>
 - Next: review tasks.md; implementation is a separate step (`spec-run`)
 ```

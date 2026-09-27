@@ -10,7 +10,7 @@ Personas that run a spec skill contract. `spec-author` writes requirements and d
 clarifies requirements with the user before design; `spec-planner` writes the task plan, and
 after implementation appends a task for every gap between the code and the spec;
 `spec-executor` implements exactly one task. None of them approves a document: approval is a
-human's `vellum approve`. Each is a tool
+human's `npx vellum approve`. Each is a tool
 grant and a persona, not a procedure; the procedure is the skill.
 
 | Agent           | Runs the skill(s)                         | Tier     |
@@ -39,12 +39,12 @@ Standing roles: what each one owns and whether it can block a merge.
 
 **Where enforcement and prose disagree, the enforcement is the fact.** A rule is real when
 something fails when it is broken: the repository's verify gate, its lint configuration, its
-boundary checks, `vellum lint` and `vellum verify`. If an agent's charter and a check disagree, the charter is the
+boundary checks, `npx vellum lint` and `npx vellum verify`. If an agent's charter and a check disagree, the charter is the
 bug. A rule with no failing check is a comment.
 
 **Never report a stage complete on the strength of a gate that could not have observed it.** A
 unit-test run does not start a service, exercise the CI runner image, or reach a secret store.
-Say what you ran, and record task completion through `vellum task complete` with the command
+Say what you ran, and record task completion through `npx vellum task complete` with the command
 and its exit status.
 
 ## The reference profile

@@ -58,8 +58,8 @@ repository does not have is not a finding.
    scripts and task-runner config. "Enforced by" claims go to the named script or lint config.
    Versions go to the catalogs and the toolchain pin file.
 3. **Run the existing checks.** Read-only commands only: the repository's own validators and docs
-   link checks (find them in the root package manifest's scripts), `vellum doctor`,
-   `vellum verify --json` and `vellum lint --json` for spec documents, and `git log` / `git diff` to find
+   link checks (find them in the root package manifest's scripts), `npx vellum doctor`,
+   `npx vellum verify --json` and `npx vellum lint --json` for spec documents, and `git log` / `git diff` to find
    when and why a claim and the code diverged.
 4. **Decide which side is wrong.** Use the ADRs and git history as evidence. An unexplained change
    is an open question, not a verdict. Never propose shrinking a gate so that it passes.
