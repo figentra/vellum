@@ -12,19 +12,23 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:property": "vitest run src/__tests__/property/",
     "clean": "rm -rf dist .tsbuildinfo coverage"
   },
   "dependencies": {
     "@vellum/protocol": "workspace:*"
   },
   "devDependencies": {
-    "@vellum/tsconfig": "workspace:*"
+    "@vellum/tsconfig": "workspace:*",
+    "fast-check": "catalog:"
   }
 }

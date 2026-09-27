@@ -8,13 +8,8 @@ export default defineConfig({
     testTimeout: 10000,
     hookTimeout: 10000,
     pool: "threads",
-    poolOptions: {
-      threads: {
-        singleThread: false,
-        minThreads: 1,
-        maxThreads: 4,
-      },
-    },
+    // Vitest 4 replaced poolOptions.threads.{min,max}Threads with maxWorkers.
+    maxWorkers: 4,
     coverage: {
       provider: "v8",
       reporter: ["text", "json", "html"],

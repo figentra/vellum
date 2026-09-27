@@ -1,6 +1,13 @@
 #!/usr/bin/env node
 /**
- * Vellum MCP server entry point
+ * vellum-mcp — the read-only Vellum MCP server on stdio.
  */
 
-console.error("vellum-mcp server coming in Slice 4");
+import { main } from "./main.js";
+
+main().catch((error: unknown) => {
+  process.stderr.write(
+    `vellum-mcp: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
+  );
+  process.exitCode = 1;
+});

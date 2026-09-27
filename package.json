@@ -10,6 +10,7 @@
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint",
+    "check:boundaries": "node scripts/check-boundaries.mjs",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:unit": "turbo run test:unit",
@@ -17,7 +18,8 @@
     "format": "oxlint --fix && prettier --write .",
     "changeset": "changeset",
     "version": "changeset version",
-    "release": "turbo run build && changeset publish"
+    "release": "turbo run build && changeset publish",
+    "check:marketplace": "node scripts/marketplace.mjs --check"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.5",
@@ -27,6 +29,6 @@
     "tsup": "^8.5.0",
     "turbo": "^2.5.5",
     "typescript": "^5.9.2",
-    "vitest": "^3.2.4"
+    "vitest": "catalog:"
   }
 }

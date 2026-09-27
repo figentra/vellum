@@ -588,6 +588,13 @@ Requirements trailer:   <!-- criteria: 1.2, 3.4, 5.6 -->
 Properties trailer:     <!-- properties: P1, P2 -->
 ```
 
+The Kiro form the method's tasks template writes is read as the same trailers: a line may end
+with `_Requirements: 1.2, 3.4_` and `_Properties: 1, 2_` (in either order; a property is cited by
+its design.md number, `2` or `P2`), and each is merged with the matching comment trailer when both
+are present. In design.md a property is defined by a line `Property N: Title` (the method's design
+template form) or `**Property N: Title**`; a mention inside prose, a table cell or a fenced block
+is not a definition.
+
 #### 1.5 Diagnostic codes
 
 **Location:** `src/protocol/diagnostics.ts`
@@ -2177,6 +2184,14 @@ Requirement 10 (Keyed Provider Definition) depends on `defineKeyed` and `defineD
    Design decision: use `git merge-base --is-ancestor` for each evidence commit. Cache results if Disposed Cache is available.
 
 7. **Task marker conflicts.** What happens if Kiro and the Platform both try to write a task marker at the same time? Design decision: The Platform writes through `storage/`, which serializes writes. Kiro reads through `.kiro/specs/` symlinks and writes through its own mechanism. The Platform's write wins if there's a diff conflict (resolved by index-level check from Requirement 003:4).
+
+8. **Task Markers and the Artifact Checksum.** Must a marker change (`[ ]` → `[-]` → `[x]`) void the plan approval? Decision (accepted by the spec owner, 2026-09-27): no. The canonical body excludes Task Markers, so the Artifact Checksum of `tasks.md` is stable across marker changes; editing any other text still changes it. Without this, `task start` would void every Task Binding and no task could complete.
+
+9. **Which commit is an approval's signal commit.** Decision (accepted by the spec owner, 2026-09-27): the commit that adds the Approval ledger entry. `vellum approve` writes `approval_signal.commit: null`; `verify` finds the adding commit with `git blame`, requires it to change only the spec's ledger files, and requires it to be signed by a key listed for that approver in `ApprovalPolicy.identities`.
+
+10. **Where a spec's risk class comes from.** Decision (accepted by the spec owner, 2026-09-27): the approval policy field `approval.spec_risk_classes`, keyed by spec id, defaulting to `standard` when absent.
+
+11. **Where a task's verification command comes from.** `tasks.md` has no syntax for it. Decision (accepted by the spec owner, 2026-09-27): it is passed as `vellum task complete <spec> <task> --command "<cmd>"`, and the CLI always executes it itself and records the observed exit status, duration, output digest and HEAD commit as Evidence. No flag accepts an exit status from the caller.
 
 ## Out of scope for Slice 1
 

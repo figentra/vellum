@@ -1,14 +1,22 @@
 /**
- * @figentra/vellum — The ONE published npm package
+ * @figentra/vellum — the one package meant for publication.
  *
- * Bundles: protocol + engine + storage + renderers + cli + mcp
- * Zero runtime dependencies (tsdown bundle)
+ * Bundles @vellum/protocol, engine, storage, renderers, cli and mcp into
+ * dist/ at build time, so the package has no runtime dependencies. Bins:
+ * `vellum` (the CLI) and `vellum-mcp` (the read-only MCP server on stdio).
  *
- * This is what consumers install.
+ * The programmatic API re-exported here is what those bins run.
  */
 
-// Placeholder — re-exports will be populated during build
-// During development, typecheck passes without dependencies
-// because the bundle is created at build time.
+export { run, main as runCli, HELP, VERSION as CLI_VERSION } from "@vellum/cli";
+export {
+  callTool,
+  handleMessage,
+  serveStdio,
+  TOOLS,
+  VERSION as MCP_VERSION,
+  type ToolDefinition,
+  type ToolResult,
+} from "@vellum/mcp";
 
 export const VERSION = "0.0.0" as const;

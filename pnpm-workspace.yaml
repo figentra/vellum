@@ -3,3 +3,9 @@ packages:
   - 'tooling/*'
   - 'fixtures/*'
   - 'conformance'
+
+# Dev-dependency versions shared across members; a member references one as
+# "catalog:" instead of a literal range.
+catalog:
+  fast-check: ^3.22.0
+  vitest: ^4.1.11

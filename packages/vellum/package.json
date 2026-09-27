@@ -1,40 +1,52 @@
 {
   "name": "@figentra/vellum",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.1",
   "type": "module",
-  "description": "Vellum — The ONE published npm package bundling everything",
+  "description": "Vellum — specification lifecycle enforcement: the vellum CLI and the read-only vellum-mcp server, bundled with no runtime dependencies",
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.figentra.com/",
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "bin": {
-    "vellum": "./dist/cli.js"
+    "vellum": "./dist/cli.js",
+    "vellum-mcp": "./dist/server.js"
   },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./cli": {
       "import": "./dist/cli.js"
     },
     "./mcp": {
       "import": "./dist/server.js"
-    }
+    },
+    "./package.json": "./package.json"
   },
-  "files": ["dist"],
+  "files": [
+    "dist/*.js",
+    "dist/*.js.map",
+    "dist/index.d.ts"
+  ],
   "scripts": {
-    "build": "tsup src/index.ts src/cli.ts src/server.ts --format esm --dts --clean",
+    "build": "tsup",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint src/",
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist .tsbuildinfo coverage"
   },
-  "dependencies": {
-    "@vellum/cli": "workspace:*",
-    "@vellum/mcp": "workspace:*"
-  },
   "devDependencies": {
-    "@vellum/tsconfig": "workspace:*"
+    "@vellum/cli": "workspace:*",
+    "@vellum/mcp": "workspace:*",
+    "@vellum/tsconfig": "workspace:*",
+    "@vellum/vitest-config": "workspace:*"
   }
 }

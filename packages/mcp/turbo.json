@@ -1,4 +1,10 @@
 {
   "extends": ["//"],
-  "tags": ["mcp"]
+  "tags": ["mcp"],
+  "tasks": {
+    "test": {
+      "dependsOn": ["^build", "build"],
+      "cache": false
+    }
+  }
 }

@@ -1,9 +1,10 @@
 /**
- * @vellum/plugin-claude — Claude Code plugin
- *
- * Assembled from @vellum/method with Claude-specific frontmatter.
- * Output: marketplace.json entry + plugin files for Claude Code.
+ * @vellum/plugin-claude — the Claude Code plugin, generated from @vellum/method.
+ * `pnpm build` writes it to dist/; nothing in dist/ is hand-edited.
  */
 
-// Placeholder — will be populated during Phase 4
-export const VERSION = "0.0.0" as const;
+export { buildClaudePlugin, GENERATOR, MCP_SERVER } from "./build.ts";
+export type { BuildOptions } from "./build.ts";
+export { readMethod, methodRoot } from "./method.ts";
+export type { Method, MethodFile } from "./method.ts";
+export { writeTree } from "./write.ts";

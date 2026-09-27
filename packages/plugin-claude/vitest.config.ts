@@ -5,6 +5,5 @@ export default defineConfig({
     globals: true,
     include: ['src/**/*.{test,spec}.{ts,tsx}'],
     exclude: ['node_modules', 'dist'],
-    passWithNoTests: true,
   },
 });

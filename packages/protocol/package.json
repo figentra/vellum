@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "The Vellum protocol — contract types and JSON schemas",
+  "description": "The Vellum protocol \u2014 contract types and JSON schemas",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {
@@ -12,7 +12,10 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "files": ["dist", "schemas"],
+  "files": [
+    "dist",
+    "schemas"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "typecheck": "tsc --noEmit",
@@ -22,6 +25,8 @@
     "clean": "rm -rf dist .tsbuildinfo coverage"
   },
   "devDependencies": {
-    "@vellum/tsconfig": "workspace:*"
-  }
+    "@vellum/tsconfig": "workspace:*",
+    "fast-check": "catalog:"
+  },
+  "dependencies": {}
 }

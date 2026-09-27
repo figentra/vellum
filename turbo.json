@@ -1,28 +1,65 @@
 {
   "$schema": "https://turborepo.com/schema.json",
   "ui": "tui",
-  "globalEnv": ["NODE_ENV"],
+  "globalEnv": [
+    "NODE_ENV"
+  ],
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
     },
     "lint": {
-      "dependsOn": ["^lint"]
+      "dependsOn": [
+        "^lint",
+        "//#check:boundaries",
+        "//#check:marketplace"
+      ]
+    },
+    "//#check:boundaries": {
+      "inputs": [
+        "scripts/check-boundaries.mjs",
+        "pnpm-workspace.yaml",
+        "**/package.json",
+        "!**/node_modules/**"
+      ],
+      "outputs": []
     },
     "typecheck": {
-      "dependsOn": ["^typecheck"]
+      "dependsOn": [
+        "^build"
+      ]
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false
     },
     "test:unit": {
-      "dependsOn": ["^build"],
+      "dependsOn": [
+        "^build"
+      ],
       "cache": false
     },
     "clean": {
       "cache": false
+    },
+    "//#check:marketplace": {
+      "dependsOn": [
+        "@vellum/plugin-claude#build"
+      ],
+      "inputs": [
+        "scripts/marketplace.mjs",
+        "plugins/claude/**",
+        ".claude-plugin/marketplace.json",
+        "packages/plugin-claude/dist/**"
+      ],
+      "outputs": []
     }
   },
   "boundaries": {
@@ -34,32 +71,57 @@
       },
       "protocol": {
         "dependencies": {
-          "allow": ["tooling"]
+          "allow": [
+            "tooling"
+          ]
         }
       },
       "engine": {
         "dependencies": {
-          "allow": ["protocol", "tooling"]
+          "allow": [
+            "protocol",
+            "tooling"
+          ]
         }
       },
       "storage": {
         "dependencies": {
-          "allow": ["protocol", "engine", "tooling"]
+          "allow": [
+            "protocol",
+            "engine",
+            "tooling"
+          ]
         }
       },
       "renderers": {
         "dependencies": {
-          "allow": ["protocol", "engine", "tooling"]
+          "allow": [
+            "protocol",
+            "engine",
+            "tooling"
+          ]
         }
       },
       "cli": {
         "dependencies": {
-          "allow": ["protocol", "engine", "storage", "renderers", "tooling"]
+          "allow": [
+            "protocol",
+            "engine",
+            "storage",
+            "renderers",
+            "tooling"
+          ]
         }
       },
       "mcp": {
         "dependencies": {
-          "allow": ["protocol", "engine", "storage", "renderers", "tooling"]
+          "allow": [
+            "protocol",
+            "engine",
+            "storage",
+            "renderers",
+            "tooling"
+          ]
         }
       },
       "method": {
@@ -69,17 +131,42 @@
       },
       "plugin": {
         "dependencies": {
-          "allow": ["method", "renderers", "tooling"]
+          "allow": [
+            "method",
+            "renderers",
+            "engine",
+            "protocol",
+            "tooling"
+          ]
         }
       },
       "vellum": {
         "dependencies": {
-          "allow": ["cli", "mcp", "protocol", "engine", "storage", "renderers", "tooling"]
+          "allow": [
+            "cli",
+            "mcp",
+            "protocol",
+            "engine",
+            "storage",
+            "renderers",
+            "tooling"
+          ]
         }
       },
       "testing": {
         "dependencies": {
-          "allow": ["protocol", "engine", "storage", "renderers", "cli", "mcp", "vellum", "tooling"]
+          "allow": [
+            "protocol",
+            "engine",
+            "storage",
+            "renderers",
+            "cli",
+            "mcp",
+            "vellum",
+            "method",
+            "plugin",
+            "tooling"
+          ]
         }
       }
     }

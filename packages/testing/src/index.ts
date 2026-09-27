@@ -3,10 +3,36 @@
  *
  * - Fixture-repo builder
  * - Conformance harness
- * - Mutation-test config
+ * - Property test helpers
+ * - Parity test fixtures
+ * - Performance benchmarks
  *
  * Can depend on any package (private, never published)
  */
 
-// Placeholder — will be populated during Slice 1 implementation
+// Core testing framework
+export {
+  FixtureBuilder,
+  SimulatedRepo,
+  createMinimalSpec,
+  createArtifact,
+  createTestLedger,
+  computePredecessorDigest,
+  testChecksum,
+  withTestDir,
+  randomSpecId,
+  randomChecksum,
+  randomCommitSha,
+} from "./framework.js";
+
+// Assertion helpers
+export {
+  assertFindingCode,
+  assertFindingsSorted,
+  assertEqual,
+  assertTrue,
+  assertContains,
+} from "./framework.js";
+
+// Version
 export const VERSION = "0.0.0" as const;

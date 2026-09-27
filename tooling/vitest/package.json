@@ -2,7 +2,14 @@
   "name": "@vellum/vitest-config",
   "version": "0.0.0",
   "private": true,
-  "files": ["vitest.config.ts"],
+  "files": [
+    "vitest.config.ts",
+    "pack.ts"
+  ],
   "main": "vitest.config.ts",
-  "type": "module"
+  "type": "module",
+  "exports": {
+    ".": "./vitest.config.ts",
+    "./pack": "./pack.ts"
+  }
 }
