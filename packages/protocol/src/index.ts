@@ -64,6 +64,7 @@ export type {
   RejectionPayload as RejectionPayloadFull,
   EvidencePayload as EvidencePayloadFull,
   TaskBindingEntryPayload,
+  AdoptionEntryPayload,
   ApprovalSignal,
   DecisionPayload as DecisionPayloadFull,
   AmendmentPayload,

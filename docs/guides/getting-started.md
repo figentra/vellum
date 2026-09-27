@@ -1,6 +1,6 @@
 # Getting Started with Vellum
 
-This walks one spec through the loop Vellum implements today: approve, start a task,
+This walks one spec through the loop Vellum implements today: adopt, approve, start a task,
 complete it, verify. Every step below is exercised by `packages/cli`'s integration tests
 against a real git repository. Nothing is published to npm yet; run the CLI from this
 repository (`pnpm build`, then `node packages/cli/dist/cli.js …`, written `vellum` below).
@@ -19,7 +19,41 @@ git config gpg.format ssh
 git config user.signingkey ~/.ssh/id_ed25519.pub
 ```
 
-## 2. A spec with Lifecycle Frontmatter
+## 2. A spec, brought under management
+
+Write each document as plain Markdown — the method's `spec-new`, `spec-design` and
+`spec-tasks` skills do — and let the CLI add the Lifecycle Frontmatter. After
+`requirements.md`:
+
+```bash
+vellum adopt 001
+```
+
+This adds a frontmatter block above the unchanged text, records the spec `IN_REVIEW`, and
+creates `.sdlc/` with the ledger's first entry (`adoption`); it records no approval. After
+writing `design.md`, `tasks.md`, or editing any of them:
+
+```bash
+vellum stamp 001
+```
+
+which gives a new document its frontmatter, records the next version and checksum of an
+edited one, and raises the recorded state to the latest document's in-review state. Never
+write the frontmatter by hand. It looks like this:
+
+```markdown
+---
+version: 1
+checksum: <sha-256 of the body's canonical form>
+state: IN_REVIEW
+createdAt: 2026-09-26T10:00:00.000Z
+updatedAt: 2026-09-26T10:00:00.000Z
+---
+
+# Requirements
+
+...
+```
 
 ```
 .agents/specs/001-my-feature/
@@ -27,24 +61,8 @@ git config user.signingkey ~/.ssh/id_ed25519.pub
 ├── design.md
 ├── tasks.md
 └── .sdlc/
-    └── ledger.jsonl      (empty; Vellum appends to it)
-```
-
-Each artifact starts with frontmatter whose `checksum` is the SHA-256 of the body's canonical
-form (`computeChecksum` in `@vellum/protocol`):
-
-```markdown
----
-version: 1
-checksum: <sha-256 of the body>
-state: IN_PROGRESS
-createdAt: 2026-09-26T10:00:00Z
-updatedAt: 2026-09-26T10:00:00Z
----
-
-# Requirements
-
-...
+    ├── ledger.jsonl
+    └── ledger.head.json
 ```
 
 Correctness Properties in `design.md` are headed `Property N: Title` (the method's template form;
@@ -100,6 +118,6 @@ or an ancestor. Exit 1 names each failure.
 
 ## What is not there yet
 
-`vellum check`, `vellum adopt` and `vellum sync` exit 2 (not implemented). `status` does not
-compute the Effective Lifecycle State or the next transition. Recorded states in frontmatter are
-not advanced by Vellum.
+`vellum sync` exits 2 (not implemented). Vellum sets the Recorded Lifecycle State only when
+`adopt` records, or `stamp` raises it to, an in-review state; an approved state is recorded by a
+person.

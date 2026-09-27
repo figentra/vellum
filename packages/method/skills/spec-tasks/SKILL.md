@@ -277,6 +277,20 @@ Copy the `tasks.md` template (`.agents/templates/tasks.md` in the repository whe
 
 Delete every template placeholder and HTML comment.
 
+Then record the file's Lifecycle Frontmatter with the CLI — right after writing it, and
+after every later rewrite:
+
+```bash
+npx vellum stamp <NNN>
+```
+
+It adds the frontmatter block without changing your text, records the next version and
+checksum of a changed plan, and raises the spec's recorded state to `PLAN_IN_REVIEW`.
+Never write frontmatter by hand. If it exits 1, report its message and stop. Approval is
+the human's (`npx vellum approve <NNN> tasks`); if `npx vellum approve` refuses because the frontmatter checksum of the document is
+stale (the body changed after its last stamp), the human runs `npx vellum stamp <NNN>`
+first, reviews the result, then approves.
+
 ## Step 5 — self-check, then stop
 
 Verify and state each result:

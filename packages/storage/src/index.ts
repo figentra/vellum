@@ -126,6 +126,8 @@ export {
   findTask,
   setTaskMarker,
   setTaskMarkers,
+  writeFileAtomically,
+  ensureMachineFolder,
   gitConfig,
   type SpecRef,
   type SpecMatch,

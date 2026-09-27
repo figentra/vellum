@@ -124,7 +124,10 @@ Arrows point from a package to what it may depend on (`turbo.json` boundaries):
 - `vellum doctor` - Diagnose environment
 - `vellum task start` - Pre-execution check; record task binding
 - `vellum task complete` - Run the verification command; record evidence
-- `vellum check`, `vellum adopt`, `vellum sync` - not implemented; exit 2
+- `vellum check` - Check Mode for CI; writes nothing
+- `vellum adopt` - Bring a legacy spec under management (frontmatter + adoption entry)
+- `vellum stamp` - Re-stamp frontmatter after an artifact is written or edited
+- `vellum sync` - not implemented; exit 2
 
 ### @vellum/mcp
 

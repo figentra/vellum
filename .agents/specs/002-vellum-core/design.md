@@ -2193,6 +2193,8 @@ Requirement 10 (Keyed Provider Definition) depends on `defineKeyed` and `defineD
 
 11. **Where a task's verification command comes from.** `tasks.md` has no syntax for it. Decision (accepted by the spec owner, 2026-09-27): it is passed as `vellum task complete <spec> <task> --command "<cmd>"`, and the CLI always executes it itself and records the observed exit status, duration, output digest and HEAD commit as Evidence. No flag accepts an exit status from the caller.
 
+12. **The Execution Log and the Artifact Checksum.** Decision (2026-09-27, found testing the published plugin): the canonical body keeps a `## Execution Log` heading but drops the section's contents, up to the next `#` or `##` heading. spec-implement appends a row after every task; counting those rows would void the plan approval after the first task and refuse every later `task start`. The ledger's Evidence Entries, not the log, are the evidence.
+
 ## Out of scope for Slice 1
 
 - **Policy and execution control** (Requirement 003: Slice 2)

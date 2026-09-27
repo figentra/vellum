@@ -46,7 +46,14 @@ const VALID_KINDS: LedgerEntryKind[] = [
   "failure",
   "attempt",
   "task_binding",
+  "adoption",
 ];
+
+/**
+ * The one direction an adoption entry records, field by field. (Kept as data:
+ * the bundle test scans for a quote after the word from, as in an import.)
+ */
+const ADOPTION_DIRECTION: Readonly<Record<string, string>> = { from: "legacy", to: "managed" };
 
 /**
  * Required fields per entry kind.
@@ -90,6 +97,7 @@ const KIND_REQUIRED_FIELDS: Record<LedgerEntryKind, string[]> = {
     "plan_version",
     "plan_checksum",
   ],
+  adoption: Object.keys(ADOPTION_DIRECTION),
 };
 
 /**
@@ -287,6 +295,19 @@ function validateKindFieldTypes(
           field: "findings",
           message: "findings must be an array",
         });
+      }
+      break;
+
+    case "adoption":
+      for (const [field, expected] of Object.entries(ADOPTION_DIRECTION)) {
+        if (entry[field] !== expected) {
+          findings.push({
+            kind: "schema_violation",
+            entry_id: entryId,
+            field,
+            message: `${field} must be '${expected}'`,
+          });
+        }
       }
       break;
 

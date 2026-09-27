@@ -38,6 +38,18 @@ export {
   type EffectiveStateInput,
 } from "./lifecycle/effective-state.js";
 
+export {
+  planAdoption,
+  planStamp,
+  IN_REVIEW_STATE,
+  type AdoptionPlan,
+  type StampPlan,
+  type FrontmatterPlan,
+  type FrontmatterRefusal,
+  type FrontmatterPlanInput,
+  type ArtifactRewrite,
+} from "./lifecycle/stamp.js";
+
 // ============================================================================
 // Validation
 // ============================================================================

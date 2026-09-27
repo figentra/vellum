@@ -41,11 +41,18 @@ field; read these instead:
   (its `version`, `state`, `checksum`, `checksumCurrent`), `recordedState`,
   `effectiveState`, `effective` (the precondition that failed), `approvals`,
   `verification` and `ledger`;
-- a legacy spec (no lifecycle frontmatter and no machine folder): `specId`, `legacy: true` and
+- a legacy spec (no lifecycle frontmatter and no machine folder): `specId`, `legacy: true`,
   `legacyStage` — `empty` (no requirements), `design` (requirements only), `tasks`
   (requirements and design), `in-progress` (all three) or `invalid` (tasks without
-  requirements);
-- a spec it could not read: `specId`, `result: "INCONCLUSIVE"` and `problems`.
+  requirements) — and `next`, the command that adopts it (`npx vellum adopt <NNN>`), or
+  `null` with `adoptionProblem` saying why it cannot be adopted yet;
+- a spec it could not read: `specId`, `result: "INCONCLUSIVE"`, `problems`, and `next` — the
+  command that repairs missing frontmatter (`npx vellum stamp <NNN>`), when that is the
+  problem.
+
+A spec whose `next` names a command is not fully under management: run that command (it
+writes Lifecycle Frontmatter only, and never records an approval), then read the state
+again before routing.
 
 The **stage** this method uses is derived from which documents exist — the keys of
 `artifacts`, or `legacyStage` for a legacy spec:

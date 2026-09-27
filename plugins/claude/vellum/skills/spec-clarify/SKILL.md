@@ -209,11 +209,16 @@ Stop asking when any of these holds:
 - no high-impact candidate remains in the queue — the rest would not change a criterion;
 - the user says to stop.
 
-Then validate the document:
+Then record the edited document's new version and checksum — every session that wrote
+an answer changed `requirements.md` — and validate it:
 
 ```bash
+npx vellum stamp <NNN>
 npx vellum lint <NNN> --type=requirements --json
 ```
+
+`stamp` never makes an approval count again: an approval binds the checksum of the text
+it approved, and the text changed.
 
 This is the same validator the repository's CI runs through `npx vellum lint`, so the skill and the gate cannot disagree about a spec.
 
@@ -235,7 +240,10 @@ Report:
    this skill again or answer them directly.
 6. **Approval** — if `requirements.md` was approved before this session, state that the
    approval no longer counts and that a human must re-approve it with
-   `npx vellum approve <NNN> requirements`. Do not soften it into a suggestion.
+   `npx vellum approve <NNN> requirements`. Do not soften it into a suggestion. If
+   `npx vellum approve` refuses because the frontmatter checksum of the document is stale
+   (the body changed after its last stamp), the human runs `npx vellum stamp <NNN>` first,
+   reviews the result, then approves.
 
 Then **ask the user how to proceed**, with `AskUserQuestion`. Offer exactly these options,
 in this order:

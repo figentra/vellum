@@ -438,6 +438,35 @@ then `spec-tasks` against the _same_ spec directory — never a second one — a
 it becomes an ordinary spec that `spec-run` dispatches and `spec-verify` audits.
 Offer that when the scope grew past what one reviewer can check in a minute.
 
+## Step 5a — bring the spec under management
+
+`requirements.md` as you wrote it is bare Markdown: no Lifecycle Frontmatter and no
+ledger, so Vellum treats the spec as legacy — `npx vellum status` reports `legacy: true`
+and names the fix, and `npx vellum approve` refuses the spec. Right after writing the file
+(full or quick mode), adopt it:
+
+```bash
+npx vellum adopt <NNN>
+```
+
+It adds the frontmatter block above your text without changing a byte of it, records the
+spec as `IN_REVIEW`, and writes the spec's first ledger entry. It records no approval.
+**Every later rewrite of `requirements.md`** — the _revise_ option below — is followed by
+
+```bash
+npx vellum stamp <NNN>
+```
+
+which records the next version and checksum; a second `adopt` refuses a spec whose
+frontmatter is no longer current. Edit below the frontmatter block, never inside it, and
+never write or repair frontmatter by hand. If either command exits 1, report its message
+and stop.
+
+Approval is the human's: `npx vellum approve <NNN> requirements`, from their own
+terminal, then a signed commit of the record. Tell them so, and tell them this: If `npx vellum approve` refuses because the frontmatter checksum of the document is
+stale (the body changed after its last stamp), the human runs `npx vellum stamp <NNN>`
+first, reviews the result, then approves.
+
 ## Step 6 — record your assumptions, then stop
 
 End your turn with:
@@ -454,7 +483,8 @@ End your turn with:
    options, in this order:
 
    - **Revise the requirements** — the user has corrections to the draft, or answers to
-     the assumptions above. Apply them, rewrite `requirements.md`, and ask again.
+     the assumptions above. Apply them, rewrite `requirements.md`, run
+     `npx vellum stamp <NNN>`, and ask again.
    - **Clarify the requirements** — run the `spec-clarify` skill: at most five
      questions, highest impact first, each answer written into `requirements.md`.
      **Recommend this option whenever the draft carries a marker**; design cannot test

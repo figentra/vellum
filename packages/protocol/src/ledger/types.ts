@@ -25,7 +25,8 @@ export type LedgerEntryKind =
   | "claim"
   | "failure"
   | "attempt"
-  | "task_binding";
+  | "task_binding"
+  | "adoption";
 
 /**
  * Header fields present in every Ledger Entry.
@@ -412,6 +413,19 @@ export interface AttemptPayload {
   outcome: "success" | "failure" | "retry" | "escalated";
 }
 
+/**
+ * Adoption Record - records that a Legacy Spec was brought under Vellum
+ * management (criterion 14). `vellum adopt` appends it as the spec's first
+ * entry, after writing the Lifecycle Frontmatter; its presence is what makes
+ * a second adopt a no-op. It records no approval (criterion 14.3).
+ */
+export interface AdoptionEntryPayload {
+  /** Always "legacy": what the spec was before */
+  from: "legacy";
+  /** Always "managed": what the spec is after */
+  to: "managed";
+}
+
 // ============================================================================
 // Ledger Entry (Discriminated Union)
 // ============================================================================
@@ -432,7 +446,8 @@ export type LedgerEntry =
   | (LedgerEntryHeader & ClaimPayload)
   | (LedgerEntryHeader & FailurePayload)
   | (LedgerEntryHeader & AttemptPayload)
-  | (LedgerEntryHeader & TaskBindingEntryPayload);
+  | (LedgerEntryHeader & TaskBindingEntryPayload)
+  | (LedgerEntryHeader & AdoptionEntryPayload);
 
 // ============================================================================
 // Ledger Integrity Types

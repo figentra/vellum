@@ -143,7 +143,7 @@ describe("scenario 7: plugins as built", () => {
       [...section.matchAll(/^ {2}([a-z][a-z-]*(?: (?:start|complete))?)\b/gm)].map((m) => m[1]!),
     );
     expect([...available].sort()).toEqual(
-      ["approve", "check", "doctor", "lint", "status", "task complete", "task start", "verify"].sort(),
+      ["adopt", "approve", "check", "doctor", "lint", "stamp", "status", "task complete", "task start", "verify"].sort(),
     );
 
     const mentioned = new Map<string, string>();

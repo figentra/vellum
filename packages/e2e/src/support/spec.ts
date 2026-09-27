@@ -7,7 +7,7 @@
  * `N.M*` test tasks citing each Correctness Property with `_Properties: …_`,
  * a checkpoint, a Task Dependency Graph and an Execution Log. Template comments and placeholders are removed, as the
  * templates instruct. The Lifecycle Frontmatter the protocol requires is added
- * by TestRepo.writeSpec.
+ * by the installed CLI's `vellum adopt` and `vellum stamp` (TestRepo.writeSpec).
  */
 
 export const SLUG = "001-greeting";

@@ -40,6 +40,10 @@ including when the artifact changes after you approved it. Approving the
 changed artifact again (and committing that, signed) replaces it: the old
 record is then history, neither counted nor reported.
 
+Approving is refused while the artifact's frontmatter checksum is stale (its
+body changed since it was last stamped): run 'npx vellum stamp <spec>' first,
+so the record binds the version you reviewed.
+
 Approving tasks is refused, naming each gap, while the plan leaves a
 criterion of requirements.md without a task or a property of design.md
 without a citing task.
@@ -57,7 +61,8 @@ const KINDS: readonly ArtifactKind[] = ["requirements", "design", "tasks"];
  *
  * Exit: 0 when the record was written (it still needs your signed commit);
  * 1 when refused (non-interactive, assistant session, no policy, not an
- * authorised approver, no key, missing artifact, damaged ledger, or a plan
+ * authorised approver, no key, missing artifact, stale frontmatter checksum,
+ * damaged ledger, or a plan
  * that leaves a criterion uncovered or a property uncited); 2 on a usage
  * error.
  */
@@ -137,7 +142,7 @@ export async function approve(args: ApproveArgs, ctx: CliContext): Promise<numbe
   const spec = loadSpec(match.spec);
   if (isLegacy(spec)) {
     ctx.stderr.write(
-      `vellum approve: refused — ${match.spec.slug} is a legacy spec (not under Vellum management)\n`,
+      `vellum approve: refused — ${match.spec.slug} is a legacy spec (not under Vellum management); run npx vellum adopt ${match.spec.slug} first\n`,
     );
     return EXIT_STATUS.FAILURE;
   }
@@ -146,6 +151,15 @@ export async function approve(args: ApproveArgs, ctx: CliContext): Promise<numbe
     const problem = spec.artifactProblems.find((p) => p.kind === kind);
     ctx.stderr.write(
       `vellum approve: refused — ${problem?.message ?? `${kind}.md does not exist`}\n`,
+    );
+    return EXIT_STATUS.FAILURE;
+  }
+  // The record binds the frontmatter's version: a body edited since the last
+  // stamp would be recorded under the previous version's number.
+  const checksum = computeChecksum(artifact.body);
+  if (artifact.frontmatter.checksum !== checksum) {
+    ctx.stderr.write(
+      `vellum approve: refused — the frontmatter of ${kind}.md is stale: it records checksum ${artifact.frontmatter.checksum} (version ${artifact.frontmatter.version}) but the body's is ${checksum}. Run npx vellum stamp ${match.spec.slug} first, review the result, then approve.\n`,
     );
     return EXIT_STATUS.FAILURE;
   }
@@ -193,7 +207,7 @@ export async function approve(args: ApproveArgs, ctx: CliContext): Promise<numbe
       await appendLedgerEntry(spec.ledgerPath, {
         ...common,
         kind: "approval",
-        artifact_checksum: computeChecksum(artifact.body),
+        artifact_checksum: checksum,
         identity_key: gitConfig(repo.root, "user.signingkey") ?? "",
         session_type: "human",
         approval_signal: { commit: null, message_prefix: "approve:" },

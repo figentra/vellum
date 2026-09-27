@@ -55,7 +55,7 @@ async function open(ctx: CliContext, fragment: string, verb: string): Promise<Op
   if (isLegacy(spec)) {
     // Criterion 18.8
     ctx.stderr.write(
-      `vellum task ${verb}: refused — ${spec.ref.slug} is a legacy spec; it must be adopted first (vellum adopt is not implemented in this version)\n`,
+      `vellum task ${verb}: refused — ${spec.ref.slug} is a legacy spec; run npx vellum adopt ${spec.ref.slug} first\n`,
     );
     return EXIT_STATUS.FAILURE;
   }

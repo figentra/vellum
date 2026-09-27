@@ -40,7 +40,8 @@ describe("scenario 1: full lifecycle", () => {
       expect(spec.effectiveState).toBe(APPROVED_STATE[kind]);
       expect(repo.vellum(["check", SLUG]).status).toBe(0);
     }
-    expect(repo.ledger().map((e) => e.kind)).toEqual(["approval", "approval", "approval"]);
+    // `vellum adopt` wrote the first entry when requirements.md was brought under management.
+    expect(repo.ledger().map((e) => e.kind)).toEqual(["adoption", "approval", "approval", "approval"]);
   });
 
   it("completes every required task with engine-recorded evidence", () => {

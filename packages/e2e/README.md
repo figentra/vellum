@@ -28,9 +28,11 @@ Spec documents (`src/support/spec.ts`) are shaped the way
 with parent tasks, leaf tasks carrying Kiro `_Requirements: …_` trailers,
 optional `1.3*` and `3.2*` test tasks citing every Property with
 `_Properties: …_`, a checkpoint, a Task Dependency Graph and an Execution
-Log. The Lifecycle Frontmatter the protocol requires is added on top; its
-checksum is the one `vellum status --json` reports, so the suite does not
-re-implement the protocol's canonical form.
+Log. The suite writes each document as bare Markdown, as the method's skills
+do, and the installed CLI adds the Lifecycle Frontmatter: `vellum adopt`
+after requirements.md, `vellum stamp` after each later document and after
+every edit. Nothing in the suite writes frontmatter or re-implements the
+protocol's canonical form.
 
 ## Human approval
 
@@ -56,6 +58,7 @@ commits the ledger files signed with the `human` key (`git commit -S`,
 | `09-properties.e2e.test.ts` | Property citation: `vellum approve <spec> tasks` refuses (exit 1, ledger and tree unchanged) a plan that cites no task for `Property 3`, naming it (criterion 20.4); a plan approved before design.md gained Property 3, fully evidenced, fails `verify --strict` with the single finding `PROPERTY_NOT_CITED` (properties 2/3); a `_Properties: 4_` citation of an undefined property is `TASK_PROPERTY_UNDEFINED` from `lint`; the same repository's plan amended to cite Property 3 fails verify until the human approves it again, then passes with properties 3/3 and the earlier design and plan approvals reported as superseded. |
 | `10-required-tasks.e2e.test.ts` | Which tasks need evidence: `task start` refuses parent task 1 (exit 1) naming its sub-tasks and changes nothing; `task complete` marks parent 1 `[x]` with its last required sub-task 1.2 (not with 1.1) and parent 3 with 3.1; with every leaf evidenced but checkpoint 2 not, verify names exactly `TASK_NOT_VERIFIED: Task 2`; evidence for the checkpoint makes it pass with no evidence ever recorded for parents 1 and 3. |
 | `11-reapproval.e2e.test.ts` | Requirements amended the way spec-clarify amends them (a criterion reworded, a `## Clarifications` session appended) after verification: verify fails with `APPROVAL_INVALID: … CHECKSUM_MISMATCH` naming both checksums, status counts 0 of 1, check fails; after `vellum approve` and a signed commit, verify passes with the old approval superseded (not a finding, not counted), status counts 1 of 1 and check exits 0. |
+| `12-managed-specs.e2e.test.ts` | Specs the method writes come under management: a bare spec-new-shaped requirements.md is reported legacy with `next: npx vellum adopt …`, approve refuses it naming adopt, `vellum adopt` adds frontmatter with the body byte-identical, IN_REVIEW, one adoption entry and no approval (check and lint pass; a second adopt writes nothing); an approved requirements.md edited under its old frontmatter makes approve refuse naming `vellum stamp`, stamp records version 2 without lowering VERIFIED, verify still fails `CHECKSUM_MISMATCH`, and a signed re-approval of version 2 passes; stamp after task completion writes nothing. |
 
 ## Running
 
@@ -78,4 +81,4 @@ loaded machine, not expectations.
 - GPG-signed approvals (the SSH path is exercised end to end; GPG signing is
   covered by `packages/storage`'s signature tests).
 - Windows: the pseudo-terminal comes from `script(1)`.
-- `adopt` and `sync`, which the CLI does not implement.
+- `sync`, which the CLI does not implement.
